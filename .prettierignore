@@ -1,0 +1,3 @@
+# Docs are hand-formatted by the person writing them; don't let a routine
+# `npm run format` reformat markdown table alignment as a side effect.
+docs/

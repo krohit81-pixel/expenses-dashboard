@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Avoid redundant runs when new commits land on the same PR.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Fast checks that need neither Docker nor real Supabase credentials.
+  # See docs/10-deployment-and-operations.md's CI/CD sequence, steps 1-2.
+  static-checks:
+    name: Format, typecheck, lint, unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+
+  # Applies the real migrations to a disposable local Postgres and runs the
+  # RLS/ownership-trigger suite against it. See docs/09-testing-strategy.md's
+  # "Database test requirements" and docs/10's CI/CD sequence, step 3.
+  database-tests:
+    name: Migrations + RLS tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Starts a throwaway local Supabase stack (Postgres + Auth, etc.) and
+      # applies every migration in supabase/migrations/. This never touches
+      # the hosted Vitals project.
+      - run: supabase start
+
+      - run: npm run test:db
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+
+      - if: always()
+        run: supabase stop
+
+  # Confirms the app still builds. Uses placeholder Supabase values because
+  # env validation (src/lib/env/*) fails the build fast on missing vars —
+  # this only proves the build succeeds structurally, not that it works
+  # against a real project.
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: static-checks
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+
+  # Informational only: flags when the committed database-types.ts has
+  # drifted from what `supabase gen types` would produce for the applied
+  # migrations. Does not block merges — see src/lib/db/database-types.ts's
+  # header for why a hand-authored bootstrap currently exists, and replace
+  # this whole job's premise once that file is CLI-generated for real.
+  types-drift-check:
+    name: Database types drift (informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - run: supabase start
+
+      - run: supabase gen types typescript --schema finance --local > /tmp/generated-database-types.ts
+
+      - run: diff -u src/lib/db/database-types.ts /tmp/generated-database-types.ts
+
+      - if: always()
+        run: supabase stop
