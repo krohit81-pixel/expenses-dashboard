@@ -86,6 +86,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
           SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+          APP_OWNER_USER_ID: 00000000-0000-4000-8000-000000000000
 
   # Informational only: flags when the committed database-types.ts has
   # drifted from what `supabase gen types` would produce for the applied
