@@ -1,19 +1,24 @@
 import type { Metadata } from "next";
 
+import { requireUser } from "@/lib/auth/require-user";
+import { getUserSettings } from "@/services/UserSettingsService";
+import { SettingsForm } from "@/features/onboarding/components/SettingsForm";
+
 export const metadata: Metadata = {
   title: "Settings",
 };
 
-/**
- * Placeholder. Real "Settings" functionality is scoped to a later milestone —
- * see docs/12-roadmap-and-implementation-order.md. This page exists now so
- * the (app) shell nav has no dead links.
- */
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const user = await requireUser();
+  const settings = await getUserSettings(user.id);
+
   return (
-    <div>
+    <div className="space-y-6">
       <h1 className="text-xl font-semibold">Settings</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Not implemented yet.</p>
+      <SettingsForm
+        baseCurrency={settings?.baseCurrency ?? "USD"}
+        timezone={settings?.timezone ?? "UTC"}
+      />
     </div>
   );
 }

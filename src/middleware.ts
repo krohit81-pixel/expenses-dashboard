@@ -63,6 +63,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
+  if (user && pathname !== "/onboarding" && !isPublicPath(pathname)) {
+    const { data: settings } = await supabase
+      .from("user_settings")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!settings) {
+      return NextResponse.redirect(new URL("/onboarding", request.url));
+    }
+  }
+
   return response;
 }
 
