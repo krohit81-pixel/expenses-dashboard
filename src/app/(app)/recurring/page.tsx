@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 
 import { listRecurringTransactions } from "@/services/RecurringTransactionService";
@@ -94,7 +95,12 @@ export default async function RecurringPage() {
       <section className="space-y-4 border-t pt-6">
         <h2 className="text-sm font-medium">Add a recurring transaction</h2>
         {accounts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Add an account first.</p>
+          <p className="text-sm text-muted-foreground">
+            <Link href="/accounts" className="underline">
+              Add an account
+            </Link>{" "}
+            first.
+          </p>
         ) : (
           <CreateRecurringTransactionForm
             accounts={accounts}

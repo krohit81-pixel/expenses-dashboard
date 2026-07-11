@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 
 import { listTransactions } from "@/services/TransactionService";
@@ -195,7 +196,10 @@ export default async function TransactionsPage({
         <h2 className="text-sm font-medium">Add a transaction</h2>
         {accounts.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Add an account first before recording transactions.
+            <Link href="/accounts" className="underline">
+              Add an account
+            </Link>{" "}
+            first before recording transactions.
           </p>
         ) : (
           <CreateTransactionForm
