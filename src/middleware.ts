@@ -111,6 +111,15 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // Middleware defaults to the Edge runtime, which doesn't support every
+  // Node.js API. @supabase/supabase-js (used above for the admin
+  // createUser/signInWithPassword calls) touches process.version, which
+  // Edge doesn't have — this showed up as a build-time warning ("Node.js
+  // API is used ... not supported in the Edge Runtime") that `next dev`
+  // tolerates but Vercel's production Edge sandbox does not, surfacing as
+  // MIDDLEWARE_INVOCATION_FAILED. Node.js runtime for middleware has been
+  // supported since Next.js 15.5.
+  runtime: "nodejs",
   matcher: [
     /*
      * Match all paths except:
