@@ -25,9 +25,17 @@ export async function closePool(): Promise<void> {
 /**
  * Runs `fn` inside a transaction impersonating `userId` the way PostgREST
  * does for a real request: as the `authenticated` role, with `auth.uid()`
- * resolving to `userId` via the `request.jwt.claims` GUC. The transaction is
- * always rolled back, so tests never leave data behind and never need
- * separate cleanup logic.
+ * resolving to `userId` via the `request.jwt.claims` GUC.
+ *
+ * Commits on success, rolls back on error. Tests that create a row in one
+ * asUser() call and read/reference it in a later asUser() call within the
+ * same test rely on that commit — an earlier version of this helper always
+ * rolled back "for isolation," which silently discarded every write before
+ * the next call could see it (surfaced as spurious "0 rows found" and
+ * "referenced record must belong to the same user" failures that had
+ * nothing to do with the actual RLS policies or ownership triggers being
+ * tested). Test isolation instead comes from each test file's afterAll
+ * deleting its test users, which cascades to every row they own.
  *
  * Does NOT create the auth.users row — callers that need auth.uid() to
  * resolve to a row with a real FK target should call `createTestUser` first
@@ -47,9 +55,12 @@ export async function asUser<T>(
     ]);
     await client.query("set local search_path to finance, public");
     const result = await fn(client);
+    await client.query("commit");
     return result;
-  } finally {
+  } catch (error) {
     await client.query("rollback");
+    throw error;
+  } finally {
     client.release();
   }
 }
