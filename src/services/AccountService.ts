@@ -7,7 +7,8 @@ import {
   sumMoney,
   type Money,
 } from "@/lib/money";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { OWNER_USER_ID } from "@/lib/owner";
 import type { Enum } from "@/lib/db/helpers";
 import {
   createAccountInputSchema,
@@ -86,8 +87,12 @@ const ACCOUNT_SELECT =
 export async function listAccounts(
   includeArchived = false,
 ): Promise<Account[]> {
-  const supabase = await createClient();
-  let query = supabase.from("accounts").select(ACCOUNT_SELECT).order("name");
+  const supabase = createServiceClient();
+  let query = supabase
+    .from("accounts")
+    .select(ACCOUNT_SELECT)
+    .eq("user_id", OWNER_USER_ID)
+    .order("name");
 
   if (!includeArchived) {
     query = query.eq("is_archived", false);
@@ -103,11 +108,12 @@ export async function listAccounts(
 }
 
 export async function getAccount(accountId: string): Promise<Account | null> {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("accounts")
     .select(ACCOUNT_SELECT)
     .eq("id", accountId)
+    .eq("user_id", OWNER_USER_ID)
     .maybeSingle();
 
   if (error) {
@@ -130,11 +136,12 @@ export async function createAccount(
   input: CreateAccountInput,
 ): Promise<Account> {
   const parsed = createAccountInputSchema.parse(input);
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data: accountRow, error: accountError } = await supabase
     .from("accounts")
     .insert({
+      user_id: OWNER_USER_ID,
       institution_id: parsed.institutionId ?? null,
       name: parsed.name,
       account_type: parsed.accountType,
@@ -154,6 +161,7 @@ export async function createAccount(
       .from("credit_cards")
       .insert({
         account_id: accountRow.id,
+        user_id: OWNER_USER_ID,
         credit_limit:
           parsed.creditLimit != null
             ? moneyToDbNumber(parsed.creditLimit)
@@ -179,11 +187,12 @@ export async function createAccount(
 }
 
 export async function archiveAccount(accountId: string): Promise<void> {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const { error } = await supabase
     .from("accounts")
     .update({ is_archived: true })
-    .eq("id", accountId);
+    .eq("id", accountId)
+    .eq("user_id", OWNER_USER_ID);
 
   if (error) {
     throw new Error(`Failed to archive account: ${error.message}`);
@@ -207,18 +216,20 @@ export async function getAccountBalance(accountId: string): Promise<Money> {
     throw new Error("Account not found");
   }
 
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const [outgoing, incoming] = await Promise.all([
     supabase
       .from("transactions")
       .select("amount, kind")
       .eq("account_id", accountId)
+      .eq("user_id", OWNER_USER_ID)
       .eq("status", "posted"),
     supabase
       .from("transactions")
       .select("amount")
       .eq("transfer_account_id", accountId)
+      .eq("user_id", OWNER_USER_ID)
       .eq("status", "posted")
       .eq("kind", "transfer"),
   ]);

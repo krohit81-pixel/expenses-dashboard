@@ -3,8 +3,8 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
-import { requireUser } from "@/lib/auth/require-user";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { OWNER_USER_ID } from "@/lib/owner";
 
 const BUCKET = "finance-attachments";
 const ATTACHMENT_LINK_TYPES = [
@@ -16,28 +16,36 @@ const ATTACHMENT_LINK_TYPES = [
 export type AttachmentLinkType = (typeof ATTACHMENT_LINK_TYPES)[number];
 
 async function insertLink(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: ReturnType<typeof createServiceClient>,
   linkType: AttachmentLinkType,
   linkId: string,
   attachmentId: string,
 ) {
   switch (linkType) {
     case "transaction":
-      return supabase
-        .from("transaction_attachments")
-        .insert({ transaction_id: linkId, attachment_id: attachmentId });
+      return supabase.from("transaction_attachments").insert({
+        user_id: OWNER_USER_ID,
+        transaction_id: linkId,
+        attachment_id: attachmentId,
+      });
     case "account":
-      return supabase
-        .from("account_attachments")
-        .insert({ account_id: linkId, attachment_id: attachmentId });
+      return supabase.from("account_attachments").insert({
+        user_id: OWNER_USER_ID,
+        account_id: linkId,
+        attachment_id: attachmentId,
+      });
     case "asset":
-      return supabase
-        .from("asset_attachments")
-        .insert({ asset_id: linkId, attachment_id: attachmentId });
+      return supabase.from("asset_attachments").insert({
+        user_id: OWNER_USER_ID,
+        asset_id: linkId,
+        attachment_id: attachmentId,
+      });
     case "liability":
-      return supabase
-        .from("liability_attachments")
-        .insert({ liability_id: linkId, attachment_id: attachmentId });
+      return supabase.from("liability_attachments").insert({
+        user_id: OWNER_USER_ID,
+        liability_id: linkId,
+        attachment_id: attachmentId,
+      });
     default: {
       const exhaustiveCheck: never = linkType;
       throw new Error(
@@ -65,20 +73,24 @@ function sanitizeFileName(fileName: string): string {
 }
 
 /**
- * Creates a signed upload URL/token for a private path scoped to the
- * current user. The browser uploads directly to Supabase Storage with
- * this — the file bytes never pass through our server. See docs/11:
- * "private bucket, accessed only via short-lived signed URLs, no direct
- * browser writes" — this IS the sanctioned direct write, because it's
- * authorized by a short-lived signed token our server issued, not an
- * open/public bucket.
+ * Creates a signed upload URL/token for a private path. The browser
+ * uploads directly to Supabase Storage with this — the file bytes never
+ * pass through our server. See docs/11: "private bucket, accessed only
+ * via short-lived signed URLs, no direct browser writes" — this IS the
+ * sanctioned direct write, because it's authorized by a short-lived
+ * signed token our server issued, not an open/public bucket.
+ *
+ * Uses the service-role client since there's no session to scope this
+ * to — see src/lib/owner.ts. The path is still prefixed with
+ * OWNER_USER_ID for consistency with the storage bucket's folder
+ * structure, not for authorization (the signed token is the
+ * authorization).
  */
 export async function createUploadTarget(
   fileName: string,
 ): Promise<UploadTarget> {
-  const user = await requireUser();
-  const supabase = await createClient();
-  const path = `${user.id}/${randomUUID()}-${sanitizeFileName(fileName)}`;
+  const supabase = createServiceClient();
+  const path = `${OWNER_USER_ID}/${randomUUID()}-${sanitizeFileName(fileName)}`;
 
   const { data, error } = await supabase.storage
     .from(BUCKET)
@@ -119,11 +131,12 @@ export async function finalizeAttachment(
   input: FinalizeAttachmentInput,
 ): Promise<Attachment> {
   const parsed = finalizeAttachmentInputSchema.parse(input);
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data: attachmentRow, error: attachmentError } = await supabase
     .from("attachments")
     .insert({
+      user_id: OWNER_USER_ID,
       storage_bucket: BUCKET,
       storage_path: parsed.path,
       file_name: parsed.fileName,
@@ -161,11 +174,12 @@ export async function finalizeAttachment(
 export async function listAttachmentsForAccount(
   accountId: string,
 ): Promise<Attachment[]> {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("account_attachments")
     .select("attachments(id, file_name, content_type, byte_size, created_at)")
-    .eq("account_id", accountId);
+    .eq("account_id", accountId)
+    .eq("user_id", OWNER_USER_ID);
 
   if (error) {
     throw new Error(`Failed to load attachments: ${error.message}`);
@@ -188,18 +202,16 @@ export async function listAttachmentsForAccount(
 
 /**
  * Short-lived (60s) signed download URL. Callers should fetch this
- * immediately before redirecting the browser to it, not cache it — the
- * RLS-scoped `createClient()` here means this only succeeds if the
- * attachment row is visible to the current user, which is the real access
- * check; the signed URL's expiry is defense in depth on top of that.
+ * immediately before redirecting the browser to it, not cache it.
  */
 export async function createDownloadUrl(attachmentId: string): Promise<string> {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data: attachment, error: attachmentError } = await supabase
     .from("attachments")
     .select("storage_bucket, storage_path")
     .eq("id", attachmentId)
+    .eq("user_id", OWNER_USER_ID)
     .maybeSingle();
 
   if (attachmentError) {

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import {
   userSettingsInputSchema,
   type UserSettingsInput,
@@ -17,7 +17,7 @@ export interface UserSettings {
 export async function getUserSettings(
   userId: string,
 ): Promise<UserSettings | null> {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("user_settings")
     .select("user_id, base_currency, timezone")
@@ -49,7 +49,7 @@ export async function completeOnboarding(
   input: UserSettingsInput,
 ): Promise<UserSettings> {
   const parsed = userSettingsInputSchema.parse(input);
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data, error } = await supabase
     .from("user_settings")

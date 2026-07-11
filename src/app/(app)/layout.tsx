@@ -3,6 +3,17 @@ import type { ReactNode } from "react";
 
 import { requireUser } from "@/lib/auth/require-user";
 
+/**
+ * Every page under this layout reads live data via the service-role
+ * client (src/lib/supabase/service.ts), which has no per-request dynamic
+ * API call (no cookies(), no headers()) to signal that to Next.js the way
+ * the old session-based client did automatically. Without this, Next.js
+ * tries to statically prerender these pages at build time — which
+ * actually attempts to hit Supabase during the build and fails. This
+ * segment config applies to the whole subtree under (app).
+ */
+export const dynamic = "force-dynamic";
+
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/transactions", label: "Transactions" },

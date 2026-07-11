@@ -1,6 +1,7 @@
 import "server-only";
 
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { OWNER_USER_ID } from "@/lib/owner";
 import {
   createCategoryInputSchema,
   type CreateCategoryInput,
@@ -41,10 +42,11 @@ function mapRow(row: {
 export async function listCategories(
   includeArchived = false,
 ): Promise<Category[]> {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   let query = supabase
     .from("categories")
     .select("id, parent_id, kind, name, color, icon, is_archived")
+    .eq("user_id", OWNER_USER_ID)
     .order("kind")
     .order("name");
 
@@ -65,11 +67,12 @@ export async function createCategory(
   input: CreateCategoryInput,
 ): Promise<Category> {
   const parsed = createCategoryInputSchema.parse(input);
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data, error } = await supabase
     .from("categories")
     .insert({
+      user_id: OWNER_USER_ID,
       kind: parsed.kind,
       name: parsed.name,
       parent_id: parsed.parentId ?? null,
@@ -116,11 +119,12 @@ const DEFAULT_CATEGORIES: Array<{ kind: "income" | "expense"; name: string }> =
  * column-name-based onConflict cannot target directly.
  */
 export async function seedDefaultCategories(): Promise<void> {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data: existing, error: selectError } = await supabase
     .from("categories")
     .select("kind, name")
+    .eq("user_id", OWNER_USER_ID)
     .is("parent_id", null);
 
   if (selectError) {
@@ -142,7 +146,9 @@ export async function seedDefaultCategories(): Promise<void> {
 
   const { error: insertError } = await supabase
     .from("categories")
-    .insert(missing);
+    .insert(
+      missing.map((category) => ({ ...category, user_id: OWNER_USER_ID })),
+    );
 
   if (insertError) {
     throw new Error(

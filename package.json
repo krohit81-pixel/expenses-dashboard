@@ -16,7 +16,8 @@
     "db:start": "supabase start",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
-    "db:types": "supabase gen types typescript --schema finance > src/lib/db/database-types.ts"
+    "db:types": "supabase gen types typescript --schema finance > src/lib/db/database-types.ts",
+    "bootstrap:owner": "node scripts/bootstrap-owner.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

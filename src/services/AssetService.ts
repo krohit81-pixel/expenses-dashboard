@@ -1,7 +1,8 @@
 import "server-only";
 
 import { dbNumberToMoney, moneyToDbNumber, type Money } from "@/lib/money";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { OWNER_USER_ID } from "@/lib/owner";
 import {
   createAssetInputSchema,
   type CreateAssetInput,
@@ -47,12 +48,13 @@ function mapRow(row: {
 }
 
 export async function listAssets(): Promise<Asset[]> {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("assets")
     .select(
       "id, account_id, asset_type, name, acquired_on, acquisition_cost, currency_code, notes",
     )
+    .eq("user_id", OWNER_USER_ID)
     .order("name");
 
   if (error) {
@@ -65,11 +67,12 @@ export async function listAssets(): Promise<Asset[]> {
 /** Creates a standalone asset (not linked to an account). See docs note in NetWorthService about avoiding double-counting when a link is added later. */
 export async function createAsset(input: CreateAssetInput): Promise<Asset> {
   const parsed = createAssetInputSchema.parse(input);
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data, error } = await supabase
     .from("assets")
     .insert({
+      user_id: OWNER_USER_ID,
       asset_type: parsed.assetType,
       name: parsed.name,
       acquired_on: parsed.acquiredOn ?? null,

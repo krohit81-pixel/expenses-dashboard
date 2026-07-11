@@ -9,17 +9,21 @@ import { serverEnv } from "@/lib/env/server";
 /**
  * Service-role Supabase client, scoped to the `finance` schema.
  *
- * This client BYPASSES ROW LEVEL SECURITY. It must only be used from
- * server-only modules (src/services/**, route handlers, scheduled jobs) —
- * the `server-only` import above fails the build if a client component
- * imports this module, directly or transitively.
+ * This is now the primary data-access client for every service in
+ * src/services/** — there is no per-request session (see
+ * src/middleware.ts and src/lib/owner.ts for why), so the RLS-scoped
+ * client in src/lib/supabase/server.ts is unused. This client BYPASSES
+ * ROW LEVEL SECURITY entirely, which means RLS is no longer providing
+ * any actual data isolation — every service is responsible for
+ * explicitly filtering every read/update/delete by
+ * `user_id = OWNER_USER_ID` and setting it explicitly on every insert
+ * (see src/lib/owner.ts). The RLS policies and ownership triggers from
+ * the migrations are still in place and still correct — they just aren't
+ * the active enforcement mechanism for this app's actual traffic anymore.
  *
- * `auth.uid()` is not populated for service-role requests, so every write
- * through this client MUST set `user_id` explicitly rather than relying on
- * the column default (see supabase/README.md and docs/03-database-design.md).
- * Never accept `user_id` from a browser request; it must come from the
- * caller's already-authenticated session on the server (see
- * src/lib/auth/require-user.ts).
+ * Only import this from server-only modules — the `server-only` import
+ * above fails the build if a client component imports this module,
+ * directly or transitively.
  */
 export function createServiceClient() {
   return createSupabaseClient<Database, "finance">(

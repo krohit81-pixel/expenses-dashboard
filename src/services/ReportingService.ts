@@ -9,7 +9,8 @@ import {
   ZERO,
   type Money,
 } from "@/lib/money";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { OWNER_USER_ID } from "@/lib/owner";
 
 export const cashFlowRangeSchema = z.object({
   from: z.iso.date(),
@@ -48,11 +49,12 @@ export async function getCashFlowSummary(
   range: CashFlowRange,
 ): Promise<CashFlowSummary> {
   const parsed = cashFlowRangeSchema.parse(range);
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data, error } = await supabase
     .from("transactions")
     .select("amount, kind, transaction_splits(category_id, amount)")
+    .eq("user_id", OWNER_USER_ID)
     .eq("status", "posted")
     .in("kind", ["income", "expense"])
     .gte("occurred_on", parsed.from)

@@ -1,6 +1,7 @@
 import "server-only";
 
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { OWNER_USER_ID } from "@/lib/owner";
 import {
   createInstitutionInputSchema,
   type CreateInstitutionInput,
@@ -15,10 +16,11 @@ export interface Institution {
 }
 
 export async function listInstitutions(): Promise<Institution[]> {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("institutions")
     .select("id, name, website")
+    .eq("user_id", OWNER_USER_ID)
     .order("name");
 
   if (error) {
@@ -32,11 +34,15 @@ export async function createInstitution(
   input: CreateInstitutionInput,
 ): Promise<Institution> {
   const parsed = createInstitutionInputSchema.parse(input);
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data, error } = await supabase
     .from("institutions")
-    .insert({ name: parsed.name, website: parsed.website ?? null })
+    .insert({
+      user_id: OWNER_USER_ID,
+      name: parsed.name,
+      website: parsed.website ?? null,
+    })
     .select("id, name, website")
     .single();
 

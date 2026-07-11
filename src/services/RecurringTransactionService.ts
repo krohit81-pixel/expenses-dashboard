@@ -2,7 +2,8 @@ import "server-only";
 
 import { dbNumberToMoney, moneyToDbNumber, type Money } from "@/lib/money";
 import { computeNextOccurrence, occurrencesUpTo } from "@/lib/dates/recurrence";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { OWNER_USER_ID } from "@/lib/owner";
 import type { Enum } from "@/lib/db/helpers";
 import {
   createRecurringTransactionInputSchema,
@@ -73,10 +74,11 @@ function mapRow(row: RecurringRow): RecurringTransaction {
 export async function listRecurringTransactions(): Promise<
   RecurringTransaction[]
 > {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("recurring_transactions")
     .select(RECURRING_SELECT)
+    .eq("user_id", OWNER_USER_ID)
     .order("next_occurrence_on");
 
   if (error) {
@@ -90,11 +92,12 @@ export async function createRecurringTransaction(
   input: CreateRecurringTransactionInput,
 ): Promise<RecurringTransaction> {
   const parsed = createRecurringTransactionInputSchema.parse(input);
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data: templateRow, error: templateError } = await supabase
     .from("recurring_transactions")
     .insert({
+      user_id: OWNER_USER_ID,
       account_id: parsed.accountId,
       transfer_account_id:
         parsed.kind === "transfer" ? parsed.transferAccountId : null,
@@ -122,6 +125,7 @@ export async function createRecurringTransaction(
     const { error: splitError } = await supabase
       .from("recurring_transaction_splits")
       .insert({
+        user_id: OWNER_USER_ID,
         recurring_transaction_id: templateRow.id,
         category_id: parsed.categoryId,
         amount: moneyToDbNumber(parsed.amount),
@@ -180,11 +184,12 @@ export async function generateDueTransactions(
   asOf?: string,
 ): Promise<GenerateDueTransactionsResult> {
   const today = asOf ?? new Date().toISOString().slice(0, 10);
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data: templates, error: templatesError } = await supabase
     .from("recurring_transactions")
     .select(RECURRING_SELECT)
+    .eq("user_id", OWNER_USER_ID)
     .eq("is_active", true)
     .lte("next_occurrence_on", today);
 
@@ -215,6 +220,7 @@ export async function generateDueTransactions(
         .select("id")
         .eq("recurring_transaction_id", template.id)
         .eq("occurred_on", occurredOn)
+        .eq("user_id", OWNER_USER_ID)
         .maybeSingle();
 
       if (existingError) {
@@ -231,6 +237,7 @@ export async function generateDueTransactions(
       const { data: txRow, error: txError } = await supabase
         .from("transactions")
         .insert({
+          user_id: OWNER_USER_ID,
           account_id: template.accountId,
           transfer_account_id: template.transferAccountId,
           recurring_transaction_id: template.id,
@@ -254,6 +261,7 @@ export async function generateDueTransactions(
         const { error: splitError } = await supabase
           .from("transaction_splits")
           .insert({
+            user_id: OWNER_USER_ID,
             transaction_id: txRow.id,
             category_id: template.categoryId,
             amount: moneyToDbNumber(template.amount),
@@ -284,7 +292,8 @@ export async function generateDueTransactions(
     const { error: advanceError } = await supabase
       .from("recurring_transactions")
       .update({ next_occurrence_on: nextOccurrenceOn })
-      .eq("id", template.id);
+      .eq("id", template.id)
+      .eq("user_id", OWNER_USER_ID);
 
     if (advanceError) {
       throw new Error(

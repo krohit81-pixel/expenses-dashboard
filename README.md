@@ -23,6 +23,6 @@ local development, and Vercel deployment.
 - **Milestone 2 — Planning and evidence:** budgets, recurring transactions, attachments, net worth
 - **Not yet built:** the import engine (`/imports` is a placeholder), transaction editing, investment tracking
 
-This app has no visible sign-in screen by design — see the
-"No visible sign-in" section in [INSTALL.md](./INSTALL.md) before
-deploying anywhere it could be reached by someone other than you.
+This app has no sign-in screen and no session — every request runs as a
+single fixed account (see [INSTALL.md](./INSTALL.md#why-theres-no-real-access-control))
+before deploying anywhere it could be reached by someone other than you.

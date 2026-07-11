@@ -1,124 +1,50 @@
-import { createServerClient } from "@supabase/ssr";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 
-import type { Database } from "@/lib/db/database-types";
-import { publicEnv } from "@/lib/env/public";
-import { serverEnv } from "@/lib/env/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { OWNER_USER_ID } from "@/lib/owner";
 
 /**
- * This app has no visible sign-in screen, by explicit choice: every
- * visitor is automatically signed in as one fixed "owner" account.
- * Anyone with the URL gets in. RLS and every service still depend on a
- * real, authenticated auth.uid() — this preserves that entirely; it just
- * establishes the session invisibly instead of asking a person to click a
- * magic link. See .env.example for the two credentials this needs.
+ * This app has no sign-in flow, no session, and no cookies, by explicit
+ * choice — every request runs as the single fixed owner account (see
+ * src/lib/owner.ts and scripts/bootstrap-owner.mjs). An earlier version
+ * of this middleware established a real Supabase Auth session via
+ * signInWithPassword on every uncookied request; that broke in practice
+ * because concurrent requests from the same browser (mobile Safari's
+ * prefetching, in particular) triggered several sign-in attempts at once,
+ * which tripped Supabase's own sign-in rate limiting and made even
+ * correct credentials start failing intermittently. Fighting a rate
+ * limiter that exists specifically to stop repeated sign-in attempts,
+ * for a flow that isn't providing real access control anyway, wasn't
+ * worth it — this version never calls any Auth sign-in endpoint at all.
  *
- * If you want a real access barrier back (e.g. before making this public),
- * the credentials themselves are that barrier — anyone who can set
- * APP_OWNER_EMAIL/APP_OWNER_PASSWORD in your deployment's env vars
- * effectively controls who "is" the owner. Rotating the password and
- * redeploying signs out every existing session.
+ * The only thing middleware still does is the onboarding gate.
  */
-async function ensureOwnerSession(
-  supabase: ReturnType<typeof createServerClient<Database, "finance">>,
-) {
-  const signIn = () =>
-    supabase.auth.signInWithPassword({
-      email: serverEnv.APP_OWNER_EMAIL,
-      password: serverEnv.APP_OWNER_PASSWORD,
-    });
-
-  const first = await signIn();
-  if (!first.error) {
-    return first.data.user;
-  }
-
-  // Most likely cause of failure on a fresh deploy: the owner account
-  // doesn't exist in Supabase Auth yet. Create it once (idempotent — if
-  // another concurrent request already created it, admin.createUser's
-  // "already registered" error is expected and ignored), then retry.
-  const admin = createSupabaseClient<Database, "finance">(
-    publicEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { autoRefreshToken: false, persistSession: false } },
-  );
-
-  await admin.auth.admin.createUser({
-    email: serverEnv.APP_OWNER_EMAIL,
-    password: serverEnv.APP_OWNER_PASSWORD,
-    email_confirm: true,
-  });
-
-  const retry = await signIn();
-  if (retry.error) {
-    throw new Error(
-      `Failed to establish owner session: ${retry.error.message}`,
-    );
-  }
-  return retry.data.user;
-}
-
 export async function middleware(request: NextRequest) {
-  // Response we may mutate with refreshed auth cookies.
-  let response = NextResponse.next({ request });
-
-  const supabase = createServerClient<Database, "finance">(
-    publicEnv.NEXT_PUBLIC_SUPABASE_URL,
-    publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      db: { schema: "finance" },
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value),
-          );
-          response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
-          );
-        },
-      },
-    },
-  );
-
-  // IMPORTANT: getUser() revalidates the token against Supabase Auth.
-  // Do not swap this for getSession() here — that only reads the cookie.
-  const {
-    data: { user: existingUser },
-  } = await supabase.auth.getUser();
-
-  const user = existingUser ?? (await ensureOwnerSession(supabase));
-
   const { pathname } = request.nextUrl;
 
-  if (pathname !== "/onboarding") {
-    const { data: settings } = await supabase
-      .from("user_settings")
-      .select("user_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (!settings) {
-      return NextResponse.redirect(new URL("/onboarding", request.url));
-    }
+  if (pathname === "/onboarding") {
+    return NextResponse.next();
   }
 
-  return response;
+  const supabase = createServiceClient();
+  const { data: settings } = await supabase
+    .from("user_settings")
+    .select("user_id")
+    .eq("user_id", OWNER_USER_ID)
+    .maybeSingle();
+
+  if (!settings) {
+    return NextResponse.redirect(new URL("/onboarding", request.url));
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {
-  // Middleware defaults to the Edge runtime, which doesn't support every
-  // Node.js API. @supabase/supabase-js (used above for the admin
-  // createUser/signInWithPassword calls) touches process.version, which
-  // Edge doesn't have — this showed up as a build-time warning ("Node.js
-  // API is used ... not supported in the Edge Runtime") that `next dev`
-  // tolerates but Vercel's production Edge sandbox does not, surfacing as
-  // MIDDLEWARE_INVOCATION_FAILED. Node.js runtime for middleware has been
-  // supported since Next.js 15.5.
+  // @supabase/supabase-js (imported via createServiceClient) uses Node.js
+  // APIs Edge doesn't support — see the commit that first fixed
+  // MIDDLEWARE_INVOCATION_FAILED for the full explanation. Still needed
+  // even though this middleware no longer calls any Auth sign-in method.
   runtime: "nodejs",
   matcher: [
     /*

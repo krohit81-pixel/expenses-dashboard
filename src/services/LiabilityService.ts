@@ -1,7 +1,8 @@
 import "server-only";
 
 import { dbNumberToMoney, moneyToDbNumber, type Money } from "@/lib/money";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { OWNER_USER_ID } from "@/lib/owner";
 import {
   createLiabilityInputSchema,
   type CreateLiabilityInput,
@@ -48,12 +49,13 @@ function mapRow(row: {
 }
 
 export async function listLiabilities(): Promise<Liability[]> {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("liabilities")
     .select(
       "id, account_id, liability_type, name, original_amount, interest_rate, currency_code, due_on, notes",
     )
+    .eq("user_id", OWNER_USER_ID)
     .order("name");
 
   if (error) {
@@ -68,11 +70,12 @@ export async function createLiability(
   input: CreateLiabilityInput,
 ): Promise<Liability> {
   const parsed = createLiabilityInputSchema.parse(input);
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data, error } = await supabase
     .from("liabilities")
     .insert({
+      user_id: OWNER_USER_ID,
       liability_type: parsed.liabilityType,
       name: parsed.name,
       original_amount:

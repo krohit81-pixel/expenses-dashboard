@@ -7,7 +7,8 @@ import {
   ZERO,
   type Money,
 } from "@/lib/money";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { OWNER_USER_ID } from "@/lib/owner";
 import {
   createBudgetInputSchema,
   setBudgetLineInputSchema,
@@ -38,10 +39,11 @@ export interface BudgetLineWithActual extends BudgetLine {
 }
 
 export async function listBudgets(): Promise<Budget[]> {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("budgets")
     .select("id, name, currency_code, period_start, period_end")
+    .eq("user_id", OWNER_USER_ID)
     .order("period_start", { ascending: false });
 
   if (error) {
@@ -58,11 +60,12 @@ export async function listBudgets(): Promise<Budget[]> {
 }
 
 export async function getBudget(budgetId: string): Promise<Budget | null> {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("budgets")
     .select("id, name, currency_code, period_start, period_end")
     .eq("id", budgetId)
+    .eq("user_id", OWNER_USER_ID)
     .maybeSingle();
 
   if (error) {
@@ -82,11 +85,12 @@ export async function getBudget(budgetId: string): Promise<Budget | null> {
 
 export async function createBudget(input: CreateBudgetInput): Promise<Budget> {
   const parsed = createBudgetInputSchema.parse(input);
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data, error } = await supabase
     .from("budgets")
     .insert({
+      user_id: OWNER_USER_ID,
       name: parsed.name,
       currency_code: parsed.currencyCode,
       period_start: parsed.periodStart,
@@ -118,12 +122,13 @@ export async function setBudgetLine(
   input: SetBudgetLineInput,
 ): Promise<BudgetLine> {
   const parsed = setBudgetLineInputSchema.parse(input);
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data, error } = await supabase
     .from("budget_lines")
     .upsert(
       {
+        user_id: OWNER_USER_ID,
         budget_id: parsed.budgetId,
         category_id: parsed.categoryId,
         planned_amount: moneyToDbNumber(parsed.plannedAmount),
@@ -162,12 +167,13 @@ export async function getBudgetLinesWithActuals(
     throw new Error("Budget not found");
   }
 
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data: lines, error: linesError } = await supabase
     .from("budget_lines")
     .select("id, budget_id, category_id, planned_amount, rollover_enabled")
-    .eq("budget_id", budgetId);
+    .eq("budget_id", budgetId)
+    .eq("user_id", OWNER_USER_ID);
 
   if (linesError) {
     throw new Error(`Failed to load budget lines: ${linesError.message}`);
@@ -183,6 +189,7 @@ export async function getBudgetLinesWithActuals(
     .from("transaction_splits")
     .select("category_id, amount, transactions!inner(occurred_on, status)")
     .in("category_id", categoryIds)
+    .eq("user_id", OWNER_USER_ID)
     .eq("transactions.status", "posted")
     .gte("transactions.occurred_on", budget.periodStart)
     .lte("transactions.occurred_on", budget.periodEnd);

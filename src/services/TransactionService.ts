@@ -1,7 +1,8 @@
 import "server-only";
 
 import { dbNumberToMoney, moneyToDbNumber, type Money } from "@/lib/money";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { OWNER_USER_ID } from "@/lib/owner";
 import type { Enum } from "@/lib/db/helpers";
 import {
   createTransactionInputSchema,
@@ -91,7 +92,7 @@ function mapRow(row: TransactionRow): Transaction {
 export async function listTransactions(
   filters: TransactionFilters = {},
 ): Promise<{ transactions: Transaction[]; total: number }> {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const limit = Math.min(filters.limit ?? 50, 200);
   const offset = filters.offset ?? 0;
 
@@ -100,6 +101,7 @@ export async function listTransactions(
     .select(buildTransactionSelect(Boolean(filters.categoryId)), {
       count: "exact",
     })
+    .eq("user_id", OWNER_USER_ID)
     .order("occurred_on", { ascending: false })
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
@@ -148,11 +150,12 @@ export async function createTransaction(
   input: CreateTransactionInput,
 ): Promise<Transaction> {
   const parsed = createTransactionInputSchema.parse(input);
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data: txRow, error: txError } = await supabase
     .from("transactions")
     .insert({
+      user_id: OWNER_USER_ID,
       account_id: parsed.accountId,
       transfer_account_id:
         parsed.kind === "transfer" ? parsed.transferAccountId : null,
@@ -185,6 +188,7 @@ export async function createTransaction(
       .from("transaction_splits")
       .insert(
         splitsToInsert.map((split) => ({
+          user_id: OWNER_USER_ID,
           transaction_id: txRow.id,
           category_id: split.categoryId,
           amount: moneyToDbNumber(split.amount),
@@ -216,11 +220,12 @@ export async function createTransaction(
 }
 
 export async function voidTransaction(transactionId: string): Promise<void> {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const { error } = await supabase
     .from("transactions")
     .update({ status: "void" })
-    .eq("id", transactionId);
+    .eq("id", transactionId)
+    .eq("user_id", OWNER_USER_ID);
 
   if (error) {
     throw new Error(`Failed to void transaction: ${error.message}`);
