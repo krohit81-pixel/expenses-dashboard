@@ -109,6 +109,19 @@ export function moneyToDbNumber(value: Money): number {
 }
 
 /**
+ * Tailwind text color class for a signed amount: green if positive, red if
+ * negative, undefined (inherit) if exactly zero. Use this everywhere an
+ * amount's sign drives its color — don't reimplement with isPositiveMoney
+ * alone, which misclassifies zero as "not positive" and would render it
+ * the same as negative.
+ */
+export function signedMoneyColorClass(value: Money): string | undefined {
+  if (isPositiveMoney(value)) return "text-emerald-600";
+  if (isNegativeMoney(value)) return "text-destructive";
+  return undefined;
+}
+
+/**
  * Formats a Money string for display using Intl.NumberFormat. This is the
  * only place currency symbols/locale formatting should be decided — do not
  * concatenate currency symbols manually elsewhere in the UI.

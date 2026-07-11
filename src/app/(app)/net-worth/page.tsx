@@ -5,7 +5,7 @@ import { listAssets } from "@/services/AssetService";
 import { listLiabilities } from "@/services/LiabilityService";
 import { getUserSettings } from "@/services/UserSettingsService";
 import { requireUser } from "@/lib/auth/require-user";
-import { formatMoneyDisplay, isPositiveMoney } from "@/lib/money";
+import { formatMoneyDisplay, signedMoneyColorClass } from "@/lib/money";
 import { Card, CardLabel, CardValue } from "@/components/ui/card";
 import {
   AddAssetForm,
@@ -44,13 +44,7 @@ export default async function NetWorthPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
           <CardLabel>Net worth</CardLabel>
-          <CardValue
-            className={
-              isPositiveMoney(summary.netWorth)
-                ? "text-emerald-600"
-                : "text-destructive"
-            }
-          >
+          <CardValue className={signedMoneyColorClass(summary.netWorth)}>
             {formatMoneyDisplay(summary.netWorth, currency)}
           </CardValue>
         </Card>

@@ -11,6 +11,7 @@ import {
   isZeroMoney,
   moneyToDbNumber,
   negateMoney,
+  signedMoneyColorClass,
   subtractMoney,
   sumMoney,
   ZERO,
@@ -83,6 +84,14 @@ describe("formatMoneyDisplay", () => {
   it("formats with the given currency", () => {
     expect(formatMoneyDisplay(m("1234.50"), "USD")).toBe("$1,234.50");
     expect(formatMoneyDisplay(m("1234.50"), "INR")).toContain("1,234.50");
+  });
+});
+
+describe("signedMoneyColorClass", () => {
+  it("is green for positive, red for negative, and neutral (undefined) for zero", () => {
+    expect(signedMoneyColorClass(m("1.00"))).toBe("text-emerald-600");
+    expect(signedMoneyColorClass(m("-1.00"))).toBe("text-destructive");
+    expect(signedMoneyColorClass(ZERO)).toBeUndefined();
   });
 });
 

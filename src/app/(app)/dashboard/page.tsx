@@ -4,7 +4,7 @@ import { getCashFlowSummary } from "@/services/ReportingService";
 import { listCategories } from "@/services/CategoryService";
 import { getUserSettings } from "@/services/UserSettingsService";
 import { requireUser } from "@/lib/auth/require-user";
-import { formatMoneyDisplay, isPositiveMoney } from "@/lib/money";
+import { formatMoneyDisplay, signedMoneyColorClass } from "@/lib/money";
 import { Card, CardLabel, CardValue } from "@/components/ui/card";
 
 export const metadata: Metadata = {
@@ -59,13 +59,7 @@ export default async function DashboardPage() {
         </Card>
         <Card>
           <CardLabel>Net</CardLabel>
-          <CardValue
-            className={
-              isPositiveMoney(summary.net)
-                ? "text-emerald-600"
-                : "text-destructive"
-            }
-          >
+          <CardValue className={signedMoneyColorClass(summary.net)}>
             {formatMoneyDisplay(summary.net, currency)}
           </CardValue>
         </Card>
