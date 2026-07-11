@@ -95,6 +95,13 @@ export function CreateAccountForm({
             inputMode="decimal"
             required
           />
+          {accountType === "credit_card" ||
+          accountType === "loan" ||
+          accountType === "liability" ? (
+            <p className="text-xs text-muted-foreground">
+              Already owe money on this? Enter it as negative, e.g. -500.00.
+            </p>
+          ) : null}
         </div>
       </div>
 

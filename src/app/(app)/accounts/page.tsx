@@ -3,10 +3,15 @@ import type { Metadata } from "next";
 import { listAccounts, getAccountBalance } from "@/services/AccountService";
 import { listInstitutions } from "@/services/InstitutionService";
 import { getUserSettings } from "@/services/UserSettingsService";
+import { listAttachmentsForAccount } from "@/services/AttachmentService";
 import { requireUser } from "@/lib/auth/require-user";
 import { formatMoneyDisplay } from "@/lib/money";
 import { CreateAccountForm } from "@/features/accounts/components/CreateAccountForm";
 import { CreateInstitutionForm } from "@/features/institutions/components/CreateInstitutionForm";
+import {
+  AccountAttachmentUploader,
+  AttachmentList,
+} from "@/features/attachments/components/AccountAttachmentUploader";
 
 export const metadata: Metadata = {
   title: "Accounts",
@@ -20,10 +25,11 @@ export default async function AccountsPage() {
     getUserSettings(user.id),
   ]);
 
-  const balances = await Promise.all(
+  const rows = await Promise.all(
     accounts.map(async (account) => ({
       account,
       balance: await getAccountBalance(account.id),
+      attachments: await listAttachmentsForAccount(account.id),
     })),
   );
 
@@ -40,22 +46,23 @@ export default async function AccountsPage() {
         </p>
       </div>
 
-      {balances.length > 0 && (
+      {rows.length > 0 && (
         <ul className="divide-y rounded-lg border">
-          {balances.map(({ account, balance }) => (
-            <li
-              key={account.id}
-              className="flex items-center justify-between p-4"
-            >
-              <div>
-                <p className="font-medium">{account.name}</p>
-                <p className="text-sm capitalize text-muted-foreground">
-                  {account.accountType.replace("_", " ")}
+          {rows.map(({ account, balance, attachments }) => (
+            <li key={account.id} className="space-y-2 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">{account.name}</p>
+                  <p className="text-sm capitalize text-muted-foreground">
+                    {account.accountType.replace("_", " ")}
+                  </p>
+                </div>
+                <p className="font-medium tabular-nums">
+                  {formatMoneyDisplay(balance, account.currencyCode)}
                 </p>
               </div>
-              <p className="font-medium tabular-nums">
-                {formatMoneyDisplay(balance, account.currencyCode)}
-              </p>
+              <AttachmentList attachments={attachments} />
+              <AccountAttachmentUploader accountId={account.id} />
             </li>
           ))}
         </ul>

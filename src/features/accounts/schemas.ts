@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ZERO, zNonNegativeMoney } from "@/lib/money";
+import { ZERO, zMoney, zNonNegativeMoney } from "@/lib/money";
 
 const baseAccountFields = z.object({
   institutionId: z.uuid().nullable().optional(),
@@ -8,7 +8,13 @@ const baseAccountFields = z.object({
   currencyCode: z
     .string()
     .regex(/^[A-Z]{3}$/, "Use a 3-letter currency code, e.g. USD"),
-  openingBalance: zNonNegativeMoney.default(ZERO),
+  // Any sign is valid, not just non-negative: a credit_card, loan, or
+  // liability account may be created with existing debt, which must be
+  // entered as a negative opening balance. See AccountService's note on
+  // why the uniform, kind-based balance delta makes "negative = owed"
+  // the correct representation across every account type — there's no
+  // need for a type-specific schema here.
+  openingBalance: zMoney.default(ZERO),
   openingBalanceDate: z.iso.date().nullable().optional(),
 });
 

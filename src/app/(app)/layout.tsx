@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { href: "/transactions", label: "Transactions" },
   { href: "/accounts", label: "Accounts" },
   { href: "/budgets", label: "Budgets" },
+  { href: "/recurring", label: "Recurring" },
   { href: "/imports", label: "Imports" },
   { href: "/net-worth", label: "Net worth" },
   { href: "/settings", label: "Settings" },
