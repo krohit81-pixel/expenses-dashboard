@@ -84,6 +84,7 @@ function isActive(pathname: string, href: string): boolean {
 }
 
 /** Desktop nav, rendered inside the gradient Hero — translucent pill links on the dark background. */
+/** Desktop nav — lives in the shared (app)/layout.tsx, present on every page regardless of whether that page has a Hero. */
 export function TopNav() {
   const pathname = usePathname();
 
@@ -99,8 +100,8 @@ export function TopNav() {
             className={cn(
               "rounded-full px-3.5 py-2 font-display text-[13px] font-semibold transition-colors",
               active
-                ? "bg-white/15 text-white"
-                : "text-white/70 hover:text-white",
+                ? "bg-accent-soft text-accent"
+                : "text-ink-faint hover:text-ink",
             )}
           >
             {item.label}

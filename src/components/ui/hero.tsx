@@ -1,7 +1,5 @@
 import type { ReactNode } from "react";
 
-import { TopNav } from "@/components/app-nav";
-
 interface HeroProps {
   title: string;
   /** Small label above the headline amount, e.g. "Net across all accounts". */
@@ -16,18 +14,17 @@ interface HeroProps {
 
 /**
  * Deep indigo gradient header with rounded bottom corners, used at the top
- * of every (app) page. Locked from prototype review — see
- * dashboard-v8-svg-icons.html. Each page supplies its own title/headline
- * metric since that varies per page; this component only owns the shared
- * shell (gradient, corners, nav).
+ * of the four pages that have a headline metric (Dashboard, Transactions,
+ * Budgets, Intel). Nav lives in the shared (app)/layout.tsx now, not here —
+ * it used to be rendered inside this component, but that meant pages
+ * without a Hero (Accounts, Recurring, Net worth, Settings, More) had no
+ * desktop navigation at all. Single persistent nav location, works the
+ * same on every page.
  */
 export function Hero({ title, label, amount, sub, children }: HeroProps) {
   return (
     <header className="rounded-b-[28px] bg-gradient-to-br from-hero-1 to-hero-2 px-5 pb-6 pt-6 text-white sm:px-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="font-display text-[17px] font-bold">{title}</h1>
-        <TopNav />
-      </div>
+      <h1 className="font-display text-[17px] font-bold">{title}</h1>
       {label && <div className="mt-4 text-xs text-white/65">{label}</div>}
       {amount && (
         <div className="mt-1 font-display text-[30px] font-extrabold tracking-tight text-white">

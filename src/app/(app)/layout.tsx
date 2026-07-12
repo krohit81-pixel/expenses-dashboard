@@ -1,64 +1,45 @@
-import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
-import "./globals.css";
-
-export const metadata: Metadata = {
-  applicationName: "Expense Dashboard",
-  title: {
-    default: "Expense Dashboard",
-    template: "%s | Expense Dashboard",
-  },
-  description: "A private personal finance dashboard.",
-  manifest: "/manifest.webmanifest",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "Expense Dashboard",
-  },
-  formatDetection: {
-    telephone: false,
-  },
-};
-
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  viewportFit: "cover",
-  themeColor: "#241457",
-};
+import { requireUser } from "@/lib/auth/require-user";
+import { BottomNav, TopNav } from "@/components/app-nav";
 
 /**
- * Fonts are loaded via a plain <link>, not next/font/google. next/font
- * fetches font files at BUILD time, which needs network access to
- * fonts.googleapis.com from wherever `next build` runs — that's not
- * available in the sandbox this was built in, so it couldn't be verified
- * there. A plain <link> fetches at request time from the visitor's own
- * browser instead, which is fully within Next.js's supported patterns for
- * external fonts and doesn't depend on the build environment's network
- * access. Trade-off: no self-hosting/preload optimization next/font
- * provides — worth revisiting once this can be verified somewhere with
- * broader network access.
+ * Every page under this layout reads live data via the service-role
+ * client (src/lib/supabase/service.ts), which has no per-request dynamic
+ * API call to signal that to Next.js automatically. Without this, Next.js
+ * tries to statically prerender these pages at build time — which
+ * actually attempts to hit Supabase during the build and fails.
  */
-export default function RootLayout({
+export const dynamic = "force-dynamic";
+
+/**
+ * Shell for every route. Both nav bars live here now, unconditionally —
+ * they used to live inside each page's <Hero> (mobile bottom nav still
+ * does), but that meant the desktop top nav only existed on the four
+ * pages that had a Hero (Dashboard, Transactions, Budgets, Intel).
+ * Accounts, Recurring, Net worth, Settings, and More had no way to
+ * navigate away from them on desktop at all — a real regression, caught
+ * from actual usage, not a hypothetical. Single persistent nav location
+ * fixes it for every page at once, past and future.
+ */
+export default async function AppLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
+  await requireUser();
+
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        {/* eslint-disable-next-line @next/next/no-page-custom-font -- this rule targets the Pages Router's per-page _document.js; App Router's root layout is the correct single place for site-wide fonts */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body className="font-body">{children}</body>
-    </html>
+    <div className="min-h-dvh bg-bg pb-20 sm:pb-0">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-surface focus:px-3 focus:py-2 focus:text-ink focus:outline focus:outline-2"
+      >
+        Skip to content
+      </a>
+      <div className="hidden items-center justify-end border-b border-line bg-surface px-8 py-3 sm:flex">
+        <TopNav />
+      </div>
+      <main id="main-content">{children}</main>
+      <BottomNav />
+    </div>
   );
 }
