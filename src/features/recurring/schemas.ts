@@ -56,3 +56,22 @@ export const createRecurringTransactionInputSchema = z
 export type CreateRecurringTransactionInput = z.infer<
   typeof createRecurringTransactionInputSchema
 >;
+
+/**
+ * Deliberately narrow: the Budgets screen only lets you edit a template's
+ * name, amount, and day-of-month, not its frequency/interval/accounts.
+ * That covers the actual use case (salary changed, EMI amount changed) —
+ * changing which account or how often something recurs is rare enough to
+ * not need a UI yet; delete and recreate the template for that until it
+ * comes up as a real need.
+ */
+export const updateRecurringTransactionInputSchema = z.object({
+  id: z.uuid(),
+  payee: z.string().trim().min(1, "Name is required").max(300),
+  amount: zPositiveMoney,
+  dayOfMonth: z.number().int().min(1).max(31),
+});
+
+export type UpdateRecurringTransactionInput = z.infer<
+  typeof updateRecurringTransactionInputSchema
+>;

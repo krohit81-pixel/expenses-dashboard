@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Landmark, Repeat, TrendingUp, Upload } from "lucide-react";
+import { Landmark, Repeat, Settings, TrendingUp, Upload } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -16,7 +16,8 @@ const ITEMS = [
   {
     href: "/recurring",
     label: "Recurring",
-    description: "Bills and salary that repeat on a schedule.",
+    description:
+      "Every recurring template, including transfers — the full list behind Budgets.",
     icon: Repeat,
   },
   {
@@ -31,6 +32,12 @@ const ITEMS = [
     description: "Bring in bank statements. Not built yet.",
     icon: Upload,
   },
+  {
+    href: "/settings",
+    label: "Settings",
+    description: "Base currency, timezone.",
+    icon: Settings,
+  },
 ] as const;
 
 export default function MorePage() {
@@ -42,7 +49,7 @@ export default function MorePage() {
           <li key={item.href}>
             <Link
               href={item.href}
-              className="flex items-center gap-4 p-4 transition-colors hover:bg-accent"
+              className="flex items-center gap-4 p-4 transition-colors hover:bg-bg"
             >
               <item.icon
                 className="size-5 shrink-0 text-muted-foreground"

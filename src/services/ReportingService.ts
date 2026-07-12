@@ -45,6 +45,42 @@ export interface CashFlowSummary {
  * This is the first candidate to move server-side if dashboard latency
  * ever becomes noticeable (see docs/02).
  */
+export interface MonthlyExpenditure {
+  /** "YYYY-MM" */
+  month: string;
+  total: Money;
+}
+
+/**
+ * Total expenditure for each of the last `months` calendar months
+ * (including the current, partial one), oldest first. Built on top of
+ * getCashFlowSummary rather than a separate aggregate query — one call
+ * per month is fine at `months` <= ~12; revisit if this ever needs a
+ * longer window (see the same "no aggregate RPC/view yet" note above).
+ */
+export async function getMonthlyExpenditureTrend(
+  months: number,
+): Promise<MonthlyExpenditure[]> {
+  const now = new Date();
+  const results: MonthlyExpenditure[] = [];
+
+  for (let i = months - 1; i >= 0; i -= 1) {
+    const monthStart = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1),
+    );
+    const monthEnd = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i + 1, 0),
+    );
+    const from = monthStart.toISOString().slice(0, 10);
+    const to = monthEnd.toISOString().slice(0, 10);
+
+    const summary = await getCashFlowSummary({ from, to });
+    results.push({ month: from.slice(0, 7), total: summary.totalExpense });
+  }
+
+  return results;
+}
+
 export async function getCashFlowSummary(
   range: CashFlowRange,
 ): Promise<CashFlowSummary> {

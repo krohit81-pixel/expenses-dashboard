@@ -1,6 +1,24 @@
 import { describe, expect, it } from "vitest";
 
-import { computeNextOccurrence, occurrencesUpTo } from "./recurrence";
+import {
+  computeNextOccurrence,
+  occurrencesUpTo,
+  setDayOfMonth,
+} from "./recurrence";
+
+describe("setDayOfMonth", () => {
+  it("replaces the day, keeping year and month", () => {
+    expect(setDayOfMonth("2026-07-12", 25)).toBe("2026-07-25");
+  });
+
+  it("clamps to the last day of a short month", () => {
+    expect(setDayOfMonth("2026-02-12", 31)).toBe("2026-02-28");
+  });
+
+  it("clamps correctly in a leap-year February", () => {
+    expect(setDayOfMonth("2024-02-12", 30)).toBe("2024-02-29");
+  });
+});
 
 describe("computeNextOccurrence", () => {
   it("adds days", () => {

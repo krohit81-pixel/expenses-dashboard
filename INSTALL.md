@@ -23,7 +23,7 @@ npm install
 cp .env.example .env.local
 # fill in NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
 # and SUPABASE_SERVICE_ROLE_KEY in .env.local first, then:
-npm run bootstrap:owner rohit.kohli@icloud.com
+npm run bootstrap:owner you@example.com
 ```
 
 The email doesn't need to be real or receive mail — it's just an
@@ -43,15 +43,17 @@ Authentication → Users and copy their ID from there instead.
 
 ## 2. Environment variables
 
-| Variable                        | Where to find it                                        | Notes                                                                                                                                      |
-| ------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase → Project Settings → API → Project URL         | Safe to expose to the browser                                                                                                              |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → `anon` `public` key | Safe to expose to the browser                                                                                                              |
-| `SUPABASE_SERVICE_ROLE_KEY`     | Supabase → Project Settings → API → `service_role` key  | **Secret.** This is now the ONLY way the app talks to the database — there's no session-based access anymore. Never expose to the browser. |
-| `APP_OWNER_USER_ID`             | Printed by `npm run bootstrap:owner` (step 1)           | The fixed account every row in the database belongs to.                                                                                    |
+| Variable                        | Where to find it                                        | Notes                                                                                                                                                     |
+| ------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase → Project Settings → API → Project URL         | Safe to expose to the browser                                                                                                                             |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → `anon` `public` key | Safe to expose to the browser                                                                                                                             |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Supabase → Project Settings → API → `service_role` key  | **Secret.** This is now the ONLY way the app talks to the database — there's no session-based access anymore. Never expose to the browser.                |
+| `APP_OWNER_USER_ID`             | Printed by `npm run bootstrap:owner` (step 1)           | The fixed account every row in the database belongs to.                                                                                                   |
+| `ANTHROPIC_API_KEY`             | console.anthropic.com → API Keys                        | **Optional**, added in v0.3. Powers Intel's AI insight only. If unset, Intel's charts still work — the insight card just shows a "not available" message. |
 
-Every one of these is required — the app fails fast (loudly, on startup)
-if any are missing or malformed, rather than running with a gap.
+Every var except `ANTHROPIC_API_KEY` is required — the app fails fast
+(loudly, on startup) if any are missing or malformed, rather than
+running with a gap.
 
 **Common mistake when pasting into Vercel's env var UI:** a trailing
 space or newline gets included in the value, which silently breaks
@@ -88,7 +90,8 @@ Visit `http://localhost:3000`. First visit takes you through onboarding
 
 1. Push your code to GitHub if you haven't already.
 2. In Vercel: **Add New → Project**, import the GitHub repo.
-3. Add all four env vars from the table above in **Project → Settings →
+3. Add all four required env vars from the table above (plus
+   `ANTHROPIC_API_KEY` if you want AI insights) in **Project → Settings →
    Environment Variables** — check all three environment boxes
    (Production, Preview, Development) for each.
 4. Deploy (or **Redeploy** if an earlier attempt ran before the env vars
@@ -97,6 +100,66 @@ Visit `http://localhost:3000`. First visit takes you through onboarding
 
 Every git branch you push also gets its own **Preview deployment** at a
 separate URL, using the same env vars if you checked that box in step 3.
+
+## Applying a release
+
+Starting with v0.3, Claude delivers releases as a plain zip of the
+changed/new files (same folder structure as the repo — extract and
+copy over), not a git bundle. Each release's own instructions (below)
+tell you exactly which files to add/overwrite and which to delete.
+
+### v0.3 (Milestone 3) — redesign, Intel, rebuilt Budgets
+
+**1. Delete these files/folders first** (they were replaced, not just
+edited — copying the new files over old ones would leave orphaned code
+otherwise):
+
+```
+src/app/(app)/budgets/[budgetId]/          (whole folder)
+src/features/budgets/                      (whole folder)
+src/services/BudgetService.ts
+```
+
+**2. Extract the zip and copy every file it contains into your project,
+overwriting anything with the same path.** The zip mirrors the exact
+`src/...` paths, so from your project root:
+
+```bash
+unzip ~/Downloads/v0.3-release.zip -d /tmp/v0.3-release
+cp -r /tmp/v0.3-release/src/* src/
+cp /tmp/v0.3-release/tailwind.config.ts .
+```
+
+(Adjust the `unzip` source path to wherever the file actually downloaded
+— same as any other download, see
+[APPLYING-BUNDLES.md](./APPLYING-BUNDLES.md) if you're unsure how to find
+that.)
+
+**3. Add the new optional env var** — `ANTHROPIC_API_KEY` (see the table
+above). Skip this if you don't want AI insights yet; Intel's charts work
+either way.
+
+**4. Verify and commit:**
+
+```bash
+npm install
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+git add -A
+git commit -m "v0.3: redesign, Intel, rebuilt Budgets"
+git push
+```
+
+**5. What changed, if you want to review before committing:** new Intel
+tab with real charts and an AI insight; Dashboard rebuilt around account
+balances and a new "Upcoming next 3 months" section; Transactions gained
+a collapsible card-payment quick-log; Budgets now shows an editable
+income/fixed-expense plan instead of the old category-based budgeting
+feature (deleted, not hidden — recoverable from git history if you ever
+want it back); every screen restyled to the locked design (indigo
+gradient headers, rounded cards, sleek icon bottom nav).
 
 ## Troubleshooting
 

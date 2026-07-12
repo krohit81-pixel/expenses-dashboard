@@ -5,8 +5,12 @@ import { revalidatePath } from "next/cache";
 import {
   createRecurringTransaction,
   generateDueTransactions,
+  updateRecurringTransaction,
 } from "@/services/RecurringTransactionService";
-import { createRecurringTransactionInputSchema } from "@/features/recurring/schemas";
+import {
+  createRecurringTransactionInputSchema,
+  updateRecurringTransactionInputSchema,
+} from "@/features/recurring/schemas";
 
 export interface CreateRecurringFormState {
   error?: string;
@@ -59,6 +63,7 @@ export async function createRecurringTransactionAction(
   }
 
   revalidatePath("/recurring");
+  revalidatePath("/budgets");
   return {};
 }
 
@@ -85,4 +90,37 @@ export async function generateDueTransactionsAction(
       error: error instanceof Error ? error.message : "Something went wrong",
     };
   }
+}
+
+export interface UpdateRecurringFormState {
+  error?: string;
+  success?: boolean;
+}
+
+export async function updateRecurringTransactionAction(
+  _prevState: UpdateRecurringFormState,
+  formData: FormData,
+): Promise<UpdateRecurringFormState> {
+  const parsed = updateRecurringTransactionInputSchema.safeParse({
+    id: formValue(formData, "id"),
+    payee: formValue(formData, "payee"),
+    amount: formValue(formData, "amount"),
+    dayOfMonth: Number(formValue(formData, "dayOfMonth")),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  try {
+    await updateRecurringTransaction(parsed.data);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Something went wrong",
+    };
+  }
+
+  revalidatePath("/recurring");
+  revalidatePath("/budgets");
+  return { success: true };
 }

@@ -63,6 +63,19 @@ function addMonthsAnchored(
  * template's original `startsOn` date (used only for its day-of-month, as
  * the clamping anchor — see addMonthsAnchored) and the recurrence rule.
  */
+/**
+ * Returns `dateStr` with its day-of-month replaced by `day`, clamped to
+ * the number of days in that month. Used when editing a recurring
+ * template's day-of-month (see RecurringTransactionService.
+ * updateRecurringTransaction) — a narrower operation than computing the
+ * next occurrence, since only the day changes, not the month/year.
+ */
+export function setDayOfMonth(dateStr: string, day: number): string {
+  const { year, month } = parseISODate(dateStr);
+  const clampedDay = Math.min(day, daysInMonth(year, month));
+  return formatISODate({ year, month, day: clampedDay });
+}
+
 export function computeNextOccurrence(
   startsOn: string,
   currentOccurrence: string,

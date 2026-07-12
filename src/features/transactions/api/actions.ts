@@ -69,3 +69,53 @@ export async function createTransactionAction(
   revalidatePath("/accounts");
   return {};
 }
+
+export interface LogCardPaymentFormState {
+  error?: string;
+  success?: boolean;
+}
+
+/**
+ * Records a card payment as a single pending transfer (checking → card),
+ * dated for when the payment will actually happen. Deliberately simple:
+ * this does NOT also record an expense representing the statement total,
+ * so a card's balance in Current Balances reflects transfers logged
+ * against it, not the real-time statement debt — since itemized card
+ * spending isn't tracked yet (no PDF import), there's no other signal to
+ * set that debt from. Revisit once imports exist: the more complete model
+ * is an expense (statement total, dated the statement day) plus this
+ * transfer (the payment, dated the due date) as two linked entries.
+ */
+export async function logCardPaymentAction(
+  _prevState: LogCardPaymentFormState,
+  formData: FormData,
+): Promise<LogCardPaymentFormState> {
+  const raw = {
+    kind: "transfer" as const,
+    accountId: formValue(formData, "fromAccountId"),
+    transferAccountId: formValue(formData, "cardAccountId"),
+    amount: formValue(formData, "amount"),
+    currencyCode: formValue(formData, "currencyCode"),
+    occurredOn: formValue(formData, "payOn"),
+    status: "pending" as const,
+  };
+
+  const parsed = createTransactionInputSchema.safeParse(raw);
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  try {
+    await createTransaction(parsed.data);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Something went wrong",
+    };
+  }
+
+  revalidatePath("/transactions");
+  revalidatePath("/dashboard");
+  revalidatePath("/accounts");
+  return { success: true };
+}

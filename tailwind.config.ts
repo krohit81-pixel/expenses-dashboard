@@ -14,34 +14,63 @@ const config: Config = {
       colors: {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
-        primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
-        },
-        secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
-        },
-        muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
-        },
-        accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
-        },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
-        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
+
+        // Locked design-system tokens — see globals.css for values/derivation.
+        bg: "hsl(var(--bg))",
+        surface: "hsl(var(--surface))",
+        ink: {
+          DEFAULT: "hsl(var(--ink))",
+          soft: "hsl(var(--ink-soft))",
+          faint: "hsl(var(--ink-faint))",
+        },
+        hero: {
+          1: "hsl(var(--hero-1))",
+          2: "hsl(var(--hero-2))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          soft: "hsl(var(--accent-soft))",
+        },
+        positive: {
+          DEFAULT: "hsl(var(--positive))",
+          soft: "hsl(var(--positive-soft))",
+        },
+        negative: {
+          DEFAULT: "hsl(var(--negative))",
+          soft: "hsl(var(--negative-soft))",
+        },
+        line: "hsl(var(--line))",
+
+        // Compatibility aliases for pages not yet rewritten in this
+        // redesign (Accounts, Recurring, Net worth, Settings, More,
+        // onboarding) — mapped to the closest new-palette equivalent so
+        // they don't silently break before their turn in a later phase.
+        // Prefer the tokens above (ink-faint, negative, accent, etc.) in
+        // any new or rewritten page; don't reach for these on purpose.
+        muted: {
+          DEFAULT: "hsl(var(--bg))",
+          foreground: "hsl(var(--ink-faint))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--negative))",
+          foreground: "#ffffff",
+        },
+        primary: {
+          DEFAULT: "hsl(var(--ink))",
+          foreground: "#ffffff",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        md: "calc(var(--radius) - 6px)",
+        sm: "var(--radius-sm)",
+      },
+      fontFamily: {
+        display: ["Manrope", "ui-sans-serif", "sans-serif"],
+        body: ["Inter", "ui-sans-serif", "sans-serif"],
       },
     },
   },

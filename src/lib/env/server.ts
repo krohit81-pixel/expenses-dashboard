@@ -19,6 +19,11 @@ const serverEnvSchema = z.object({
   APP_OWNER_USER_ID: z.uuid(
     "APP_OWNER_USER_ID must be the UUID printed by npm run bootstrap:owner",
   ),
+  // Optional, unlike the two above: Intel's charts work without it. If
+  // unset, IntelService.generateInsight() returns null and the page shows
+  // a "not configured" message in the insight card instead of crashing
+  // the whole app at boot over an enhancement, not a core dependency.
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
 });
 
 function formatZodError(prefix: string, error: z.ZodError): string {
@@ -32,6 +37,7 @@ function parseServerEnv() {
   const result = serverEnvSchema.safeParse({
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     APP_OWNER_USER_ID: process.env.APP_OWNER_USER_ID,
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
   });
 
   if (!result.success) {

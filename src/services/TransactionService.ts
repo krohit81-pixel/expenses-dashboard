@@ -37,6 +37,7 @@ export interface TransactionFilters {
   accountId?: string;
   categoryId?: string;
   kind?: TransactionKind;
+  status?: TransactionStatus;
   occurredFrom?: string;
   occurredTo?: string;
   search?: string;
@@ -111,6 +112,9 @@ export async function listTransactions(
   }
   if (filters.kind) {
     query = query.eq("kind", filters.kind);
+  }
+  if (filters.status) {
+    query = query.eq("status", filters.status);
   }
   if (filters.occurredFrom) {
     query = query.gte("occurred_on", filters.occurredFrom);
@@ -229,5 +233,27 @@ export async function voidTransaction(transactionId: string): Promise<void> {
 
   if (error) {
     throw new Error(`Failed to void transaction: ${error.message}`);
+  }
+}
+
+/**
+ * Flips a pending transaction to posted. Used for "upcoming" one-time
+ * commitments (see docs on the dashboard's Upcoming section) once the
+ * money actually moves — this is a status-only update, not a full edit
+ * (transaction editing more broadly doesn't exist yet).
+ */
+export async function markTransactionPaid(
+  transactionId: string,
+): Promise<void> {
+  const supabase = createServiceClient();
+  const { error } = await supabase
+    .from("transactions")
+    .update({ status: "posted" })
+    .eq("id", transactionId)
+    .eq("user_id", OWNER_USER_ID)
+    .eq("status", "pending");
+
+  if (error) {
+    throw new Error(`Failed to mark transaction paid: ${error.message}`);
   }
 }

@@ -1,16 +1,25 @@
 import "server-only";
 
 import { dbNumberToMoney, moneyToDbNumber, type Money } from "@/lib/money";
-import { computeNextOccurrence, occurrencesUpTo } from "@/lib/dates/recurrence";
+import {
+  computeNextOccurrence,
+  occurrencesUpTo,
+  setDayOfMonth,
+} from "@/lib/dates/recurrence";
 import { createServiceClient } from "@/lib/supabase/service";
 import { OWNER_USER_ID } from "@/lib/owner";
 import type { Enum } from "@/lib/db/helpers";
 import {
   createRecurringTransactionInputSchema,
+  updateRecurringTransactionInputSchema,
   type CreateRecurringTransactionInput,
+  type UpdateRecurringTransactionInput,
 } from "@/features/recurring/schemas";
 
-export type { CreateRecurringTransactionInput };
+export type {
+  CreateRecurringTransactionInput,
+  UpdateRecurringTransactionInput,
+};
 
 export interface RecurringTransaction {
   id: string;
@@ -155,6 +164,83 @@ export async function createRecurringTransaction(
   }
 
   return mapRow(created as RecurringRow);
+}
+
+/**
+ * Updates a template's name, amount, and day-of-month — see the narrow
+ * scope note on updateRecurringTransactionInputSchema. Updates the
+ * matching recurring_transaction_splits row's amount too (for income/
+ * expense templates), since a single-category template's split amount
+ * must always equal the parent amount, same invariant as at creation.
+ * Only moves next_occurrence_on's day, not starts_on's — starts_on stays
+ * the original anchor for month-end clamping (see docs/lib/dates/
+ * recurrence.ts); this is a deliberate simplification, not an oversight.
+ */
+export async function updateRecurringTransaction(
+  input: UpdateRecurringTransactionInput,
+): Promise<RecurringTransaction> {
+  const parsed = updateRecurringTransactionInputSchema.parse(input);
+  const supabase = createServiceClient();
+
+  const { data: existing, error: readError } = await supabase
+    .from("recurring_transactions")
+    .select("next_occurrence_on, kind")
+    .eq("id", parsed.id)
+    .eq("user_id", OWNER_USER_ID)
+    .single();
+
+  if (readError) {
+    throw new Error(`Recurring transaction not found: ${readError.message}`);
+  }
+
+  const nextOccurrenceOn = setDayOfMonth(
+    existing.next_occurrence_on,
+    parsed.dayOfMonth,
+  );
+
+  const { error: updateError } = await supabase
+    .from("recurring_transactions")
+    .update({
+      payee: parsed.payee,
+      amount: moneyToDbNumber(parsed.amount),
+      next_occurrence_on: nextOccurrenceOn,
+    })
+    .eq("id", parsed.id)
+    .eq("user_id", OWNER_USER_ID);
+
+  if (updateError) {
+    throw new Error(
+      `Failed to update recurring transaction: ${updateError.message}`,
+    );
+  }
+
+  if (existing.kind !== "transfer") {
+    const { error: splitError } = await supabase
+      .from("recurring_transaction_splits")
+      .update({ amount: moneyToDbNumber(parsed.amount) })
+      .eq("recurring_transaction_id", parsed.id)
+      .eq("user_id", OWNER_USER_ID);
+
+    if (splitError) {
+      throw new Error(
+        `Failed to update recurring transaction category amount: ${splitError.message}`,
+      );
+    }
+  }
+
+  const { data: updated, error: reReadError } = await supabase
+    .from("recurring_transactions")
+    .select(RECURRING_SELECT)
+    .eq("id", parsed.id)
+    .single();
+
+  if (reReadError) {
+    throw new Error(
+      `Recurring transaction was updated but could not be re-read`,
+    );
+  }
+
+  return mapRow(updated as RecurringRow);
 }
 
 export interface GenerateDueTransactionsResult {
