@@ -38,7 +38,7 @@ export function AddAssetForm({ defaultCurrency }: { defaultCurrency: string }) {
           maxLength={200}
         />
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="assetType">Type</Label>
           <Select id="assetType" name="assetType" defaultValue="other">
@@ -100,7 +100,7 @@ export function AddLiabilityForm({
           maxLength={200}
         />
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="liabilityType">Type</Label>
           <Select id="liabilityType" name="liabilityType" defaultValue="other">

@@ -24,6 +24,24 @@ const serverEnvSchema = z.object({
   // a "not configured" message in the insight card instead of crashing
   // the whole app at boot over an enhancement, not a core dependency.
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  // The access gate: /calendar stays public (shareable without exposing
+  // financial data), everything else requires this shared password once
+  // per browser. This is NOT Supabase Auth and never calls any Supabase
+  // Auth endpoint — that's deliberate. The earlier per-request
+  // signInWithPassword design was replaced specifically because it hit
+  // Supabase's own sign-in rate limiting under concurrent requests (see
+  // src/middleware.ts's history). This gate is a self-contained,
+  // app-level HMAC-signed cookie (see src/lib/access-gate.ts) with no
+  // external calls and no rate limit to trip.
+  APP_ACCESS_PASSWORD: z
+    .string()
+    .min(6, "APP_ACCESS_PASSWORD must be at least 6 characters"),
+  APP_SESSION_SECRET: z
+    .string()
+    .min(
+      32,
+      "APP_SESSION_SECRET must be at least 32 characters — generate a random one, don't reuse another secret",
+    ),
 });
 
 function formatZodError(prefix: string, error: z.ZodError): string {
@@ -38,6 +56,8 @@ function parseServerEnv() {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     APP_OWNER_USER_ID: process.env.APP_OWNER_USER_ID,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    APP_ACCESS_PASSWORD: process.env.APP_ACCESS_PASSWORD,
+    APP_SESSION_SECRET: process.env.APP_SESSION_SECRET,
   });
 
   if (!result.success) {

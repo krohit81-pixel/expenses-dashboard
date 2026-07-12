@@ -28,21 +28,22 @@ function SwapIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
-function WalletIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" {...props}>
-      <rect x="3.5" y="6.5" width="17" height="12" rx="2.5" />
-      <path d="M3.5 10.5h17" />
-      <circle cx="16.5" cy="14.5" r="0.9" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
 function BarsIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" {...props}>
       <path d="M5 19V10" />
       <path d="M12 19V5" />
       <path d="M19 19v-6" />
+    </svg>
+  );
+}
+function CalendarIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" {...props}>
+      <rect x="3.5" y="5.5" width="17" height="15" rx="2.5" />
+      <path d="M3.5 10h17" />
+      <path d="M8 3.5v3" />
+      <path d="M16 3.5v3" />
     </svg>
   );
 }
@@ -64,7 +65,7 @@ function MoreIcon(props: SVGProps<SVGSVGElement>) {
 const PRIMARY_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: HomeIcon },
   { href: "/transactions", label: "Transactions", icon: SwapIcon },
-  { href: "/budgets", label: "Budgets", icon: WalletIcon },
+  { href: "/calendar", label: "Calendar", icon: CalendarIcon },
   { href: "/intel", label: "Intel", icon: BarsIcon },
 ];
 
@@ -77,6 +78,7 @@ function isActive(pathname: string, href: string): boolean {
         "/recurring",
         "/net-worth",
         "/imports",
+        "/budgets",
         "/settings",
         "/more",
       ].some((path) => pathname.startsWith(path))
@@ -100,8 +102,8 @@ export function TopNav() {
             className={cn(
               "rounded-full px-3.5 py-2 font-display text-[13px] font-semibold transition-colors",
               active
-                ? "bg-accent-soft text-accent"
-                : "text-ink-faint hover:text-ink",
+                ? "bg-[hsl(var(--accent-soft))] text-[hsl(var(--accent))]"
+                : "text-[hsl(var(--ink-faint))] hover:text-[hsl(var(--ink))]",
             )}
           >
             {item.label}
@@ -124,7 +126,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface sm:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-[hsl(var(--line))] bg-[hsl(var(--surface))] sm:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <ul className="grid grid-cols-5">
@@ -137,7 +139,9 @@ export function BottomNav() {
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex flex-col items-center gap-1 py-3 font-display text-[10px] font-semibold tracking-wide",
-                  active ? "font-extrabold text-ink" : "text-ink-faint",
+                  active
+                    ? "font-extrabold text-[hsl(var(--ink))]"
+                    : "text-[hsl(var(--ink-faint))]",
                 )}
               >
                 <item.icon className="size-[21px] fill-none stroke-current stroke-[1.7] [stroke-linecap:round] [stroke-linejoin:round]" />

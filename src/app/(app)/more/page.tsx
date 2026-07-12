@@ -1,12 +1,28 @@
 import Link from "next/link";
-import { Landmark, Repeat, Settings, TrendingUp, Upload } from "lucide-react";
+import {
+  Landmark,
+  LogOut,
+  Repeat,
+  Settings,
+  TrendingUp,
+  Upload,
+  Wallet,
+} from "lucide-react";
 import type { Metadata } from "next";
+
+import { logoutAction } from "@/features/access-gate/api/actions";
 
 export const metadata: Metadata = {
   title: "More",
 };
 
 const ITEMS = [
+  {
+    href: "/budgets",
+    label: "Budgets",
+    description: "Income & fixed expenses, editable.",
+    icon: Wallet,
+  },
   {
     href: "/accounts",
     label: "Accounts",
@@ -65,6 +81,16 @@ export default function MorePage() {
           </li>
         ))}
       </ul>
+
+      <form action={logoutAction}>
+        <button
+          type="submit"
+          className="flex w-full items-center gap-3 rounded-lg border border-negative bg-negative-soft p-4 text-sm font-medium text-negative transition-colors hover:opacity-80"
+        >
+          <LogOut className="size-5 shrink-0" aria-hidden="true" />
+          Log out of this device
+        </button>
+      </form>
     </div>
   );
 }

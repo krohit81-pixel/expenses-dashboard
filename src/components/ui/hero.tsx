@@ -23,7 +23,7 @@ interface HeroProps {
  */
 export function Hero({ title, label, amount, sub, children }: HeroProps) {
   return (
-    <header className="rounded-b-[28px] bg-gradient-to-br from-hero-1 to-hero-2 px-5 pb-6 pt-6 text-white sm:px-8">
+    <header className="rounded-b-[28px] bg-gradient-to-br from-[hsl(var(--hero-1))] to-[hsl(var(--hero-2))] px-5 pb-6 pt-6 text-white sm:px-8">
       <h1 className="font-display text-[17px] font-bold">{title}</h1>
       {label && <div className="mt-4 text-xs text-white/65">{label}</div>}
       {amount && (

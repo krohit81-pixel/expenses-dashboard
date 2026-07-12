@@ -74,7 +74,7 @@ export function CreateAccountForm({
         </Select>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="currencyCode">Currency</Label>
           <Input
@@ -108,7 +108,7 @@ export function CreateAccountForm({
       {accountType === "credit_card" && (
         <div className="space-y-4 rounded-md border p-4">
           <p className="text-sm font-medium">Credit card details</p>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="creditLimit">Credit limit</Label>
               <Input

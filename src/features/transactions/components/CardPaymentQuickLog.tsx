@@ -71,7 +71,7 @@ export function CardPaymentQuickLog({
             when it&apos;ll be paid.
           </p>
 
-          <div className="mb-4 grid grid-cols-3 gap-2">
+          <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {cardAccounts.map((card) => {
               const logged = loggedCardAccountIds.has(card.id);
               const selected = selectedCard === card.id;

@@ -62,7 +62,7 @@ export function CreateRecurringTransactionForm({
         <input type="hidden" name="kind" value={kind} />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="accountId">
             {kind === "transfer" ? "From account" : "Account"}
@@ -100,7 +100,7 @@ export function CreateRecurringTransactionForm({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="amount">Amount</Label>
           <Input
@@ -124,7 +124,7 @@ export function CreateRecurringTransactionForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="frequency">Repeats</Label>
           <Select
@@ -154,7 +154,7 @@ export function CreateRecurringTransactionForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="startsOn">Starts</Label>
           <Input
