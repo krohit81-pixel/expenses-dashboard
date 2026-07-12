@@ -2,24 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens locked after prototype review — see the dashboard-v8 /
+ * transactions / budgets / intel HTML prototypes this was derived from.
+ * Deep indigo gradient hero, soft lavender page background, rounded
+ * surfaces, Manrope for display/numbers, Inter for body text.
+ */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 72.2% 50.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.5rem;
+    --bg: 320 23% 95%;
+    --surface: 0 0% 100%;
+    --hero-1: 254 63% 21%;
+    --hero-2: 257 58% 39%;
+    --ink: 270 29% 11%;
+    --ink-soft: 261 11% 45%;
+    --ink-faint: 265 13% 67%;
+    --accent: 263 69% 42%;
+    --accent-soft: 263 74% 94%;
+    --positive: 147 75% 36%;
+    --positive-soft: 142 51% 93%;
+    --negative: 347 73% 54%;
+    --negative-soft: 349 72% 94%;
+    --line: 300 19% 92%;
+
+    /* Kept for shadcn-style component compatibility (focus rings, etc.) */
+    --background: var(--bg);
+    --foreground: var(--ink);
+    --border: var(--line);
+    --input: var(--line);
+    --ring: var(--accent);
+    --radius: 1.25rem;
+    --radius-sm: 0.875rem;
   }
 
   * {
@@ -32,6 +45,6 @@
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-bg text-ink antialiased;
   }
 }
