@@ -23,7 +23,7 @@ npm install
 cp .env.example .env.local
 # fill in NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
 # and SUPABASE_SERVICE_ROLE_KEY in .env.local first, then:
-npm run bootstrap:owner you@example.com
+npm run bootstrap:owner rohit.kohli@icloud.com
 ```
 
 The email doesn't need to be real or receive mail — it's just an
