@@ -2,7 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createTransaction } from "@/services/TransactionService";
+import {
+  createTransaction,
+  markTransactionPaid,
+} from "@/services/TransactionService";
 import { createTransactionInputSchema } from "@/features/transactions/schemas";
 
 export interface CreateTransactionFormState {
@@ -118,4 +121,40 @@ export async function logCardPaymentAction(
   revalidatePath("/dashboard");
   revalidatePath("/accounts");
   return { success: true };
+}
+
+export interface MarkPaidFormState {
+  error?: string;
+}
+
+/**
+ * Flips a scheduled (pending) transaction to posted — the missing piece
+ * that caused real confusion: logging a card payment via "Log a card
+ * payment" correctly doesn't touch the account balance yet (it's a
+ * future-dated, not-yet-happened payment), but there was no way to
+ * confirm it actually happened afterward, so the balance never updated
+ * and looked broken rather than just "not paid yet."
+ */
+export async function markTransactionPaidAction(
+  _prevState: MarkPaidFormState,
+  formData: FormData,
+): Promise<MarkPaidFormState> {
+  const id = formValue(formData, "id");
+
+  if (!id) {
+    return { error: "Missing transaction id" };
+  }
+
+  try {
+    await markTransactionPaid(id);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Something went wrong",
+    };
+  }
+
+  revalidatePath("/transactions");
+  revalidatePath("/dashboard");
+  revalidatePath("/accounts");
+  return {};
 }

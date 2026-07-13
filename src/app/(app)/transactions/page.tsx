@@ -10,6 +10,8 @@ import { formatMoneyDisplay } from "@/lib/money";
 import { Hero } from "@/components/ui/hero";
 import { CreateTransactionForm } from "@/features/transactions/components/CreateTransactionForm";
 import { CardPaymentQuickLog } from "@/features/transactions/components/CardPaymentQuickLog";
+import { MarkPaidButton } from "@/features/transactions/components/MarkPaidButton";
+import { transactionDisplayTitle } from "@/features/transactions/format";
 
 export const metadata: Metadata = {
   title: "Transactions",
@@ -229,10 +231,7 @@ export default async function TransactionsPage({
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-ink">
-                      {transaction.payee ||
-                        (transaction.kind === "transfer"
-                          ? `Transfer to ${accountName.get(transaction.transferAccountId ?? "") ?? "another account"}`
-                          : "Untitled")}
+                      {transactionDisplayTitle(transaction, accountName)}
                     </p>
                     <p className="text-xs text-ink-faint">
                       {transaction.occurredOn} &middot;{" "}
@@ -248,19 +247,24 @@ export default async function TransactionsPage({
                           .join(", ")}`}
                     </p>
                   </div>
-                  <p
-                    className={`whitespace-nowrap font-display text-[15px] font-bold ${
-                      transaction.kind === "income"
-                        ? "text-positive"
-                        : "text-negative"
-                    }`}
-                  >
-                    {transaction.kind === "income" ? "+" : "\u2212"}
-                    {formatMoneyDisplay(
-                      transaction.amount,
-                      transaction.currencyCode,
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    <p
+                      className={`whitespace-nowrap font-display text-[15px] font-bold ${
+                        transaction.kind === "income"
+                          ? "text-positive"
+                          : "text-negative"
+                      }`}
+                    >
+                      {transaction.kind === "income" ? "+" : "\u2212"}
+                      {formatMoneyDisplay(
+                        transaction.amount,
+                        transaction.currencyCode,
+                      )}
+                    </p>
+                    {transaction.status === "pending" && (
+                      <MarkPaidButton id={transaction.id} />
                     )}
-                  </p>
+                  </div>
                 </li>
               ))}
             </ul>

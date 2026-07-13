@@ -30,6 +30,7 @@ export interface Transaction {
   occurredOn: string;
   payee: string | null;
   memo: string | null;
+  recurringTransactionId: string | null;
   splits: TransactionSplit[];
 }
 
@@ -41,6 +42,16 @@ export interface TransactionFilters {
   occurredFrom?: string;
   occurredTo?: string;
   search?: string;
+  /** Only transactions NOT generated from a recurring template — the
+   * ad-hoc ones (card payments, one-off entries). Used by the Budget
+   * month snapshot to show these as a distinct "logged this month"
+   * group, separate from the recurring plan. */
+  oneOffOnly?: boolean;
+  /** Only transactions generated from this specific recurring template —
+   * used by the Budget month snapshot to check whether a template's
+   * projected amount has already been superseded by a real transaction
+   * for the target month. */
+  recurringTransactionId?: string;
   limit?: number;
   offset?: number;
 }
@@ -56,6 +67,7 @@ interface TransactionRow {
   occurred_on: string;
   payee: string | null;
   memo: string | null;
+  recurring_transaction_id: string | null;
   transaction_splits: {
     category_id: string;
     amount: number;
@@ -67,7 +79,7 @@ function buildTransactionSelect(filterByCategory: boolean): string {
   const splitsEmbed = filterByCategory
     ? "transaction_splits!inner(category_id, amount, memo)"
     : "transaction_splits(category_id, amount, memo)";
-  return `id, account_id, transfer_account_id, kind, status, amount, currency_code, occurred_on, payee, memo, ${splitsEmbed}`;
+  return `id, account_id, transfer_account_id, kind, status, amount, currency_code, occurred_on, payee, memo, recurring_transaction_id, ${splitsEmbed}`;
 }
 
 function mapRow(row: TransactionRow): Transaction {
@@ -82,6 +94,7 @@ function mapRow(row: TransactionRow): Transaction {
     occurredOn: row.occurred_on,
     payee: row.payee,
     memo: row.memo,
+    recurringTransactionId: row.recurring_transaction_id,
     splits: row.transaction_splits.map((split) => ({
       categoryId: split.category_id,
       amount: dbNumberToMoney(split.amount),
@@ -129,6 +142,15 @@ export async function listTransactions(
   }
   if (filters.categoryId) {
     query = query.eq("transaction_splits.category_id", filters.categoryId);
+  }
+  if (filters.oneOffOnly) {
+    query = query.is("recurring_transaction_id", null);
+  }
+  if (filters.recurringTransactionId) {
+    query = query.eq(
+      "recurring_transaction_id",
+      filters.recurringTransactionId,
+    );
   }
 
   const { data, error, count } = await query;

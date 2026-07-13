@@ -15,6 +15,7 @@ import {
   type Money,
 } from "@/lib/money";
 import { Hero } from "@/components/ui/hero";
+import { transactionDisplayTitle } from "@/features/transactions/format";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -48,6 +49,10 @@ export default async function DashboardPage() {
     }),
   ]);
 
+  const accountName = new Map(
+    accounts.map((account) => [account.id, account.name]),
+  );
+
   const currency = settings?.baseCurrency ?? "USD";
 
   const balances = await Promise.all(
@@ -55,6 +60,20 @@ export default async function DashboardPage() {
       account,
       balance: await getAccountBalance(account.id),
     })),
+  );
+
+  // Savings/checking first, credit cards after — matches how the person
+  // actually thinks about these (money you have, then what you owe),
+  // rather than the alphabetical-by-name order this was in before.
+  const TYPE_ORDER: Record<string, number> = {
+    checking: 0,
+    savings: 0,
+    credit_card: 1,
+  };
+  const sortedBalances = [...balances].sort(
+    (a, b) =>
+      (TYPE_ORDER[a.account.accountType] ?? 0) -
+      (TYPE_ORDER[b.account.accountType] ?? 0),
   );
 
   const netAcrossAccounts = sumMoney(balances.map((b) => b.balance));
@@ -90,7 +109,7 @@ export default async function DashboardPage() {
   return (
     <div>
       <Hero
-        title="Atlas"
+        title="Dashboard"
         label="Net across all accounts"
         amount={formatMoneyDisplay(netAcrossAccounts, currency)}
         sub={new Date().toLocaleDateString("en-US", {
@@ -110,7 +129,7 @@ export default async function DashboardPage() {
             </span>
           </div>
 
-          {balances.length === 0 ? (
+          {sortedBalances.length === 0 ? (
             <p className="text-sm text-ink-faint">
               No accounts yet —{" "}
               <a href="/accounts" className="underline">
@@ -120,7 +139,7 @@ export default async function DashboardPage() {
             </p>
           ) : (
             <div className="flex gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-[repeat(auto-fill,minmax(168px,1fr))] sm:overflow-visible">
-              {balances.map(({ account, balance }) => {
+              {sortedBalances.map(({ account, balance }) => {
                 const expected = expectedCreditByAccount.get(account.id);
                 const showBar =
                   expected &&
@@ -214,9 +233,13 @@ export default async function DashboardPage() {
                       >
                         <div className="min-w-0">
                           <div className="truncate text-sm font-semibold text-ink">
-                            {t.payee || "Untitled"}
+                            {transactionDisplayTitle(t, accountName)}
                           </div>
-                          <div className="text-xs text-ink-faint">One-time</div>
+                          <div className="text-xs text-ink-faint">
+                            {t.kind === "transfer"
+                              ? "Scheduled transfer"
+                              : "One-time"}
+                          </div>
                         </div>
                         <div className="whitespace-nowrap font-display text-[15px] font-bold text-negative">
                           &minus;{formatMoneyDisplay(t.amount, t.currencyCode)}
