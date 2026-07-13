@@ -28,14 +28,14 @@ export default async function AppLayout({
   await requireUser();
 
   return (
-    <div className="min-h-dvh bg-bg pb-20 sm:pb-0">
+    <div className="min-h-dvh bg-[hsl(var(--bg))] pb-28 sm:pb-0">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-surface focus:px-3 focus:py-2 focus:text-ink focus:outline focus:outline-2"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-[hsl(var(--surface))] focus:px-3 focus:py-2 focus:text-[hsl(var(--ink))] focus:outline focus:outline-2"
       >
         Skip to content
       </a>
-      <div className="hidden items-center justify-end border-b border-line bg-surface px-8 py-3 sm:flex">
+      <div className="hidden items-center justify-end border-b border-[hsl(var(--line))] bg-[hsl(var(--surface))] px-8 py-3 sm:flex">
         <TopNav />
       </div>
       <main id="main-content">{children}</main>
