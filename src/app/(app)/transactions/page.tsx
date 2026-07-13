@@ -110,7 +110,7 @@ export default async function TransactionsPage({
             Filter
           </h2>
           <form method="get" className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1">
+            <div className="flex flex-col gap-1.5">
               <label
                 htmlFor="account"
                 className="text-xs font-semibold text-ink-faint"
@@ -131,7 +131,7 @@ export default async function TransactionsPage({
                 ))}
               </select>
             </div>
-            <div className="space-y-1">
+            <div className="flex flex-col gap-1.5">
               <label
                 htmlFor="kind"
                 className="text-xs font-semibold text-ink-faint"
@@ -152,7 +152,7 @@ export default async function TransactionsPage({
                 ))}
               </select>
             </div>
-            <div className="space-y-1">
+            <div className="flex flex-col gap-1.5">
               <label
                 htmlFor="search"
                 className="text-xs font-semibold text-ink-faint"
@@ -167,7 +167,7 @@ export default async function TransactionsPage({
                 className="h-10 rounded-xl border-[1.5px] border-line bg-surface px-3 text-sm"
               />
             </div>
-            <div className="space-y-1">
+            <div className="flex flex-col gap-1.5">
               <label
                 htmlFor="from"
                 className="text-xs font-semibold text-ink-faint"
@@ -182,7 +182,7 @@ export default async function TransactionsPage({
                 className="h-10 rounded-xl border-[1.5px] border-line bg-surface px-3 text-sm"
               />
             </div>
-            <div className="space-y-1">
+            <div className="flex flex-col gap-1.5">
               <label
                 htmlFor="to"
                 className="text-xs font-semibold text-ink-faint"

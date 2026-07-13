@@ -3,20 +3,24 @@ import type { Metadata } from "next";
 import { listAccounts, getAccountBalance } from "@/services/AccountService";
 import { listInstitutions } from "@/services/InstitutionService";
 import { getUserSettings } from "@/services/UserSettingsService";
-import { listAttachmentsForAccount } from "@/services/AttachmentService";
 import { requireUser } from "@/lib/auth/require-user";
-import { formatMoneyDisplay } from "@/lib/money";
+import { formatMoneyDisplay, isNegativeMoney } from "@/lib/money";
+import { Hero } from "@/components/ui/hero";
 import { CreateAccountForm } from "@/features/accounts/components/CreateAccountForm";
 import { CreateInstitutionForm } from "@/features/institutions/components/CreateInstitutionForm";
-import {
-  AccountAttachmentUploader,
-  AttachmentList,
-} from "@/features/attachments/components/AccountAttachmentUploader";
 
 export const metadata: Metadata = {
   title: "Accounts",
 };
 
+/**
+ * Statement/attachment uploads (AccountAttachmentUploader,
+ * AttachmentService) used to render here per-account — removed per
+ * explicit request, since it read as "upload a statement now" when
+ * nothing is done with it yet. The underlying service and DB tables are
+ * untouched; this belongs on the future Imports page once that's real,
+ * not here.
+ */
 export default async function AccountsPage() {
   const user = await requireUser();
   const [accounts, institutions, settings] = await Promise.all([
@@ -29,56 +33,69 @@ export default async function AccountsPage() {
     accounts.map(async (account) => ({
       account,
       balance: await getAccountBalance(account.id),
-      attachments: await listAttachmentsForAccount(account.id),
     })),
   );
 
   const defaultCurrency = settings?.baseCurrency ?? "USD";
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold">Accounts</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {accounts.length === 0
+    <div>
+      <Hero
+        title="Accounts"
+        label={accounts.length === 0 ? undefined : "Total accounts"}
+        amount={accounts.length === 0 ? undefined : String(accounts.length)}
+        sub={
+          accounts.length === 0
             ? "No accounts yet — add your first one below."
-            : `${accounts.length} account${accounts.length === 1 ? "" : "s"}`}
-        </p>
-      </div>
+            : undefined
+        }
+      />
 
-      {rows.length > 0 && (
-        <ul className="divide-y rounded-lg border">
-          {rows.map(({ account, balance, attachments }) => (
-            <li key={account.id} className="space-y-2 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{account.name}</p>
-                  <p className="text-sm capitalize text-muted-foreground">
-                    {account.accountType.replace("_", " ")}
+      <div className="space-y-8 p-5 sm:p-8">
+        {rows.length > 0 && (
+          <section>
+            <h2 className="mb-3 font-display text-[15px] font-bold text-ink">
+              Your accounts
+            </h2>
+            <ul className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+              {rows.map(({ account, balance }) => (
+                <li
+                  key={account.id}
+                  className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-3.5 last:border-b-0"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-ink">
+                      {account.name}
+                    </p>
+                    <p className="text-xs capitalize text-ink-faint">
+                      {account.accountType.replace("_", " ")}
+                    </p>
+                  </div>
+                  <p
+                    className={`whitespace-nowrap font-display text-[15px] font-bold ${isNegativeMoney(balance) ? "text-negative" : "text-ink"}`}
+                  >
+                    {formatMoneyDisplay(balance, account.currencyCode)}
                   </p>
-                </div>
-                <p className="font-medium tabular-nums">
-                  {formatMoneyDisplay(balance, account.currencyCode)}
-                </p>
-              </div>
-              <AttachmentList attachments={attachments} />
-              <AccountAttachmentUploader accountId={account.id} />
-            </li>
-          ))}
-        </ul>
-      )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
-      <section className="space-y-4">
-        <h2 className="text-sm font-medium">Add an account</h2>
-        <CreateAccountForm
-          institutions={institutions}
-          defaultCurrency={defaultCurrency}
-        />
-      </section>
+        <section className="rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+          <h2 className="mb-4 font-display text-[15px] font-bold text-ink">
+            Add an account
+          </h2>
+          <CreateAccountForm
+            institutions={institutions}
+            defaultCurrency={defaultCurrency}
+          />
+        </section>
 
-      <section className="space-y-4 border-t pt-6">
-        <CreateInstitutionForm />
-      </section>
+        <section className="rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+          <CreateInstitutionForm />
+        </section>
+      </div>
     </div>
   );
 }

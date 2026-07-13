@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { Metadata } from "next";
 
+import { Hero } from "@/components/ui/hero";
 import { logoutAction } from "@/features/access-gate/api/actions";
 
 export const metadata: Metadata = {
@@ -58,39 +59,42 @@ const ITEMS = [
 
 export default function MorePage() {
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-semibold">More</h1>
-      <ul className="divide-y rounded-lg border">
-        {ITEMS.map((item) => (
-          <li key={item.href}>
-            <Link
-              href={item.href}
-              className="flex items-center gap-4 p-4 transition-colors hover:bg-bg"
+    <div>
+      <Hero title="More" />
+      <div className="space-y-4 p-5 sm:p-8">
+        <ul className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+          {ITEMS.map((item) => (
+            <li
+              key={item.href}
+              className="border-b border-line last:border-b-0"
             >
-              <item.icon
-                className="size-5 shrink-0 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <div>
-                <p className="font-medium">{item.label}</p>
-                <p className="text-sm text-muted-foreground">
-                  {item.description}
-                </p>
-              </div>
-            </Link>
-          </li>
-        ))}
-      </ul>
+              <Link
+                href={item.href}
+                className="flex items-center gap-4 px-[18px] py-3.5 transition-colors hover:bg-bg"
+              >
+                <item.icon
+                  className="size-5 shrink-0 text-ink-faint"
+                  aria-hidden="true"
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink">{item.label}</p>
+                  <p className="text-xs text-ink-faint">{item.description}</p>
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
 
-      <form action={logoutAction}>
-        <button
-          type="submit"
-          className="flex w-full items-center gap-3 rounded-lg border border-negative bg-negative-soft p-4 text-sm font-medium text-negative transition-colors hover:opacity-80"
-        >
-          <LogOut className="size-5 shrink-0" aria-hidden="true" />
-          Log out of this device
-        </button>
-      </form>
+        <form action={logoutAction}>
+          <button
+            type="submit"
+            className="flex w-full items-center gap-3 rounded-[20px] bg-negative-soft px-[18px] py-3.5 text-sm font-semibold text-negative transition-colors hover:opacity-80"
+          >
+            <LogOut className="size-5 shrink-0" aria-hidden="true" />
+            Log out of this device
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
