@@ -64,18 +64,24 @@ export type CreateRecurringTransactionInput = z.infer<
 >;
 
 /**
- * Deliberately narrow: the Budgets screen only lets you edit a template's
- * name, amount, and day-of-month, not its frequency/interval/accounts.
- * That covers the actual use case (salary changed, EMI amount changed) —
- * changing which account or how often something recurs is rare enough to
- * not need a UI yet; delete and recreate the template for that until it
- * comes up as a real need.
+ * Editable from the Budgets/Recurring screens: name, amount, day-of-month,
+ * and now frequency + interval — the pair of fields most likely to be
+ * genuinely misunderstood at creation time ("Every" is a multiplier on
+ * "Repeats", e.g. Repeats=Monthly + Every=3 means every 3 months — not a
+ * day-of-month, which is what the day field is for). Still doesn't cover
+ * changing which account(s) a template uses; that's rare enough to still
+ * warrant delete-and-recreate.
  */
 export const updateRecurringTransactionInputSchema = z.object({
   id: z.uuid(),
   payee: z.string().trim().min(1, "Name is required").max(300),
   amount: zPositiveMoney,
-  dayOfMonth: z.number().int().min(1).max(31),
+  // Optional: only meaningful (and only rendered in the edit form) for
+  // monthly cadence. Daily/weekly/quarterly/yearly templates don't have
+  // a "day of the month" concept the same way.
+  dayOfMonth: z.number().int().min(1).max(31).optional(),
+  frequency: z.enum(["daily", "weekly", "monthly", "quarterly", "yearly"]),
+  intervalCount: z.number().int().min(1).max(365),
 });
 
 export type UpdateRecurringTransactionInput = z.infer<

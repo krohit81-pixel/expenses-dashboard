@@ -78,6 +78,8 @@ export default async function BudgetsPage() {
                   amount={r.amount}
                   currencyCode={r.currencyCode}
                   nextOccurrenceOn={r.nextOccurrenceOn}
+                  frequency={r.frequency}
+                  intervalCount={r.intervalCount}
                   direction="in"
                 />
               ))}
@@ -106,6 +108,8 @@ export default async function BudgetsPage() {
                   amount={r.amount}
                   currencyCode={r.currencyCode}
                   nextOccurrenceOn={r.nextOccurrenceOn}
+                  frequency={r.frequency}
+                  intervalCount={r.intervalCount}
                   direction="out"
                 />
               ))}

@@ -11,6 +11,7 @@ import {
   createRecurringTransactionAction,
   type CreateRecurringFormState,
 } from "@/features/recurring/api/actions";
+import { formatFrequency } from "@/features/recurring/format";
 import type { Account } from "@/services/AccountService";
 import type { Category } from "@/services/CategoryService";
 
@@ -40,6 +41,8 @@ export function CreateRecurringTransactionForm({
   const [kind, setKind] = useState<"income" | "expense" | "transfer">(
     "expense",
   );
+  const [frequency, setFrequency] = useState("monthly");
+  const [intervalCount, setIntervalCount] = useState("1");
   const relevantCategories = categories.filter(
     (category) => category.kind === kind,
   );
@@ -149,6 +152,7 @@ export function CreateRecurringTransactionForm({
             name="frequency"
             defaultValue="monthly"
             required
+            onChange={(e) => setFrequency(e.target.value)}
           >
             {FREQUENCIES.map((freq) => (
               <option key={freq} value={freq}>
@@ -165,9 +169,15 @@ export function CreateRecurringTransactionForm({
             type="number"
             min={1}
             max={365}
-            defaultValue={1}
             required
+            value={intervalCount}
+            onChange={(e) => setIntervalCount(e.target.value)}
           />
+          <p className="text-xs text-muted-foreground">
+            {intervalCount || "1"} ={" "}
+            {formatFrequency(frequency, Number(intervalCount) || 1)}. Not a day
+            of the month.
+          </p>
         </div>
       </div>
 

@@ -17,7 +17,7 @@ export default async function LoginPage({
     <div className="flex min-h-dvh items-center justify-center bg-gradient-to-br from-[hsl(var(--hero-1))] to-[hsl(var(--hero-2))] px-5">
       <div className="w-full max-w-sm text-center">
         <h1 className="mb-1 font-display text-xl font-extrabold text-white">
-          Expense Dashboard
+          Atlas
         </h1>
         <p className="mb-8 text-sm text-white/60">
           Enter the password to continue.

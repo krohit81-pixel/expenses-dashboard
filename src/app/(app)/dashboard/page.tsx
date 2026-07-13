@@ -90,7 +90,7 @@ export default async function DashboardPage() {
   return (
     <div>
       <Hero
-        title="Expense Dashboard"
+        title="Atlas"
         label="Net across all accounts"
         amount={formatMoneyDisplay(netAcrossAccounts, currency)}
         sub={new Date().toLocaleDateString("en-US", {

@@ -4,17 +4,17 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  applicationName: "Expense Dashboard",
+  applicationName: "Atlas",
   title: {
-    default: "Expense Dashboard",
-    template: "%s | Expense Dashboard",
+    default: "Atlas",
+    template: "%s | Atlas",
   },
   description: "A private personal finance dashboard.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Expense Dashboard",
+    title: "Atlas",
   },
   formatDetection: {
     telephone: false,

@@ -193,10 +193,10 @@ export async function updateRecurringTransaction(
     throw new Error(`Recurring transaction not found: ${readError.message}`);
   }
 
-  const nextOccurrenceOn = setDayOfMonth(
-    existing.next_occurrence_on,
-    parsed.dayOfMonth,
-  );
+  const nextOccurrenceOn =
+    parsed.dayOfMonth !== undefined
+      ? setDayOfMonth(existing.next_occurrence_on, parsed.dayOfMonth)
+      : existing.next_occurrence_on;
 
   const { error: updateError } = await supabase
     .from("recurring_transactions")
@@ -204,6 +204,8 @@ export async function updateRecurringTransaction(
       payee: parsed.payee,
       amount: moneyToDbNumber(parsed.amount),
       next_occurrence_on: nextOccurrenceOn,
+      frequency: parsed.frequency,
+      interval_count: parsed.intervalCount,
     })
     .eq("id", parsed.id)
     .eq("user_id", OWNER_USER_ID);
@@ -241,6 +243,41 @@ export async function updateRecurringTransaction(
   }
 
   return mapRow(updated as RecurringRow);
+}
+
+/**
+ * Deletes a recurring template entirely. Deletes its
+ * recurring_transaction_splits row first explicitly — safe whether or not
+ * a DB-level cascade exists for this FK, and doesn't depend on knowing
+ * which one is actually configured. Does NOT touch transactions already
+ * generated from this template in the past; those stand on their own.
+ */
+export async function deleteRecurringTransaction(id: string): Promise<void> {
+  const supabase = createServiceClient();
+
+  const { error: splitError } = await supabase
+    .from("recurring_transaction_splits")
+    .delete()
+    .eq("recurring_transaction_id", id)
+    .eq("user_id", OWNER_USER_ID);
+
+  if (splitError) {
+    throw new Error(
+      `Failed to delete recurring transaction category: ${splitError.message}`,
+    );
+  }
+
+  const { error: deleteError } = await supabase
+    .from("recurring_transactions")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", OWNER_USER_ID);
+
+  if (deleteError) {
+    throw new Error(
+      `Failed to delete recurring transaction: ${deleteError.message}`,
+    );
+  }
 }
 
 export interface GenerateDueTransactionsResult {

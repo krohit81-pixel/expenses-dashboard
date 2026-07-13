@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import {
   createRecurringTransaction,
+  deleteRecurringTransaction,
   generateDueTransactions,
   updateRecurringTransaction,
 } from "@/services/RecurringTransactionService";
@@ -101,11 +102,15 @@ export async function updateRecurringTransactionAction(
   _prevState: UpdateRecurringFormState,
   formData: FormData,
 ): Promise<UpdateRecurringFormState> {
+  const dayOfMonthRaw = formValue(formData, "dayOfMonth");
+
   const parsed = updateRecurringTransactionInputSchema.safeParse({
     id: formValue(formData, "id"),
     payee: formValue(formData, "payee"),
     amount: formValue(formData, "amount"),
-    dayOfMonth: Number(formValue(formData, "dayOfMonth")),
+    dayOfMonth: dayOfMonthRaw !== undefined ? Number(dayOfMonthRaw) : undefined,
+    frequency: formValue(formData, "frequency"),
+    intervalCount: Number(formValue(formData, "intervalCount") ?? "1"),
   });
 
   if (!parsed.success) {
@@ -123,4 +128,31 @@ export async function updateRecurringTransactionAction(
   revalidatePath("/recurring");
   revalidatePath("/budgets");
   return { success: true };
+}
+
+export interface DeleteRecurringFormState {
+  error?: string;
+}
+
+export async function deleteRecurringTransactionAction(
+  _prevState: DeleteRecurringFormState,
+  formData: FormData,
+): Promise<DeleteRecurringFormState> {
+  const id = formValue(formData, "id");
+
+  if (!id) {
+    return { error: "Missing recurring transaction id" };
+  }
+
+  try {
+    await deleteRecurringTransaction(id);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Something went wrong",
+    };
+  }
+
+  revalidatePath("/recurring");
+  revalidatePath("/budgets");
+  return {};
 }

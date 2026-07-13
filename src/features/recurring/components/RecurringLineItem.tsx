@@ -4,12 +4,24 @@ import { useActionState, useEffect, useState } from "react";
 
 import { formatMoneyDisplay, type Money } from "@/lib/money";
 import { Spinner } from "@/components/ui/spinner";
+import { formatFrequency } from "@/features/recurring/format";
 import {
+  deleteRecurringTransactionAction,
   updateRecurringTransactionAction,
+  type DeleteRecurringFormState,
   type UpdateRecurringFormState,
 } from "@/features/recurring/api/actions";
 
-const initialState: UpdateRecurringFormState = {};
+const initialUpdateState: UpdateRecurringFormState = {};
+const initialDeleteState: DeleteRecurringFormState = {};
+
+const FREQUENCIES = [
+  "daily",
+  "weekly",
+  "monthly",
+  "quarterly",
+  "yearly",
+] as const;
 
 function dayOfMonth(isoDate: string): number {
   return Number(isoDate.slice(8, 10));
@@ -28,6 +40,8 @@ export function RecurringLineItem({
   amount,
   currencyCode,
   nextOccurrenceOn,
+  frequency,
+  intervalCount,
   direction,
 }: {
   id: string;
@@ -35,19 +49,26 @@ export function RecurringLineItem({
   amount: Money;
   currencyCode: string;
   nextOccurrenceOn: string;
+  frequency: string;
+  intervalCount: number;
   direction: "in" | "out";
 }) {
   const [editing, setEditing] = useState(false);
-  const [state, formAction, isPending] = useActionState(
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [updateState, updateAction, isUpdatePending] = useActionState(
     updateRecurringTransactionAction,
-    initialState,
+    initialUpdateState,
+  );
+  const [deleteState, deleteAction, isDeletePending] = useActionState(
+    deleteRecurringTransactionAction,
+    initialDeleteState,
   );
 
   useEffect(() => {
-    if (state.success) {
+    if (updateState.success) {
       setEditing(false);
     }
-  }, [state.success]);
+  }, [updateState.success]);
 
   if (!editing) {
     return (
@@ -55,7 +76,9 @@ export function RecurringLineItem({
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold text-ink">{name}</div>
           <div className="text-xs text-ink-faint">
-            Every month &middot; {ordinal(dayOfMonth(nextOccurrenceOn))}
+            {formatFrequency(frequency, intervalCount)}
+            {frequency === "monthly" &&
+              ` \u00b7 ${ordinal(dayOfMonth(nextOccurrenceOn))}`}
           </div>
         </div>
         <div
@@ -72,6 +95,40 @@ export function RecurringLineItem({
         >
           &#9998;
         </button>
+        {confirmingDelete ? (
+          <div className="flex shrink-0 items-center gap-1">
+            <form action={deleteAction}>
+              <input type="hidden" name="id" value={id} />
+              <button
+                type="submit"
+                disabled={isDeletePending}
+                className="flex h-[30px] items-center justify-center gap-1 rounded-full bg-negative px-2.5 font-display text-[10px] font-bold text-white disabled:opacity-70"
+              >
+                {isDeletePending && <Spinner className="size-3" />}
+                Confirm
+              </button>
+            </form>
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(false)}
+              className="flex h-[30px] items-center justify-center rounded-full bg-bg px-2.5 font-display text-[10px] font-bold text-ink-soft"
+            >
+              No
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmingDelete(true)}
+            className="flex size-[30px] shrink-0 items-center justify-center rounded-full bg-bg text-xs text-negative"
+            aria-label={`Delete ${name}`}
+          >
+            &#128465;
+          </button>
+        )}
+        {deleteState.error && (
+          <p className="w-full text-xs text-negative">{deleteState.error}</p>
+        )}
       </li>
     );
   }
@@ -79,7 +136,7 @@ export function RecurringLineItem({
   return (
     <li className="flex flex-wrap items-end gap-3 border-b border-line bg-bg px-[18px] py-3.5 last:border-b-0">
       <form
-        action={formAction}
+        action={updateAction}
         className="flex w-full flex-wrap items-end gap-3"
       >
         <input type="hidden" name="id" value={id} />
@@ -108,25 +165,61 @@ export function RecurringLineItem({
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-semibold text-ink-faint">
-            Day
+            Repeats
+          </label>
+          <select
+            name="frequency"
+            defaultValue={frequency}
+            required
+            className="h-9 rounded-xl border-[1.5px] border-line px-2.5 text-sm"
+          >
+            {FREQUENCIES.map((freq) => (
+              <option key={freq} value={freq}>
+                {freq[0].toUpperCase() + freq.slice(1)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label
+            className="text-[10px] font-semibold text-ink-faint"
+            title="A multiplier on Repeats — e.g. Repeats: Monthly + Every: 3 means every 3 months. Not a day of the month."
+          >
+            Every &middot; count of periods
           </label>
           <input
-            name="dayOfMonth"
+            name="intervalCount"
             type="number"
             min={1}
-            max={31}
-            defaultValue={dayOfMonth(nextOccurrenceOn)}
+            max={365}
+            defaultValue={intervalCount}
             required
-            className="h-9 w-16 rounded-xl border-[1.5px] border-line px-2.5 text-sm"
+            className="h-9 w-20 rounded-xl border-[1.5px] border-line px-2.5 text-sm"
           />
         </div>
+        {frequency === "monthly" && (
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-semibold text-ink-faint">
+              Day of month
+            </label>
+            <input
+              name="dayOfMonth"
+              type="number"
+              min={1}
+              max={31}
+              defaultValue={dayOfMonth(nextOccurrenceOn)}
+              required
+              className="h-9 w-16 rounded-xl border-[1.5px] border-line px-2.5 text-sm"
+            />
+          </div>
+        )}
         <div className="flex gap-1.5">
           <button
             type="submit"
-            disabled={isPending}
+            disabled={isUpdatePending}
             className="flex h-9 items-center justify-center gap-1.5 rounded-full bg-accent px-3.5 font-display text-xs font-bold text-white disabled:opacity-70"
           >
-            {isPending && <Spinner className="size-3.5" />}
+            {isUpdatePending && <Spinner className="size-3.5" />}
             Save
           </button>
           <button
@@ -137,8 +230,8 @@ export function RecurringLineItem({
             Cancel
           </button>
         </div>
-        {state.error && (
-          <p className="w-full text-xs text-negative">{state.error}</p>
+        {updateState.error && (
+          <p className="w-full text-xs text-negative">{updateState.error}</p>
         )}
       </form>
     </li>

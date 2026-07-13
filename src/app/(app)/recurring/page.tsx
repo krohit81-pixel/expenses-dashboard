@@ -8,6 +8,8 @@ import { getUserSettings } from "@/services/UserSettingsService";
 import { requireUser } from "@/lib/auth/require-user";
 import { formatMoneyDisplay } from "@/lib/money";
 import { Hero } from "@/components/ui/hero";
+import { formatFrequency } from "@/features/recurring/format";
+import { RecurringLineItem } from "@/features/recurring/components/RecurringLineItem";
 import { CreateRecurringTransactionForm } from "@/features/recurring/components/CreateRecurringTransactionForm";
 import { GenerateDueTransactionsButton } from "@/features/recurring/components/GenerateDueTransactionsButton";
 
@@ -15,22 +17,14 @@ export const metadata: Metadata = {
   title: "Recurring transactions",
 };
 
-const FREQUENCY_UNIT: Record<string, string> = {
-  daily: "day",
-  weekly: "week",
-  monthly: "month",
-  quarterly: "quarter",
-  yearly: "year",
-};
-
-function formatFrequency(frequency: string, intervalCount: number): string {
-  const unit = FREQUENCY_UNIT[frequency] ?? frequency;
-  if (intervalCount === 1) {
-    return `every ${unit}`;
-  }
-  return `every ${intervalCount} ${unit}s`;
-}
-
+/**
+ * Transfers are shown as plain read-only rows for now, not through
+ * RecurringLineItem — that component's edit form assumes a single
+ * category (income/expense shape), which doesn't fit a transfer's
+ * two-account shape without real rework. Income/expense templates get
+ * full edit/delete here, same as on Budgets — this page shows the exact
+ * same underlying data, just without splitting into two columns.
+ */
 export default async function RecurringPage() {
   const user = await requireUser();
   const [templates, accounts, categories, settings] = await Promise.all([
@@ -68,32 +62,53 @@ export default async function RecurringPage() {
             </p>
           ) : (
             <ul className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-              {templates.map((template) => (
-                <li
-                  key={template.id}
-                  className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-3.5 last:border-b-0"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-ink">
-                      {template.payee ||
-                        (template.categoryId
-                          ? categoryName.get(template.categoryId)
-                          : `Transfer to ${accountName.get(template.transferAccountId ?? "") ?? "another account"}`)}
+              {templates.map((template) =>
+                template.kind === "transfer" ? (
+                  <li
+                    key={template.id}
+                    className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-3.5 last:border-b-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-ink">
+                        {template.payee ||
+                          `Transfer to ${accountName.get(template.transferAccountId ?? "") ?? "another account"}`}
+                      </p>
+                      <p className="text-xs text-ink-faint">
+                        {accountName.get(template.accountId)} &middot;{" "}
+                        {formatFrequency(
+                          template.frequency,
+                          template.intervalCount,
+                        )}{" "}
+                        &middot; next {template.nextOccurrenceOn}
+                      </p>
+                    </div>
+                    <p className="whitespace-nowrap font-display text-[15px] font-bold text-ink">
+                      {formatMoneyDisplay(
+                        template.amount,
+                        template.currencyCode,
+                      )}
                     </p>
-                    <p className="text-xs text-ink-faint">
-                      {accountName.get(template.accountId)} &middot;{" "}
-                      {formatFrequency(
-                        template.frequency,
-                        template.intervalCount,
-                      )}{" "}
-                      &middot; next {template.nextOccurrenceOn}
-                    </p>
-                  </div>
-                  <p className="whitespace-nowrap font-display text-[15px] font-bold text-ink">
-                    {formatMoneyDisplay(template.amount, template.currencyCode)}
-                  </p>
-                </li>
-              ))}
+                  </li>
+                ) : (
+                  <RecurringLineItem
+                    key={template.id}
+                    id={template.id}
+                    name={
+                      template.payee ||
+                      (template.categoryId
+                        ? categoryName.get(template.categoryId)
+                        : undefined) ||
+                      "Untitled"
+                    }
+                    amount={template.amount}
+                    currencyCode={template.currencyCode}
+                    nextOccurrenceOn={template.nextOccurrenceOn}
+                    frequency={template.frequency}
+                    intervalCount={template.intervalCount}
+                    direction={template.kind === "income" ? "in" : "out"}
+                  />
+                ),
+              )}
             </ul>
           )}
         </section>

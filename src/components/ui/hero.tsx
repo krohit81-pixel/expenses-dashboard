@@ -13,17 +13,17 @@ interface HeroProps {
 }
 
 /**
- * Deep indigo gradient header with rounded bottom corners, used at the top
- * of the four pages that have a headline metric (Dashboard, Transactions,
- * Budgets, Intel). Nav lives in the shared (app)/layout.tsx now, not here —
- * it used to be rendered inside this component, but that meant pages
- * without a Hero (Accounts, Recurring, Net worth, Settings, More) had no
- * desktop navigation at all. Single persistent nav location, works the
- * same on every page.
+ * Deep indigo gradient header, used at the top of every page. Plain
+ * rectangle (no rounded corners) and a fixed minimum height — some pages
+ * only pass a title (Calendar, Settings, More, ...) while others pass the
+ * full title/label/amount/sub set (Dashboard, Budgets), and without a
+ * fixed height the header visibly changed size switching between tabs.
+ * Title always sits at the same top position regardless of what else is
+ * present, so it's not hunting around the screen from page to page.
  */
 export function Hero({ title, label, amount, sub, children }: HeroProps) {
   return (
-    <header className="rounded-b-[28px] bg-gradient-to-br from-[hsl(var(--hero-1))] to-[hsl(var(--hero-2))] px-5 pb-6 pt-6 text-white sm:px-8">
+    <header className="min-h-[170px] bg-gradient-to-br from-[hsl(var(--hero-1))] to-[hsl(var(--hero-2))] px-5 pb-6 pt-6 text-white sm:px-8">
       <h1 className="font-display text-[17px] font-bold">{title}</h1>
       {label && <div className="mt-4 text-xs text-white/65">{label}</div>}
       {amount && (
