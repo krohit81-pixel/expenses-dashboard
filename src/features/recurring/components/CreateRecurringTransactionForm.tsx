@@ -62,6 +62,23 @@ export function CreateRecurringTransactionForm({
         <input type="hidden" name="kind" value={kind} />
       </div>
 
+      <div className="space-y-2">
+        <Label htmlFor="payee">
+          Name{kind === "transfer" ? " (optional)" : ""}
+        </Label>
+        <Input
+          id="payee"
+          name="payee"
+          maxLength={300}
+          required={kind !== "transfer"}
+          placeholder={
+            kind === "transfer"
+              ? "e.g. Move salary to joint account"
+              : "e.g. Home Loan EMI — Apt 2"
+          }
+        />
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="accountId">
@@ -171,15 +188,10 @@ export function CreateRecurringTransactionForm({
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="payee">Payee (optional)</Label>
-        <Input id="payee" name="payee" maxLength={300} />
-      </div>
-
       <FieldError message={state.error} />
 
-      <Button type="submit" disabled={isPending}>
-        {isPending ? "Saving…" : "Create recurring transaction"}
+      <Button type="submit" loading={isPending}>
+        Create recurring transaction
       </Button>
     </form>
   );

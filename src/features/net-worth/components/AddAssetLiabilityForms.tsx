@@ -71,8 +71,8 @@ export function AddAssetForm({ defaultCurrency }: { defaultCurrency: string }) {
         </div>
       </div>
       <FieldError message={state.error} />
-      <Button type="submit" variant="outline" disabled={isPending}>
-        {isPending ? "Adding…" : "Add asset"}
+      <Button type="submit" variant="outline" loading={isPending}>
+        Add asset
       </Button>
     </form>
   );
@@ -133,8 +133,8 @@ export function AddLiabilityForm({
         </div>
       </div>
       <FieldError message={state.error} />
-      <Button type="submit" variant="outline" disabled={isPending}>
-        {isPending ? "Adding…" : "Add liability"}
+      <Button type="submit" variant="outline" loading={isPending}>
+        Add liability
       </Button>
     </form>
   );

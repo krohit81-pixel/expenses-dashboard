@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 
+import { Spinner } from "@/components/ui/spinner";
 import {
   submitAccessPasswordAction,
   type AccessGateFormState,
@@ -39,9 +40,10 @@ export function LoginForm({ next }: { next: string }) {
       <button
         type="submit"
         disabled={isPending}
-        className="h-12 w-full rounded-full bg-white font-display text-sm font-bold text-[hsl(var(--hero-1))] disabled:opacity-60"
+        className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white font-display text-sm font-bold text-[hsl(var(--hero-1))] disabled:opacity-60"
       >
-        {isPending ? "Checking…" : "Continue"}
+        {isPending && <Spinner className="size-4" />}
+        Continue
       </button>
     </form>
   );

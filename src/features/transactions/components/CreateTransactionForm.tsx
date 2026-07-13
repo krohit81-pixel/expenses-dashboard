@@ -143,8 +143,13 @@ export function CreateTransactionForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="payee">Payee (optional)</Label>
-        <Input id="payee" name="payee" maxLength={300} />
+        <Label htmlFor="payee">Name (optional)</Label>
+        <Input
+          id="payee"
+          name="payee"
+          maxLength={300}
+          placeholder="e.g. Groceries at DMart"
+        />
       </div>
 
       {kind !== "transfer" && (
@@ -241,8 +246,8 @@ export function CreateTransactionForm({
 
       <FieldError message={state.error} />
 
-      <Button type="submit" disabled={isPending}>
-        {isPending ? "Saving…" : "Add transaction"}
+      <Button type="submit" loading={isPending}>
+        Add transaction
       </Button>
     </form>
   );

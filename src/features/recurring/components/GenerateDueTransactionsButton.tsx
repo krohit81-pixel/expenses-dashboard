@@ -18,8 +18,8 @@ export function GenerateDueTransactionsButton() {
 
   return (
     <form action={formAction} className="flex items-center gap-3">
-      <Button type="submit" variant="outline" disabled={isPending}>
-        {isPending ? "Checking…" : "Generate due transactions"}
+      <Button type="submit" variant="outline" loading={isPending}>
+        Generate due transactions
       </Button>
       {state.message && (
         <p className="text-sm text-muted-foreground">{state.message}</p>

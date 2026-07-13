@@ -77,8 +77,8 @@ export function SettingsForm({
       <FieldError message={state.error} />
       {state.success && <p className="text-sm text-emerald-600">Saved.</p>}
 
-      <Button type="submit" disabled={isPending}>
-        {isPending ? "Saving…" : "Save changes"}
+      <Button type="submit" loading={isPending}>
+        Save changes
       </Button>
     </form>
   );

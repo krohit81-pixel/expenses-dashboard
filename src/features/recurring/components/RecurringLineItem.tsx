@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 
 import { formatMoneyDisplay, type Money } from "@/lib/money";
+import { Spinner } from "@/components/ui/spinner";
 import {
   updateRecurringTransactionAction,
   type UpdateRecurringFormState,
@@ -123,9 +124,10 @@ export function RecurringLineItem({
           <button
             type="submit"
             disabled={isPending}
-            className="h-9 rounded-full bg-accent px-3.5 font-display text-xs font-bold text-white"
+            className="flex h-9 items-center justify-center gap-1.5 rounded-full bg-accent px-3.5 font-display text-xs font-bold text-white disabled:opacity-70"
           >
-            {isPending ? "…" : "Save"}
+            {isPending && <Spinner className="size-3.5" />}
+            Save
           </button>
           <button
             type="button"

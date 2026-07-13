@@ -21,14 +21,43 @@ export function isMoney(value: string): value is Money {
   return MONEY_PATTERN.test(value);
 }
 
-/** Zod schema for a Money string. Use for any field bound to a numeric(18,2) column. */
+/**
+ * What a human might reasonably type into an amount field: a plain
+ * integer ("202000"), one or two decimal places ("202000.5",
+ * "202000.50"), optionally with thousands separators or surrounding
+ * whitespace ("2,02,000.00 "). Deliberately more permissive than
+ * MONEY_PATTERN — this is the pattern for RAW INPUT, not the invariant
+ * for a value already in canonical Money form.
+ */
+const LENIENT_INPUT_PATTERN =
+  /^-?\d{1,3}(,\d{2,3})*(\.\d{1,2})?$|^-?\d+(\.\d{1,2})?$/;
+
+function normalizeAmountInput(raw: string): string {
+  return raw.replace(/,/g, "").trim();
+}
+
+/**
+ * Zod schema for a money amount typed by a human into a form. Accepts
+ * common shapes (missing decimals, one decimal place, thousands
+ * separators) and always transforms to the canonical 2-decimal Money
+ * string — the same guarantee zMoney always made, just without forcing
+ * the person to type ".00" themselves. This is what every form's amount
+ * field should use; reach for the stricter zMoney only when re-validating
+ * a value that's already supposed to be in canonical form (e.g. a
+ * round-trip from the database), not when validating what someone typed.
+ */
 export const zMoney = z
   .string()
-  .regex(
-    MONEY_PATTERN,
-    "Must be a decimal amount with exactly two decimal places, e.g. 12.50",
-  )
-  .transform((value) => value as Money);
+  .transform((value) => normalizeAmountInput(value))
+  .pipe(
+    z
+      .string()
+      .regex(
+        LENIENT_INPUT_PATTERN,
+        "Must be a valid amount, e.g. 1200 or 1200.50",
+      )
+      .transform((value) => new Decimal(value).toFixed(2) as Money),
+  );
 
 /** Zod schema for a Money string that must be strictly positive (matches `amount > 0` DB checks). */
 export const zPositiveMoney = zMoney.refine(

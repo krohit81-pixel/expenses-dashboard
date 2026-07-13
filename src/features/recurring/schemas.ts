@@ -18,6 +18,12 @@ const baseFields = z.object({
 
 const incomeExpenseSchema = baseFields.extend({
   kind: z.enum(["income", "expense"]),
+  // Required here, unlike baseFields' optional default — a category
+  // alone doesn't distinguish two things in the same category (e.g. two
+  // home loan EMIs both under "Housing & loans"). Transfers don't need
+  // this same requirement since the account pairing already identifies
+  // them.
+  payee: z.string().trim().min(1, "Name is required").max(300),
   // Splits aren't supported for recurring templates yet — a single
   // category per template covers the common cases (rent, salary, a fixed
   // bill) and keeps generation simple. Extend to

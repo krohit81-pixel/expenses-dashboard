@@ -96,16 +96,50 @@ describe("signedMoneyColorClass", () => {
 });
 
 describe("zod schemas", () => {
-  it("zMoney accepts negative and positive amounts", () => {
+  it("zMoney accepts negative and positive amounts, normalizing to 2 decimals", () => {
     expect(zMoney.safeParse("-5.00").success).toBe(true);
     expect(zMoney.safeParse("5.00").success).toBe(true);
-    expect(zMoney.safeParse("5.0").success).toBe(false);
+    const result = zMoney.safeParse("5.0");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBe("5.00");
+  });
+
+  it("zMoney accepts a plain integer with no decimal point at all", () => {
+    // The actual bug report this fixes: typing "202000" for a credit
+    // limit or recurring amount shouldn't require also typing ".00".
+    const result = zMoney.safeParse("202000");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBe("202000.00");
+  });
+
+  it("zMoney accepts one decimal place, padding to two", () => {
+    const result = zMoney.safeParse("42.5");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBe("42.50");
+  });
+
+  it("zMoney strips thousands separators and surrounding whitespace", () => {
+    const result = zMoney.safeParse(" 2,02,000.00 ");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBe("202000.00");
+  });
+
+  it("zMoney still rejects genuinely invalid input", () => {
+    expect(zMoney.safeParse("not a number").success).toBe(false);
+    expect(zMoney.safeParse("5.123").success).toBe(false);
+    expect(zMoney.safeParse("").success).toBe(false);
   });
 
   it("zPositiveMoney rejects zero and negative", () => {
     expect(zPositiveMoney.safeParse("0.00").success).toBe(false);
     expect(zPositiveMoney.safeParse("-0.01").success).toBe(false);
     expect(zPositiveMoney.safeParse("0.01").success).toBe(true);
+  });
+
+  it("zPositiveMoney accepts a plain integer, same leniency as zMoney", () => {
+    const result = zPositiveMoney.safeParse("202000");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toBe("202000.00");
   });
 
   it("zNonNegativeMoney accepts zero but rejects negative", () => {

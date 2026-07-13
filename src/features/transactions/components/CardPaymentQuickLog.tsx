@@ -2,6 +2,8 @@
 
 import { useActionState, useState } from "react";
 
+import { Spinner } from "@/components/ui/spinner";
+
 import {
   logCardPaymentAction,
   type LogCardPaymentFormState,
@@ -166,9 +168,10 @@ export function CardPaymentQuickLog({
           <button
             type="submit"
             disabled={isPending || !selectedCard}
-            className="w-full rounded-full bg-accent py-3 font-display text-sm font-bold text-white disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-accent py-3 font-display text-sm font-bold text-white disabled:opacity-50"
           >
-            {isPending ? "Logging…" : "Log payment"}
+            {isPending && <Spinner className="size-4" />}
+            Log payment
           </button>
         </form>
       )}

@@ -154,8 +154,8 @@ export function CreateAccountForm({
 
       <FieldError message={state.error} />
 
-      <Button type="submit" disabled={isPending}>
-        {isPending ? "Creating…" : "Create account"}
+      <Button type="submit" loading={isPending}>
+        Create account
       </Button>
     </form>
   );

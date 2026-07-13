@@ -92,8 +92,8 @@ export function OnboardingForm() {
 
       <FieldError message={state.error} />
 
-      <Button type="submit" disabled={isPending} className="w-full">
-        {isPending ? "Saving…" : "Continue"}
+      <Button type="submit" loading={isPending} className="w-full">
+        Continue
       </Button>
     </form>
   );

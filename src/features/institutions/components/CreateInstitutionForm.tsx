@@ -30,8 +30,8 @@ export function CreateInstitutionForm() {
           required
         />
       </div>
-      <Button type="submit" variant="outline" disabled={isPending}>
-        {isPending ? "Adding…" : "Add"}
+      <Button type="submit" variant="outline" loading={isPending}>
+        Add
       </Button>
       <FieldError message={state.error} />
     </form>
