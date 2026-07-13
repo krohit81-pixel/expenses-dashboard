@@ -158,6 +158,21 @@ export function CardPaymentQuickLog({
             </select>
           </div>
 
+          <div className="mb-4 flex flex-col gap-1.5">
+            <label
+              htmlFor="memo"
+              className="text-xs font-semibold text-ink-faint"
+            >
+              Note &middot; which billing cycle (optional)
+            </label>
+            <input
+              id="memo"
+              name="memo"
+              placeholder="e.g. August cycle — paying early from July salary"
+              className="h-11 rounded-2xl border-[1.5px] border-line px-3.5 text-sm"
+            />
+          </div>
+
           {state.error && (
             <p className="mb-3 text-sm text-negative">{state.error}</p>
           )}

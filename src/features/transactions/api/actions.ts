@@ -5,8 +5,12 @@ import { revalidatePath } from "next/cache";
 import {
   createTransaction,
   markTransactionPaid,
+  updateTransaction,
 } from "@/services/TransactionService";
-import { createTransactionInputSchema } from "@/features/transactions/schemas";
+import {
+  createTransactionInputSchema,
+  updateTransactionInputSchema,
+} from "@/features/transactions/schemas";
 
 export interface CreateTransactionFormState {
   error?: string;
@@ -100,6 +104,7 @@ export async function logCardPaymentAction(
     amount: formValue(formData, "amount"),
     currencyCode: formValue(formData, "currencyCode"),
     occurredOn: formValue(formData, "payOn"),
+    memo: formValue(formData, "memo"),
     status: "pending" as const,
   };
 
@@ -157,4 +162,39 @@ export async function markTransactionPaidAction(
   revalidatePath("/dashboard");
   revalidatePath("/accounts");
   return {};
+}
+
+export interface UpdateTransactionFormState {
+  error?: string;
+  success?: boolean;
+}
+
+export async function updateTransactionAction(
+  _prevState: UpdateTransactionFormState,
+  formData: FormData,
+): Promise<UpdateTransactionFormState> {
+  const parsed = updateTransactionInputSchema.safeParse({
+    id: formValue(formData, "id"),
+    amount: formValue(formData, "amount"),
+    occurredOn: formValue(formData, "occurredOn"),
+    memo: formValue(formData, "memo") ?? null,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+
+  try {
+    await updateTransaction(parsed.data);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Something went wrong",
+    };
+  }
+
+  revalidatePath("/transactions");
+  revalidatePath("/dashboard");
+  revalidatePath("/budgets");
+  revalidatePath("/accounts");
+  return { success: true };
 }

@@ -83,3 +83,23 @@ export const createTransactionInputSchema = z
 export type CreateTransactionInput = z.infer<
   typeof createTransactionInputSchema
 >;
+
+/**
+ * Narrow, deliberately: editing a transaction's account/kind/category
+ * after the fact touches balance history in ways that need more care
+ * than this covers. This handles the actual need that came up — fixing
+ * a scheduled card payment's amount or date before it's paid, and
+ * tagging which billing cycle it belongs to (memo) when that's not
+ * obvious from the pay date alone (e.g. paying early from this month's
+ * salary for a bill that's technically due next month).
+ */
+export const updateTransactionInputSchema = z.object({
+  id: z.uuid(),
+  amount: zPositiveMoney,
+  occurredOn: z.iso.date(),
+  memo: z.string().trim().max(300).nullable().optional(),
+});
+
+export type UpdateTransactionInput = z.infer<
+  typeof updateTransactionInputSchema
+>;

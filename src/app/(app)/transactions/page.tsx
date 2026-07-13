@@ -6,12 +6,10 @@ import { listAccounts } from "@/services/AccountService";
 import { listCategories } from "@/services/CategoryService";
 import { getUserSettings } from "@/services/UserSettingsService";
 import { requireUser } from "@/lib/auth/require-user";
-import { formatMoneyDisplay } from "@/lib/money";
 import { Hero } from "@/components/ui/hero";
 import { CreateTransactionForm } from "@/features/transactions/components/CreateTransactionForm";
 import { CardPaymentQuickLog } from "@/features/transactions/components/CardPaymentQuickLog";
-import { MarkPaidButton } from "@/features/transactions/components/MarkPaidButton";
-import { transactionDisplayTitle } from "@/features/transactions/format";
+import { TransactionRow } from "@/features/transactions/components/TransactionRow";
 
 export const metadata: Metadata = {
   title: "Transactions",
@@ -225,47 +223,12 @@ export default async function TransactionsPage({
           ) : (
             <ul className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
               {transactions.map((transaction) => (
-                <li
+                <TransactionRow
                   key={transaction.id}
-                  className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-3.5 last:border-b-0"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-ink">
-                      {transactionDisplayTitle(transaction, accountName)}
-                    </p>
-                    <p className="text-xs text-ink-faint">
-                      {transaction.occurredOn} &middot;{" "}
-                      {accountName.get(transaction.accountId)}
-                      {transaction.status === "pending" && " · Scheduled"}
-                      {transaction.splits.length > 0 &&
-                        ` \u00b7 ${transaction.splits
-                          .map(
-                            (split) =>
-                              categoryName.get(split.categoryId) ??
-                              "Uncategorized",
-                          )
-                          .join(", ")}`}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    <p
-                      className={`whitespace-nowrap font-display text-[15px] font-bold ${
-                        transaction.kind === "income"
-                          ? "text-positive"
-                          : "text-negative"
-                      }`}
-                    >
-                      {transaction.kind === "income" ? "+" : "\u2212"}
-                      {formatMoneyDisplay(
-                        transaction.amount,
-                        transaction.currencyCode,
-                      )}
-                    </p>
-                    {transaction.status === "pending" && (
-                      <MarkPaidButton id={transaction.id} />
-                    )}
-                  </div>
-                </li>
+                  transaction={transaction}
+                  accountName={accountName}
+                  categoryName={categoryName}
+                />
               ))}
             </ul>
           )}

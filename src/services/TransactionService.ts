@@ -6,10 +6,12 @@ import { OWNER_USER_ID } from "@/lib/owner";
 import type { Enum } from "@/lib/db/helpers";
 import {
   createTransactionInputSchema,
+  updateTransactionInputSchema,
   type CreateTransactionInput,
+  type UpdateTransactionInput,
 } from "@/features/transactions/schemas";
 
-export type { CreateTransactionInput };
+export type { CreateTransactionInput, UpdateTransactionInput };
 export type TransactionKind = Enum<"transaction_kind">;
 export type TransactionStatus = Enum<"transaction_status">;
 
@@ -278,4 +280,44 @@ export async function markTransactionPaid(
   if (error) {
     throw new Error(`Failed to mark transaction paid: ${error.message}`);
   }
+}
+
+/**
+ * Updates a transaction's amount, date, and memo — see the narrow-scope
+ * note on updateTransactionInputSchema. Doesn't touch splits, so a
+ * multi-category expense's per-category breakdown can't be edited this
+ * way yet; this covers the actual need (fixing a scheduled card
+ * payment's amount/date, tagging its billing cycle in memo).
+ */
+export async function updateTransaction(
+  input: UpdateTransactionInput,
+): Promise<Transaction> {
+  const parsed = updateTransactionInputSchema.parse(input);
+  const supabase = createServiceClient();
+
+  const { error: updateError } = await supabase
+    .from("transactions")
+    .update({
+      amount: moneyToDbNumber(parsed.amount),
+      occurred_on: parsed.occurredOn,
+      memo: parsed.memo ?? null,
+    })
+    .eq("id", parsed.id)
+    .eq("user_id", OWNER_USER_ID);
+
+  if (updateError) {
+    throw new Error(`Failed to update transaction: ${updateError.message}`);
+  }
+
+  const { data: updated, error: readError } = await supabase
+    .from("transactions")
+    .select(buildTransactionSelect(false))
+    .eq("id", parsed.id)
+    .single();
+
+  if (readError) {
+    throw new Error(`Transaction was updated but could not be re-read`);
+  }
+
+  return mapRow(updated as unknown as TransactionRow);
 }

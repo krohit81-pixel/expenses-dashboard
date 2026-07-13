@@ -358,18 +358,18 @@ export default function CalendarPage() {
         label="Next vacation window"
         amount="Diwali · Nov 6"
         sub="12 days · AY 2026–27"
-      >
-        <div className="mt-4 flex flex-wrap gap-2">
-          <span className="rounded-full bg-white px-3.5 py-1.5 font-display text-xs font-bold text-[hsl(var(--hero-1))]">
-            Ahaana · Grade 8
+      />
+
+      <div className="space-y-8 p-5 sm:p-8">
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full bg-accent px-3.5 py-1.5 font-display text-xs font-bold text-white">
+            Ahaana &middot; Grade 8
           </span>
-          <span className="rounded-full border border-dashed border-white/40 px-3.5 py-1.5 font-display text-xs font-bold text-white/55">
+          <span className="rounded-full border border-dashed border-line px-3.5 py-1.5 font-display text-xs font-bold text-ink-faint">
             + Rohana
           </span>
         </div>
-      </Hero>
 
-      <div className="space-y-8 p-5 sm:p-8">
         <section>
           <div className="mb-3 flex items-baseline justify-between">
             <h2 className="font-display text-[15px] font-bold text-ink">

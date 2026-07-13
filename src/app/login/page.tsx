@@ -20,8 +20,8 @@ export default async function LoginPage({
         <Image
           src="/atlas-mark.png"
           alt="Atlas"
-          width={96}
-          height={108}
+          width={140}
+          height={164}
           className="mx-auto mb-4"
           priority
         />

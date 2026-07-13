@@ -35,8 +35,8 @@ export function Hero({ title, label, amount, sub, children }: HeroProps) {
         <Image
           src="/atlas-mark.png"
           alt=""
-          width={22}
-          height={25}
+          width={32}
+          height={38}
           className="shrink-0"
           priority
         />
