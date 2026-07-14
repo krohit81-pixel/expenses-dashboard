@@ -6,6 +6,7 @@ import {
   createRecurringTransaction,
   deleteRecurringTransaction,
   generateDueTransactions,
+  tagRecurringToCycle,
   updateRecurringTransaction,
 } from "@/services/RecurringTransactionService";
 import {
@@ -155,4 +156,34 @@ export async function deleteRecurringTransactionAction(
   revalidatePath("/recurring");
   revalidatePath("/budgets");
   return {};
+}
+
+export interface TagToCycleFormState {
+  error?: string;
+  success?: boolean;
+}
+
+export async function tagRecurringToCycleAction(
+  _prevState: TagToCycleFormState,
+  formData: FormData,
+): Promise<TagToCycleFormState> {
+  const templateId = formValue(formData, "templateId");
+  const cycleMonth = formValue(formData, "cycleMonth");
+
+  if (!templateId || !cycleMonth) {
+    return { error: "Missing template or cycle month" };
+  }
+
+  try {
+    await tagRecurringToCycle(templateId, cycleMonth);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Something went wrong",
+    };
+  }
+
+  revalidatePath("/budgets");
+  revalidatePath("/recurring");
+  revalidatePath("/transactions");
+  return { success: true };
 }

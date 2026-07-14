@@ -443,6 +443,7 @@ export type Database = {
           occurred_on: string;
           payee: string | null;
           memo: string | null;
+          cycle_month: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -460,6 +461,7 @@ export type Database = {
           occurred_on: string;
           payee?: string | null;
           memo?: string | null;
+          cycle_month?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -477,6 +479,7 @@ export type Database = {
           occurred_on?: string;
           payee?: string | null;
           memo?: string | null;
+          cycle_month?: string | null;
           created_at?: string;
           updated_at?: string;
         };

@@ -33,6 +33,11 @@ export interface Transaction {
   payee: string | null;
   memo: string | null;
   recurringTransactionId: string | null;
+  /** Which month's cash-flow plan this counts toward, e.g. "2026-08" —
+   * distinct from occurredOn. Null means untagged: excluded from every
+   * month's Budget snapshot until tagged. See migration
+   * 20260714000100 for the full rationale. */
+  cycleMonth: string | null;
   splits: TransactionSplit[];
 }
 
@@ -54,6 +59,8 @@ export interface TransactionFilters {
    * projected amount has already been superseded by a real transaction
    * for the target month. */
   recurringTransactionId?: string;
+  /** Exact match on cycle_month, e.g. "2026-08". */
+  cycleMonth?: string;
   limit?: number;
   offset?: number;
 }
@@ -70,6 +77,7 @@ interface TransactionRow {
   payee: string | null;
   memo: string | null;
   recurring_transaction_id: string | null;
+  cycle_month: string | null;
   transaction_splits: {
     category_id: string;
     amount: number;
@@ -81,7 +89,7 @@ function buildTransactionSelect(filterByCategory: boolean): string {
   const splitsEmbed = filterByCategory
     ? "transaction_splits!inner(category_id, amount, memo)"
     : "transaction_splits(category_id, amount, memo)";
-  return `id, account_id, transfer_account_id, kind, status, amount, currency_code, occurred_on, payee, memo, recurring_transaction_id, ${splitsEmbed}`;
+  return `id, account_id, transfer_account_id, kind, status, amount, currency_code, occurred_on, payee, memo, recurring_transaction_id, cycle_month, ${splitsEmbed}`;
 }
 
 function mapRow(row: TransactionRow): Transaction {
@@ -97,6 +105,7 @@ function mapRow(row: TransactionRow): Transaction {
     payee: row.payee,
     memo: row.memo,
     recurringTransactionId: row.recurring_transaction_id,
+    cycleMonth: row.cycle_month,
     splits: row.transaction_splits.map((split) => ({
       categoryId: split.category_id,
       amount: dbNumberToMoney(split.amount),
@@ -154,6 +163,9 @@ export async function listTransactions(
       filters.recurringTransactionId,
     );
   }
+  if (filters.cycleMonth) {
+    query = query.eq("cycle_month", filters.cycleMonth);
+  }
 
   const { data, error, count } = await query;
 
@@ -174,6 +186,19 @@ export async function listTransactions(
  * a best-effort compensating action. See the same note on AccountService's
  * createAccount; both should move to a Postgres function together.
  */
+/**
+ * Omitted cycleMonth defaults to occurredOn's own month — keeps existing
+ * callers (forms that don't know about cycles, generateDueTransactions)
+ * working unchanged. Explicit null is different: it means "leave
+ * untagged," which the Budget snapshot then excludes until tagged.
+ */
+function resolveCycleMonth(
+  cycleMonth: string | null | undefined,
+  occurredOn: string,
+): string | null {
+  return cycleMonth === undefined ? occurredOn.slice(0, 7) : cycleMonth;
+}
+
 export async function createTransaction(
   input: CreateTransactionInput,
 ): Promise<Transaction> {
@@ -194,6 +219,7 @@ export async function createTransaction(
       occurred_on: parsed.occurredOn,
       payee: parsed.payee ?? null,
       memo: parsed.memo ?? null,
+      cycle_month: resolveCycleMonth(parsed.cycleMonth, parsed.occurredOn),
     })
     .select("id")
     .single();
@@ -301,6 +327,13 @@ export async function updateTransaction(
       amount: moneyToDbNumber(parsed.amount),
       occurred_on: parsed.occurredOn,
       memo: parsed.memo ?? null,
+      // Omitted cycleMonth means "don't touch it" here, unlike create's
+      // default-to-occurredOn's-month behavior — an edit that only
+      // changes the amount shouldn't silently clear or move an existing
+      // tag. Explicit null clears it; an explicit string sets it.
+      ...(parsed.cycleMonth !== undefined
+        ? { cycle_month: parsed.cycleMonth }
+        : {}),
     })
     .eq("id", parsed.id)
     .eq("user_id", OWNER_USER_ID);

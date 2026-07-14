@@ -370,6 +370,7 @@ export async function generateDueTransactions(
           occurred_on: occurredOn,
           payee: template.payee,
           memo: template.memo,
+          cycle_month: occurredOn.slice(0, 7),
         })
         .select("id")
         .single();
@@ -426,4 +427,92 @@ export async function generateDueTransactions(
   }
 
   return { templatesProcessed: templates.length, transactionsCreated };
+}
+
+/**
+ * Creates a real transaction from a template's defaults, tagged to a
+ * specific cycle month — the actual mechanism behind "tag to cycle" on
+ * the Recurring page. Distinct from generateDueTransactions: that one is
+ * date-driven (catches up whatever's actually due by today); this one is
+ * user-driven (tag August's rent now, on 15 July, regardless of when it
+ * would naturally next occur). Deliberately not a query against
+ * next_occurrence_on — the whole point is decoupling "which month this
+ * counts toward" from "when it would naturally recur."
+ *
+ * Defaults occurred_on to the 1st of the target month — a placeholder,
+ * not a claim about the real due date; edit it afterward via the
+ * transaction edit UI once the actual date is known (e.g. once a card
+ * statement arrives). Status is always "pending": tagging something
+ * doesn't mean it's been paid, just that it's now counted.
+ *
+ * Duplicates generateDueTransactions' insert + split logic rather than
+ * sharing it — the two functions differ enough in how they pick dates
+ * and loop (or don't) that extracting a shared helper felt like more
+ * risk to the tested, working catch-up path than the small duplication
+ * here was worth.
+ */
+export async function tagRecurringToCycle(
+  templateId: string,
+  cycleMonth: string,
+): Promise<{ transactionId: string }> {
+  if (!/^\d{4}-\d{2}$/.test(cycleMonth)) {
+    throw new Error("cycleMonth must be in YYYY-MM format");
+  }
+
+  const templates = await listRecurringTransactions();
+  const template = templates.find((t) => t.id === templateId);
+  if (!template) {
+    throw new Error("Recurring template not found");
+  }
+  if (template.kind === "transfer") {
+    throw new Error("Transfers aren't tagged to a cycle this way yet");
+  }
+
+  const supabase = createServiceClient();
+  const occurredOn = `${cycleMonth}-01`;
+
+  const { data: txRow, error: txError } = await supabase
+    .from("transactions")
+    .insert({
+      user_id: OWNER_USER_ID,
+      account_id: template.accountId,
+      transfer_account_id: null,
+      recurring_transaction_id: template.id,
+      kind: template.kind,
+      status: "pending",
+      amount: moneyToDbNumber(template.amount),
+      currency_code: template.currencyCode,
+      occurred_on: occurredOn,
+      payee: template.payee,
+      memo: template.memo,
+      cycle_month: cycleMonth,
+    })
+    .select("id")
+    .single();
+
+  if (txError) {
+    throw new Error(
+      `Failed to tag recurring template to cycle: ${txError.message}`,
+    );
+  }
+
+  if (template.categoryId) {
+    const { error: splitError } = await supabase
+      .from("transaction_splits")
+      .insert({
+        user_id: OWNER_USER_ID,
+        transaction_id: txRow.id,
+        category_id: template.categoryId,
+        amount: moneyToDbNumber(template.amount),
+      });
+
+    if (splitError) {
+      await supabase.from("transactions").delete().eq("id", txRow.id);
+      throw new Error(
+        `Failed to create split for tagged transaction: ${splitError.message}`,
+      );
+    }
+  }
+
+  return { transactionId: txRow.id as string };
 }

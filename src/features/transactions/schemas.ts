@@ -27,6 +27,21 @@ const baseTransactionFields = z.object({
   payee: z.string().trim().max(300).nullable().optional(),
   memo: z.string().trim().max(1000).nullable().optional(),
   status: z.enum(["pending", "posted"]).default("posted"),
+  /**
+   * Which month's cash-flow plan this counts toward, e.g. "2026-08" —
+   * distinct from occurredOn (a card payment made 30 Jul can be tagged
+   * to August's cycle). Optional: when omitted, the service defaults it
+   * to occurredOn's own month, so callers that don't care about the
+   * cycle concept (existing forms, generateDueTransactions) keep working
+   * unchanged. Explicitly passing null is different from omitting it —
+   * null means "leave untagged," which the Budget snapshot then excludes
+   * entirely until someone tags it.
+   */
+  cycleMonth: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, "Use YYYY-MM, e.g. 2026-08")
+    .nullable()
+    .optional(),
 });
 
 const singleCategorySchema = baseTransactionFields.extend({
@@ -98,6 +113,11 @@ export const updateTransactionInputSchema = z.object({
   amount: zPositiveMoney,
   occurredOn: z.iso.date(),
   memo: z.string().trim().max(300).nullable().optional(),
+  cycleMonth: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, "Use YYYY-MM, e.g. 2026-08")
+    .nullable()
+    .optional(),
 });
 
 export type UpdateTransactionInput = z.infer<

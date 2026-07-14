@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { createTransactionInputSchema } from "./schemas";
+import {
+  createTransactionInputSchema,
+  updateTransactionInputSchema,
+} from "./schemas";
 
 const ACCOUNT_A = "11111111-1111-4111-8111-111111111111";
 const ACCOUNT_B = "22222222-2222-4222-8222-222222222222";
@@ -111,5 +114,91 @@ describe("createTransactionInputSchema", () => {
     if (result.success) {
       expect(result.data.status).toBe("posted");
     }
+  });
+
+  it("accepts a valid cycleMonth", () => {
+    const result = createTransactionInputSchema.safeParse({
+      ...base,
+      kind: "expense",
+      amount: "50.00",
+      categoryId: CATEGORY_1,
+      cycleMonth: "2026-08",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an explicit null cycleMonth (leave untagged)", () => {
+    const result = createTransactionInputSchema.safeParse({
+      ...base,
+      kind: "expense",
+      amount: "50.00",
+      categoryId: CATEGORY_1,
+      cycleMonth: null,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.cycleMonth).toBeNull();
+    }
+  });
+
+  it("leaves cycleMonth undefined when omitted (service resolves the default)", () => {
+    const result = createTransactionInputSchema.safeParse({
+      ...base,
+      kind: "expense",
+      amount: "50.00",
+      categoryId: CATEGORY_1,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.cycleMonth).toBeUndefined();
+    }
+  });
+
+  it("rejects a malformed cycleMonth", () => {
+    const result = createTransactionInputSchema.safeParse({
+      ...base,
+      kind: "expense",
+      amount: "50.00",
+      categoryId: CATEGORY_1,
+      cycleMonth: "August 2026",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("updateTransactionInputSchema", () => {
+  it("accepts an update without touching cycleMonth", () => {
+    const result = updateTransactionInputSchema.safeParse({
+      id: ACCOUNT_A,
+      amount: "75.00",
+      occurredOn: "2026-07-15",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.cycleMonth).toBeUndefined();
+    }
+  });
+
+  it("accepts explicitly clearing cycleMonth", () => {
+    const result = updateTransactionInputSchema.safeParse({
+      id: ACCOUNT_A,
+      amount: "75.00",
+      occurredOn: "2026-07-15",
+      cycleMonth: null,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.cycleMonth).toBeNull();
+    }
+  });
+
+  it("accepts retagging to a different cycle", () => {
+    const result = updateTransactionInputSchema.safeParse({
+      id: ACCOUNT_A,
+      amount: "75.00",
+      occurredOn: "2026-07-15",
+      cycleMonth: "2026-09",
+    });
+    expect(result.success).toBe(true);
   });
 });

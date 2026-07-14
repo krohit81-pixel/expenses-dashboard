@@ -46,7 +46,7 @@ export default async function RecurringPage() {
     <div>
       <Hero
         title="Recurring"
-        sub="The full list behind Budgets — including transfers."
+        sub="Reference data — tag a template to a cycle to make it count toward that month."
       />
 
       <div className="space-y-8 p-5 sm:p-8">

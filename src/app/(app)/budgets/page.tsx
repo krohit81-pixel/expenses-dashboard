@@ -140,8 +140,10 @@ export default async function BudgetsPage({
                       <p className="truncate text-sm font-semibold text-ink">
                         {line.name}
                       </p>
-                      {!line.isActual && (
-                        <p className="text-[11px] text-ink-faint">Projected</p>
+                      {line.status === "pending" && (
+                        <p className="text-[11px] text-ink-faint">
+                          Not yet paid
+                        </p>
                       )}
                     </div>
                     <p className="whitespace-nowrap font-display text-sm font-bold text-positive">
@@ -178,8 +180,10 @@ export default async function BudgetsPage({
                       <p className="truncate text-sm font-semibold text-ink">
                         {line.name}
                       </p>
-                      {!line.isActual && (
-                        <p className="text-[11px] text-ink-faint">Projected</p>
+                      {line.status === "pending" && (
+                        <p className="text-[11px] text-ink-faint">
+                          Not yet paid
+                        </p>
                       )}
                     </div>
                     <p className="whitespace-nowrap font-display text-sm font-bold text-negative">
@@ -231,8 +235,9 @@ export default async function BudgetsPage({
         </div>
 
         <p className="text-xs text-ink-faint">
-          Manage the recurring templates themselves (edit amounts, delete,
-          change frequency) on{" "}
+          Recurring items only show up here once tagged to this month &mdash;
+          nothing appears automatically anymore. Tag templates to a cycle, edit
+          amounts, or delete them on{" "}
           <Link href="/recurring" className="underline">
             Recurring
           </Link>
