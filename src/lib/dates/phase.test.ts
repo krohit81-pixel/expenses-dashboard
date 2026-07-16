@@ -4,6 +4,7 @@ import {
   defaultPhaseForMonth,
   getCurrentPhase,
   getPhaseInfo,
+  getPhaseInfoForCycle,
   phaseAvailability,
 } from "./phase";
 
@@ -131,6 +132,41 @@ describe("defaultPhaseForMonth — the three worked examples", () => {
     expect(
       defaultPhaseForMonth("2026-05", "2026-07", utcDate(2026, 7, 20)),
     ).toBe("tracking");
+  });
+});
+
+describe("getPhaseInfoForCycle — dates for a SPECIFIC cycle's own lifecycle", () => {
+  it("July's own Execution window is June 25 - July 5, not July 25 - Aug 5 (the reported bug)", () => {
+    expect(getPhaseInfoForCycle("execution", "2026-07").dateRange).toBe(
+      "Jun 25 \u2013 Jul 5",
+    );
+  });
+
+  it("August's own Execution window is July 25 - Aug 5", () => {
+    expect(getPhaseInfoForCycle("execution", "2026-08").dateRange).toBe(
+      "Jul 25 \u2013 Aug 5",
+    );
+  });
+
+  it("July's own Planning window is June 15-24 (the month before)", () => {
+    expect(getPhaseInfoForCycle("planning", "2026-07").dateRange).toBe(
+      "Jun 15 \u2013 Jun 24",
+    );
+  });
+
+  it("July's own Tracking window is July 6-14 (within July itself)", () => {
+    expect(getPhaseInfoForCycle("tracking", "2026-07").dateRange).toBe(
+      "Jul 6 \u2013 Jul 14",
+    );
+  });
+
+  it("rolls the calendar year correctly for January's cycle", () => {
+    expect(getPhaseInfoForCycle("planning", "2027-01").dateRange).toBe(
+      "Dec 15 \u2013 Dec 24",
+    );
+    expect(getPhaseInfoForCycle("execution", "2027-01").dateRange).toBe(
+      "Dec 25 \u2013 Jan 5",
+    );
   });
 });
 

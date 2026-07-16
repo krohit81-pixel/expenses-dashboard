@@ -10,12 +10,12 @@ import {
   formatMoneyDisplay,
   isNegativeMoney,
   moneyToDbNumber,
+  negateMoney,
   sumMoney,
   ZERO,
   type Money,
 } from "@/lib/money";
 import { currentMonth, monthLabel, shiftMonth } from "@/lib/dates/month";
-import { getPhaseInfo, type Phase } from "@/lib/dates/phase";
 import { computeHomeStats } from "@/lib/budget/home-stats";
 import { Hero } from "@/components/ui/hero";
 import { HomePhaseView, type MonthOption } from "@/features/home/HomePhaseView";
@@ -82,15 +82,12 @@ export default async function HomePage() {
 
   // Savings/checking first, credit cards after — matches how the person
   // actually thinks about these (money you have, then what you owe).
-  const TYPE_ORDER: Record<string, number> = {
-    checking: 0,
-    savings: 0,
-    credit_card: 1,
-  };
-  const sortedBalances = [...balances].sort(
-    (a, b) =>
-      (TYPE_ORDER[a.account.accountType] ?? 0) -
-      (TYPE_ORDER[b.account.accountType] ?? 0),
+  // Credit cards excluded here on purpose — this section is about money
+  // you have, not what you owe; card balances/due dates live on
+  // Transactions and Accounts instead.
+  const sortedBalances = balances.filter(
+    ({ account }) =>
+      account.accountType === "checking" || account.accountType === "savings",
   );
 
   // Expected monthly credit per checking/savings account, from matching
@@ -113,23 +110,23 @@ export default async function HomePage() {
   // you're browsing in the dropdown below.
   const currentSnapshot = months.find((m) => m.isCurrentRealMonth)!.snapshot;
   const homeStats = computeHomeStats(currentSnapshot);
-
-  const today = new Date();
-  const phaseInfos: Record<Phase, ReturnType<typeof getPhaseInfo>> = {
-    planning: getPhaseInfo("planning", today),
-    execution: getPhaseInfo("execution", today),
-    tracking: getPhaseInfo("tracking", today),
-  };
+  const availableCash = sumMoney(balances.map((b) => b.balance));
+  // "Remaining" means "what you'll actually have left," not "how much
+  // of what's committed hasn't been paid yet" (that's homeStats.remaining
+  // itself — the unpaid portion). Real report: cash 6,000 minus 5,000
+  // still-unpaid committed should read as a projected 1,000 left, not
+  // just restate the 5,000 that's unpaid.
+  const projectedRemaining = addMoney(
+    availableCash,
+    negateMoney(homeStats.remaining),
+  );
 
   return (
     <div>
       <Hero
         title="Home"
         label="Available cash right now"
-        amount={formatMoneyDisplay(
-          sumMoney(balances.map((b) => b.balance)),
-          currency,
-        )}
+        amount={formatMoneyDisplay(availableCash, currency)}
       >
         <div className="mt-4">
           <div className="font-display text-[10px] font-bold uppercase tracking-wide text-white/45">
@@ -163,7 +160,7 @@ export default async function HomePage() {
                 Remaining
               </div>
               <div className="mt-0.5 font-display text-[13px] font-extrabold">
-                {formatMoneyDisplay(homeStats.remaining, currency)}
+                {formatMoneyDisplay(projectedRemaining, currency)}
               </div>
             </div>
           </div>
@@ -173,7 +170,6 @@ export default async function HomePage() {
       <HomePhaseView
         months={months}
         initialMonth={thisMonth}
-        phaseInfos={phaseInfos}
         accountName={accountName}
         currency={currency}
       />
@@ -185,7 +181,8 @@ export default async function HomePage() {
               Accounts
             </h2>
             <span className="text-xs text-ink-faint">
-              {accounts.length} account{accounts.length === 1 ? "" : "s"}
+              {sortedBalances.length} account
+              {sortedBalances.length === 1 ? "" : "s"}
             </span>
           </div>
 

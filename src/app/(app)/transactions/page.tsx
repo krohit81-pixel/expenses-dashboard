@@ -6,6 +6,7 @@ import { listAccounts } from "@/services/AccountService";
 import { listCategories } from "@/services/CategoryService";
 import { getUserSettings } from "@/services/UserSettingsService";
 import { requireUser } from "@/lib/auth/require-user";
+import { currentMonth, shiftMonth, shortMonthLabel } from "@/lib/dates/month";
 import { Hero } from "@/components/ui/hero";
 import { CreateTransactionForm } from "@/features/transactions/components/CreateTransactionForm";
 import { CardPaymentQuickLog } from "@/features/transactions/components/CardPaymentQuickLog";
@@ -35,17 +36,7 @@ export default async function TransactionsPage({
 
   const kind = KIND_VALUES.find((value) => value === params.kind);
 
-  const now = new Date();
-  const cycleFrom = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
-  )
-    .toISOString()
-    .slice(0, 10);
-  const cycleTo = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 2, 0),
-  )
-    .toISOString()
-    .slice(0, 10);
+  const defaultCardCycle = shiftMonth(currentMonth(), 1);
 
   const [
     accounts,
@@ -66,8 +57,7 @@ export default async function TransactionsPage({
     }),
     listTransactions({
       kind: "transfer",
-      occurredFrom: cycleFrom,
-      occurredTo: cycleTo,
+      cycleMonth: defaultCardCycle,
       limit: 200,
     }),
   ]);
@@ -103,6 +93,7 @@ export default async function TransactionsPage({
           checkingAccounts={checkingAccounts}
           loggedCardAccountIds={loggedCardAccountIds}
           defaultCurrency={defaultCurrency}
+          cycleLabel={shortMonthLabel(defaultCardCycle)}
         />
 
         <div className="rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">

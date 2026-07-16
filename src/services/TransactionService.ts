@@ -127,8 +127,8 @@ export async function listTransactions(
       count: "exact",
     })
     .eq("user_id", OWNER_USER_ID)
-    .order("occurred_on", { ascending: false })
     .order("created_at", { ascending: false })
+    .order("occurred_on", { ascending: false })
     .range(offset, offset + limit - 1);
 
   if (filters.accountId) {

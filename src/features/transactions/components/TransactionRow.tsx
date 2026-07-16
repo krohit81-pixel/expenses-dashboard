@@ -10,12 +10,15 @@ import {
   markTransactionPaidAction,
   markTransactionPendingAction,
   updateTransactionAction,
+  voidTransactionAction,
   type MarkPaidFormState,
   type UpdateTransactionFormState,
+  type VoidTransactionFormState,
 } from "@/features/transactions/api/actions";
 
 const initialUpdateState: UpdateTransactionFormState = {};
 const initialMarkPaidState: MarkPaidFormState = {};
+const initialVoidState: VoidTransactionFormState = {};
 
 export function TransactionRow({
   transaction,
@@ -40,6 +43,7 @@ export function TransactionRow({
   categoryName: Map<string, string>;
 }) {
   const [editing, setEditing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [updateState, updateAction, isUpdatePending] = useActionState(
     updateTransactionAction,
     initialUpdateState,
@@ -50,6 +54,10 @@ export function TransactionRow({
   );
   const [markPendingState, markPendingAction, isMarkPendingPending] =
     useActionState(markTransactionPendingAction, initialMarkPaidState);
+  const [voidState, voidAction, isVoidPending] = useActionState(
+    voidTransactionAction,
+    initialVoidState,
+  );
 
   useEffect(() => {
     if (updateState.success) {
@@ -190,7 +198,41 @@ export function TransactionRow({
           >
             &#9998;
           </button>
+          {confirmingDelete ? (
+            <div className="flex shrink-0 items-center gap-1">
+              <form action={voidAction}>
+                <input type="hidden" name="id" value={transaction.id} />
+                <button
+                  type="submit"
+                  disabled={isVoidPending}
+                  className="flex h-[26px] items-center justify-center gap-1 rounded-full bg-negative px-2.5 font-display text-[10px] font-bold text-white disabled:opacity-70"
+                >
+                  {isVoidPending && <Spinner className="size-3" />}
+                  Confirm
+                </button>
+              </form>
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(false)}
+                className="flex h-[26px] items-center justify-center rounded-full bg-bg px-2.5 font-display text-[10px] font-bold text-ink-soft"
+              >
+                No
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(true)}
+              className="flex size-[26px] shrink-0 items-center justify-center rounded-full bg-bg text-xs text-negative"
+              aria-label="Delete"
+            >
+              &#128465;
+            </button>
+          )}
         </div>
+        {voidState.error && (
+          <p className="text-xs text-negative">{voidState.error}</p>
+        )}
         {transaction.status === "pending" ? (
           <form action={markPaidAction}>
             <input type="hidden" name="id" value={transaction.id} />

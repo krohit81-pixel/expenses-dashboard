@@ -26,7 +26,7 @@ const baseTransactionFields = z.object({
   occurredOn: z.iso.date(),
   payee: z.string().trim().max(300).nullable().optional(),
   memo: z.string().trim().max(1000).nullable().optional(),
-  status: z.enum(["pending", "posted"]).default("posted"),
+  status: z.enum(["pending", "posted"]).default("pending"),
   /**
    * Which month's cash-flow plan this counts toward, e.g. "2026-08" —
    * distinct from occurredOn (a card payment made 30 Jul can be tagged

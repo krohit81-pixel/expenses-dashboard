@@ -30,11 +30,13 @@ export function CardPaymentQuickLog({
   checkingAccounts,
   loggedCardAccountIds,
   defaultCurrency,
+  cycleLabel,
 }: {
   cardAccounts: Account[];
   checkingAccounts: Account[];
   loggedCardAccountIds: Set<string>;
   defaultCurrency: string;
+  cycleLabel: string;
 }) {
   const [state, formAction, isPending] = useActionState(
     logCardPaymentAction,
@@ -62,9 +64,14 @@ export function CardPaymentQuickLog({
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between px-[18px] py-4"
       >
-        <h2 className="font-display text-[15px] font-bold text-ink">
-          Log a card payment
-        </h2>
+        <div className="text-left">
+          <h2 className="font-display text-[15px] font-bold text-ink">
+            Log a card payment
+          </h2>
+          <p className="mt-0.5 text-[11px] text-ink-faint">
+            For the {cycleLabel} cycle
+          </p>
+        </div>
         <span className="rounded-full bg-accent-soft px-2.5 py-1 font-display text-[11px] font-bold text-accent">
           {loggedCount} of {cardAccounts.length} &middot;{" "}
           {open ? "close" : "open"}

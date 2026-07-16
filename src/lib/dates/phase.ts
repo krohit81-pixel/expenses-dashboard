@@ -84,6 +84,50 @@ export function getPhaseInfo(
 }
 
 /**
+ * A phase's date range for a SPECIFIC target cycle month's own
+ * lifecycle — not "today," a specific selected cycle. July's own
+ * Execution window is June 25–July 5 (the window that leads into July),
+ * not July 25–Aug 5 (which is actually August's window) — getPhaseInfo
+ * above always anchors to referenceDate's own calendar month, which is
+ * right for "what's happening around today" but wrong once a person can
+ * select a different cycle and expects to see *that* cycle's own dates,
+ * not today's.
+ */
+export function getPhaseInfoForCycle(
+  phase: Phase,
+  cycleMonth: string,
+): PhaseInfo {
+  const [yearStr, monthStr] = cycleMonth.split("-");
+  const year = Number(yearStr);
+  const monthIndex = Number(monthStr) - 1; // 0-indexed; this IS the target cycle month
+
+  if (phase === "planning") {
+    return {
+      phase,
+      label: LABELS.planning,
+      dateRange: `${shortDate(year, monthIndex - 1, 15)} \u2013 ${shortDate(year, monthIndex - 1, 24)}`,
+      question: QUESTIONS.planning,
+    };
+  }
+
+  if (phase === "tracking") {
+    return {
+      phase,
+      label: LABELS.tracking,
+      dateRange: `${shortDate(year, monthIndex, 6)} \u2013 ${shortDate(year, monthIndex, 14)}`,
+      question: QUESTIONS.tracking,
+    };
+  }
+
+  return {
+    phase,
+    label: LABELS.execution,
+    dateRange: `${shortDate(year, monthIndex - 1, 25)} \u2013 ${shortDate(year, monthIndex, 5)}`,
+    question: QUESTIONS.execution,
+  };
+}
+
+/**
  * Which phases are selectable for a given cycle month, relative to the
  * real current calendar month — the rule worked out from three concrete
  * examples: a past cycle has nothing left to plan or execute (Tracking

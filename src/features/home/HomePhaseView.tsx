@@ -14,8 +14,8 @@ import {
 import {
   phaseAvailability,
   defaultPhaseForMonth,
+  getPhaseInfoForCycle,
   type Phase,
-  type PhaseInfo,
 } from "@/lib/dates/phase";
 import type { MonthlyBudgetSnapshot } from "@/services/BudgetSnapshotService";
 import { ChecklistItem } from "@/features/home/ChecklistItem";
@@ -192,13 +192,11 @@ function OutlookCard({
 export function HomePhaseView({
   months,
   initialMonth,
-  phaseInfos,
   accountName,
   currency,
 }: {
   months: MonthOption[];
   initialMonth: string;
-  phaseInfos: Record<Phase, PhaseInfo>;
   accountName: Map<string, string>;
   currency: string;
 }) {
@@ -219,6 +217,13 @@ export function HomePhaseView({
     phaseOverride && available.includes(phaseOverride)
       ? phaseOverride
       : defaultPhase;
+  // Anchored to the SELECTED cycle's own lifecycle, not today — this is
+  // what actually fixes "July's Execution showed July 25-Aug 5" (that
+  // was August's window, not July's).
+  const activePhaseInfo = useMemo(
+    () => getPhaseInfoForCycle(activePhase, selected.month),
+    [activePhase, selected.month],
+  );
 
   function handleSelectMonth(month: string) {
     setSelectedMonth(month);
@@ -289,13 +294,12 @@ export function HomePhaseView({
             <div
               className={`font-display text-xs font-extrabold ${PHASE_NAME_CLASS[activePhase]}`}
             >
-              {phaseInfos[activePhase].label} &middot;{" "}
-              {phaseInfos[activePhase].dateRange}
+              {activePhaseInfo.label} &middot; {activePhaseInfo.dateRange}
             </div>
             <div className="mt-0.5 text-[11px] text-ink-soft">
               {activePhase === "planning"
                 ? `Will ${selected.label} be financially healthy?`
-                : phaseInfos[activePhase].question}
+                : activePhaseInfo.question}
             </div>
           </div>
         </div>

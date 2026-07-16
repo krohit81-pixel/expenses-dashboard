@@ -7,6 +7,7 @@ import {
   markTransactionPaid,
   markTransactionPending,
   updateTransaction,
+  voidTransaction,
 } from "@/services/TransactionService";
 import {
   createTransactionInputSchema,
@@ -229,4 +230,41 @@ export async function updateTransactionAction(
   revalidatePath("/budgets");
   revalidatePath("/accounts");
   return { success: true };
+}
+
+export interface VoidTransactionFormState {
+  error?: string;
+}
+
+/**
+ * Removes a transaction from view — a real request, not a workaround:
+ * "I need to remove that income if incorrectly added." Soft-delete
+ * (status: 'void') rather than a hard DB delete — voidTransaction
+ * already existed for this, just never had UI wired to it. Void rows
+ * are already excluded everywhere that matters (getAccountBalance only
+ * counts posted; BudgetSnapshotService filters status !== "void").
+ */
+export async function voidTransactionAction(
+  _prevState: VoidTransactionFormState,
+  formData: FormData,
+): Promise<VoidTransactionFormState> {
+  const id = formValue(formData, "id");
+
+  if (!id) {
+    return { error: "Missing transaction id" };
+  }
+
+  try {
+    await voidTransaction(id);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Something went wrong",
+    };
+  }
+
+  revalidatePath("/transactions");
+  revalidatePath("/dashboard");
+  revalidatePath("/budgets");
+  revalidatePath("/accounts");
+  return {};
 }

@@ -103,7 +103,7 @@ describe("createTransactionInputSchema", () => {
     ).toBe(false);
   });
 
-  it("defaults status to posted", () => {
+  it("defaults status to pending, not posted — a new transaction shouldn't silently claim to already be paid", () => {
     const result = createTransactionInputSchema.safeParse({
       ...base,
       kind: "income",
@@ -112,7 +112,7 @@ describe("createTransactionInputSchema", () => {
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.status).toBe("posted");
+      expect(result.data.status).toBe("pending");
     }
   });
 
