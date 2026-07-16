@@ -6,7 +6,7 @@ import { listAccounts } from "@/services/AccountService";
 import { listCategories } from "@/services/CategoryService";
 import { getUserSettings } from "@/services/UserSettingsService";
 import { requireUser } from "@/lib/auth/require-user";
-import { currentMonth, shiftMonth, shortMonthLabel } from "@/lib/dates/month";
+import { monthOptions } from "@/lib/dates/month";
 import { Hero } from "@/components/ui/hero";
 import { CreateTransactionForm } from "@/features/transactions/components/CreateTransactionForm";
 import { CardPaymentQuickLog } from "@/features/transactions/components/CardPaymentQuickLog";
@@ -36,14 +36,17 @@ export default async function TransactionsPage({
 
   const kind = KIND_VALUES.find((value) => value === params.kind);
 
-  const defaultCardCycle = shiftMonth(currentMonth(), 1);
+  // Matches CardPaymentQuickLog's own CYCLE_WINDOW exactly — last month
+  // through 3 months ahead, so its cycle selector has real data for
+  // every option it offers.
+  const cardCycleWindow = monthOptions(5, -1).map((m) => m.value);
 
   const [
     accounts,
     categories,
     settings,
     { transactions, total },
-    cycleTransfers,
+    ...cycleTransfers
   ] = await Promise.all([
     listAccounts(),
     listCategories(true),
@@ -55,11 +58,9 @@ export default async function TransactionsPage({
       occurredFrom: params.from || undefined,
       occurredTo: params.to || undefined,
     }),
-    listTransactions({
-      kind: "transfer",
-      cycleMonth: defaultCardCycle,
-      limit: 200,
-    }),
+    ...cardCycleWindow.map((cycleMonth) =>
+      listTransactions({ kind: "transfer", cycleMonth, limit: 200 }),
+    ),
   ]);
 
   const accountName = new Map(
@@ -74,10 +75,18 @@ export default async function TransactionsPage({
   const checkingAccounts = accounts.filter(
     (a) => a.accountType === "checking" || a.accountType === "savings",
   );
-  const loggedCardAccountIds = new Set(
-    cycleTransfers.transactions
-      .map((t) => t.transferAccountId)
-      .filter((id): id is string => id !== null),
+  const loggedCardAccountIdsByCycle: Record<
+    string,
+    Set<string>
+  > = Object.fromEntries(
+    cardCycleWindow.map((cycleMonth, i) => [
+      cycleMonth,
+      new Set(
+        cycleTransfers[i]!.transactions.map((t) => t.transferAccountId).filter(
+          (id): id is string => id !== null,
+        ),
+      ),
+    ]),
   );
 
   return (
@@ -91,9 +100,8 @@ export default async function TransactionsPage({
         <CardPaymentQuickLog
           cardAccounts={cardAccounts}
           checkingAccounts={checkingAccounts}
-          loggedCardAccountIds={loggedCardAccountIds}
+          loggedCardAccountIdsByCycle={loggedCardAccountIdsByCycle}
           defaultCurrency={defaultCurrency}
-          cycleLabel={shortMonthLabel(defaultCardCycle)}
         />
 
         <div className="rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">

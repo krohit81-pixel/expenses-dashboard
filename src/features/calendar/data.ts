@@ -374,7 +374,7 @@ export const ROHANA_TRAVEL_WINDOWS: TravelWindow[] = [
     name: "Summer vacation begins",
     range: "From Sun 9 May 2027",
     days: "12 weeks",
-    note: "Rohana's optional Special Terms (10 May\u201319 Jun and 21 Jun\u201331 Jul) can eat most of this if he enrolls in them.",
+    note: "Rohana's optional Special Terms (10 May\u201319 Jun and 21 Jun\u201331 Jul) can eat most of this if she enrolls in them.",
   },
 ];
 

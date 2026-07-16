@@ -44,8 +44,8 @@ export default function CalendarPage() {
             the one confirmed window where both are off school at the same time.
             Ahaana&apos;s summer overlaps Rohana&apos;s too, but Rohana&apos;s
             optional Special Terms (10 May&ndash;19 Jun and 21 Jun&ndash;31 Jul)
-            can eat most of that if he enrolls in them &mdash; worth checking
-            with him before booking anything in that window.
+            can eat most of that if she enrolls in them &mdash; worth checking
+            with her before booking anything in that window.
           </p>
         </div>
 
