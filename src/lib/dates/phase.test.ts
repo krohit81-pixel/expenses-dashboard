@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { getCurrentPhase, getPhaseInfo } from "./phase";
+import {
+  defaultPhaseForMonth,
+  getCurrentPhase,
+  getPhaseInfo,
+  phaseAvailability,
+} from "./phase";
 
 function utcDate(year: number, month1Indexed: number, day: number): Date {
   return new Date(Date.UTC(year, month1Indexed - 1, day));
@@ -82,6 +87,50 @@ describe("getCurrentPhase — content", () => {
     expect(getCurrentPhase(utcDate(2026, 7, 10)).dateRange).toBe(
       "Jul 6 \u2013 Jul 14",
     );
+  });
+});
+
+describe("phaseAvailability", () => {
+  it("locks a past month to Tracking only", () => {
+    expect(phaseAvailability("2026-06", "2026-07")).toEqual(["tracking"]);
+  });
+
+  it("locks a future month to Planning only", () => {
+    expect(phaseAvailability("2026-08", "2026-07")).toEqual(["planning"]);
+  });
+
+  it("allows all three for the current month", () => {
+    expect(phaseAvailability("2026-07", "2026-07")).toEqual([
+      "planning",
+      "execution",
+      "tracking",
+    ]);
+  });
+});
+
+describe("defaultPhaseForMonth — the three worked examples", () => {
+  it("16 Jul: July defaults to Tracking, August defaults to Planning", () => {
+    const today = utcDate(2026, 7, 16);
+    expect(defaultPhaseForMonth("2026-07", "2026-07", today)).toBe("tracking");
+    expect(defaultPhaseForMonth("2026-08", "2026-07", today)).toBe("planning");
+  });
+
+  it("28 Jul: July defaults to Execution, August remains Planning", () => {
+    const today = utcDate(2026, 7, 28);
+    expect(defaultPhaseForMonth("2026-07", "2026-07", today)).toBe("execution");
+    expect(defaultPhaseForMonth("2026-08", "2026-07", today)).toBe("planning");
+  });
+
+  it("8 Aug: August defaults to Tracking, September defaults to Planning", () => {
+    const today = utcDate(2026, 8, 8);
+    expect(defaultPhaseForMonth("2026-08", "2026-08", today)).toBe("tracking");
+    expect(defaultPhaseForMonth("2026-09", "2026-08", today)).toBe("planning");
+  });
+
+  it("a month before the current one is always Tracking, regardless of today's exact date", () => {
+    expect(
+      defaultPhaseForMonth("2026-05", "2026-07", utcDate(2026, 7, 20)),
+    ).toBe("tracking");
   });
 });
 

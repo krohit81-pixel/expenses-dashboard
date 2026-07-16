@@ -1,10 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
-import { formatMoneyDisplay, type Money } from "@/lib/money";
-import type { Phase, PhaseInfo } from "@/lib/dates/phase";
+import {
+  formatMoneyDisplay,
+  isNegativeMoney,
+  addMoney,
+  negateMoney,
+  sumMoney,
+  type Money,
+} from "@/lib/money";
+import {
+  phaseAvailability,
+  defaultPhaseForMonth,
+  type Phase,
+  type PhaseInfo,
+} from "@/lib/dates/phase";
 import type { MonthlyBudgetSnapshot } from "@/services/BudgetSnapshotService";
 import { ChecklistItem } from "@/features/home/ChecklistItem";
 import { transactionDisplayTitle } from "@/features/transactions/format";
@@ -31,10 +43,16 @@ const PHASE_ICON: Record<Phase, string> = {
   tracking: "\u{1F4CA}",
 };
 
+export interface MonthOption {
+  month: string;
+  label: string;
+  snapshot: MonthlyBudgetSnapshot;
+  isCurrentRealMonth: boolean;
+}
+
 interface ChecklistLine {
   id: string;
   title: string;
-  meta?: string;
   amount: Money;
   currencyCode: string;
   direction: "in" | "out";
@@ -74,28 +92,32 @@ function snapshotToChecklist(
   return [...recurring, ...oneOff];
 }
 
+function projectedClosing(snapshot: MonthlyBudgetSnapshot): Money {
+  const oneOffCommitted = sumMoney(
+    snapshot.oneOff.filter((l) => l.kind !== "income").map((l) => l.amount),
+  );
+  const committed = addMoney(snapshot.fixedExpenseTotal, oneOffCommitted);
+  return addMoney(snapshot.incomeTotal, negateMoney(committed));
+}
+
 function OutlookCard({
   monthLabel,
   snapshot,
-  healthy,
-  projectedClosing,
   currency,
   note,
   compact = false,
 }: {
   monthLabel: string;
   snapshot: MonthlyBudgetSnapshot;
-  healthy: boolean;
-  projectedClosing: Money;
   currency: string;
   note?: string;
   compact?: boolean;
 }) {
-  const cardPaymentsDue = snapshot.oneOff.filter((l) => l.kind !== "income");
-  const cardPaymentsTotal = cardPaymentsDue.reduce(
-    (sum, l) => sum + Number(l.amount),
-    0,
-  );
+  const closing = projectedClosing(snapshot);
+  const healthy = !isNegativeMoney(closing);
+  const cardPaymentsTotal = snapshot.oneOff
+    .filter((l) => l.kind !== "income")
+    .reduce((sum, l) => sum + Number(l.amount), 0);
 
   return (
     <div
@@ -156,7 +178,7 @@ function OutlookCard({
           <div
             className={`font-display font-extrabold text-accent ${compact ? "text-sm" : "text-lg"}`}
           >
-            {formatMoneyDisplay(projectedClosing, currency)}
+            {formatMoneyDisplay(closing, currency)}
           </div>
         </div>
       </div>
@@ -168,114 +190,146 @@ function OutlookCard({
 }
 
 export function HomePhaseView({
-  currentPhase,
+  months,
+  initialMonth,
   phaseInfos,
-  currentMonthLabel,
-  nextMonthLabel,
-  currentSnapshot,
-  nextSnapshot,
-  nextHealthy,
-  nextProjectedClosing,
   accountName,
   currency,
 }: {
-  currentPhase: Phase;
+  months: MonthOption[];
+  initialMonth: string;
   phaseInfos: Record<Phase, PhaseInfo>;
-  currentMonthLabel: string;
-  nextMonthLabel: string;
-  currentSnapshot: MonthlyBudgetSnapshot;
-  nextSnapshot: MonthlyBudgetSnapshot;
-  nextHealthy: boolean;
-  nextProjectedClosing: Money;
   accountName: Map<string, string>;
   currency: string;
 }) {
-  const [selected, setSelected] = useState<Phase>(currentPhase);
-  const checklist = snapshotToChecklist(currentSnapshot, accountName);
+  const [selectedMonth, setSelectedMonth] = useState(initialMonth);
+  const current = months.find((m) => m.month === initialMonth) ?? months[0]!;
+  const selected = months.find((m) => m.month === selectedMonth) ?? current;
+
+  const available = useMemo(
+    () => phaseAvailability(selected.month, current.month),
+    [selected.month, current.month],
+  );
+  const defaultPhase = useMemo(
+    () => defaultPhaseForMonth(selected.month, current.month),
+    [selected.month, current.month],
+  );
+  const [phaseOverride, setPhaseOverride] = useState<Phase | null>(null);
+  const activePhase =
+    phaseOverride && available.includes(phaseOverride)
+      ? phaseOverride
+      : defaultPhase;
+
+  function handleSelectMonth(month: string) {
+    setSelectedMonth(month);
+    setPhaseOverride(null);
+  }
+
+  const checklist = snapshotToChecklist(selected.snapshot, accountName);
   const pending = checklist.filter((l) => l.status === "pending");
   const done = checklist.filter((l) => l.status === "posted");
 
   return (
     <>
-      <div className="sticky top-0 z-30 bg-bg px-5 py-2.5 shadow-[0_2px_8px_rgba(28,20,36,0.05)] sm:px-8">
-        <div className="mx-auto flex max-w-[1040px] gap-0.5 rounded-full bg-line p-1">
-          {PHASES.map((phase) => (
-            <button
-              key={phase}
-              onClick={() => setSelected(phase)}
-              className={`flex-1 rounded-full py-2 font-display text-xs font-bold transition-colors ${
-                selected === phase ? "bg-ink text-white" : "text-ink-soft"
-              }`}
-            >
-              {PHASE_LABEL[phase]}
-              {phase === currentPhase && (
-                <span className="ml-1.5 rounded-[5px] bg-positive px-[5px] py-px align-[1px] text-[8.5px] font-extrabold text-white">
-                  NOW
-                </span>
-              )}
-            </button>
+      <div className="px-5 pt-4 sm:px-8">
+        <label className="mb-1.5 block font-display text-[10px] font-bold uppercase tracking-wide text-ink-faint">
+          Cycle
+        </label>
+        <select
+          value={selectedMonth}
+          onChange={(e) => handleSelectMonth(e.target.value)}
+          className="w-full rounded-2xl border-[1.5px] border-line bg-surface px-4 py-3 font-display text-[15px] font-bold text-ink"
+        >
+          {months.map((m) => (
+            <option key={m.month} value={m.month}>
+              {m.label}
+              {m.isCurrentRealMonth ? " (current)" : ""}
+            </option>
           ))}
+        </select>
+      </div>
+
+      <div className="sticky top-0 z-30 mt-3.5 bg-bg px-5 py-2.5 shadow-[0_2px_8px_rgba(28,20,36,0.05)] sm:px-8">
+        <div className="mx-auto flex max-w-[1040px] gap-0.5 rounded-full bg-line p-1">
+          {PHASES.map((phase) => {
+            const allowed = available.includes(phase);
+            return (
+              <button
+                key={phase}
+                disabled={!allowed}
+                onClick={() => setPhaseOverride(phase)}
+                className={`flex-1 rounded-full py-2 font-display text-xs font-bold transition-colors ${
+                  activePhase === phase
+                    ? "bg-ink text-white"
+                    : allowed
+                      ? "text-ink-soft"
+                      : "text-ink-faint/40"
+                }`}
+              >
+                {PHASE_LABEL[phase]}
+                {selected.isCurrentRealMonth && phase === defaultPhase && (
+                  <span className="ml-1.5 rounded-[5px] bg-positive px-[5px] py-px align-[1px] text-[8.5px] font-extrabold text-white">
+                    NOW
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       <div className="px-5 pt-3.5 sm:px-8">
         <div
-          className={`flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 ${PHASE_STRIP_CLASS[selected]}`}
+          className={`flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 ${PHASE_STRIP_CLASS[activePhase]}`}
         >
           <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface text-sm">
-            {PHASE_ICON[selected]}
+            {PHASE_ICON[activePhase]}
           </div>
           <div>
             <div
-              className={`font-display text-xs font-extrabold ${PHASE_NAME_CLASS[selected]}`}
+              className={`font-display text-xs font-extrabold ${PHASE_NAME_CLASS[activePhase]}`}
             >
-              {phaseInfos[selected].label} &middot;{" "}
-              {phaseInfos[selected].dateRange}
+              {phaseInfos[activePhase].label} &middot;{" "}
+              {phaseInfos[activePhase].dateRange}
             </div>
             <div className="mt-0.5 text-[11px] text-ink-soft">
-              {phaseInfos[selected].question}
+              {activePhase === "planning"
+                ? `Will ${selected.label} be financially healthy?`
+                : phaseInfos[activePhase].question}
             </div>
           </div>
         </div>
       </div>
 
-      {selected === "planning" && (
+      {activePhase === "planning" && (
         <div className="space-y-6 p-5 sm:p-8">
           <section>
             <h2 className="mb-3 font-display text-base font-bold text-ink">
-              {nextMonthLabel} &middot; will it be healthy?
+              {selected.label} &middot; will it be healthy?
             </h2>
             <OutlookCard
-              monthLabel={nextMonthLabel}
-              snapshot={nextSnapshot}
-              healthy={nextHealthy}
-              projectedClosing={nextProjectedClosing}
+              monthLabel={selected.label}
+              snapshot={selected.snapshot}
               currency={currency}
               note="Tag recurring templates and card statements to this cycle on Recurring or Transactions to sharpen this projection — untagged items aren't counted."
             />
           </section>
-          <section>
-            <h2 className="mb-3 font-display text-[15px] font-bold text-ink">
-              {currentMonthLabel}, so far
-            </h2>
-            <ul className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-              {checklist.length === 0 ? (
-                <p className="p-4 text-sm text-ink-faint">
-                  Nothing tagged to this month yet.
-                </p>
-              ) : (
-                checklist
-                  .slice(0, 4)
-                  .map((line) => (
-                    <ChecklistItem key={line.id} {...line} compact />
-                  ))
-              )}
-            </ul>
-          </section>
+          {checklist.length > 0 && (
+            <section>
+              <h2 className="mb-3 font-display text-[15px] font-bold text-ink">
+                Tagged to {selected.label} so far
+              </h2>
+              <ul className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+                {checklist.slice(0, 4).map((line) => (
+                  <ChecklistItem key={line.id} {...line} compact />
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
       )}
 
-      {selected === "execution" && (
+      {activePhase === "execution" && (
         <div className="space-y-6 p-5 sm:p-8">
           <section>
             <h2 className="mb-1 font-display text-base font-bold text-ink">
@@ -287,8 +341,8 @@ export function HomePhaseView({
             <ul className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
               {checklist.length === 0 ? (
                 <p className="p-4 text-sm text-ink-faint">
-                  Nothing tagged to {currentMonthLabel} yet — tag recurring
-                  items on{" "}
+                  Nothing tagged to {selected.label} yet — tag recurring items
+                  on{" "}
                   <Link href="/recurring" className="underline">
                     Recurring
                   </Link>
@@ -307,13 +361,11 @@ export function HomePhaseView({
           </section>
           <section>
             <h2 className="mb-3 font-display text-[15px] font-bold text-ink">
-              {nextMonthLabel} outlook
+              {selected.label} outlook
             </h2>
             <OutlookCard
-              monthLabel={nextMonthLabel}
-              snapshot={nextSnapshot}
-              healthy={nextHealthy}
-              projectedClosing={nextProjectedClosing}
+              monthLabel={selected.label}
+              snapshot={selected.snapshot}
               currency={currency}
               compact
             />
@@ -321,41 +373,45 @@ export function HomePhaseView({
         </div>
       )}
 
-      {selected === "tracking" && (
+      {activePhase === "tracking" && (
         <div className="space-y-6 p-5 sm:p-8">
-          <section>
-            <h2 className="mb-1 font-display text-base font-bold text-ink">
-              Anything to log?
-            </h2>
-            <p className="mb-3 text-xs text-ink-faint">
-              Just the totals — nothing here needs itemizing.
-            </p>
-            <div className="rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-              <p className="mb-3 text-sm text-ink-soft">
-                Log miscellaneous spending (food, fuel, shopping) or anything
-                unexpected as a single amount — no need to itemize every
-                purchase.
+          {selected.isCurrentRealMonth && (
+            <section>
+              <h2 className="mb-1 font-display text-base font-bold text-ink">
+                Anything to log?
+              </h2>
+              <p className="mb-3 text-xs text-ink-faint">
+                Just the totals — nothing here needs itemizing.
               </p>
-              <Link
-                href="/transactions"
-                className="flex w-full items-center justify-center rounded-full bg-accent py-3 font-display text-sm font-bold text-white"
-              >
-                Log spending on Transactions
-              </Link>
-            </div>
-          </section>
+              <div className="rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+                <p className="mb-3 text-sm text-ink-soft">
+                  Log miscellaneous spending or anything unexpected as a single
+                  amount.
+                </p>
+                <Link
+                  href="/transactions"
+                  className="flex w-full items-center justify-center rounded-full bg-accent py-3 font-display text-sm font-bold text-white"
+                >
+                  Log spending on Transactions
+                </Link>
+              </div>
+            </section>
+          )}
           <section>
             <h2 className="mb-3 font-display text-[15px] font-bold text-ink">
-              Has anything changed?
+              {selected.label}, settled
             </h2>
-            <OutlookCard
-              monthLabel={`${nextMonthLabel} still on track`}
-              snapshot={nextSnapshot}
-              healthy={nextHealthy}
-              projectedClosing={nextProjectedClosing}
-              currency={currency}
-              compact
-            />
+            <ul className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+              {checklist.length === 0 ? (
+                <p className="p-4 text-sm text-ink-faint">
+                  Nothing tagged to {selected.label}.
+                </p>
+              ) : (
+                checklist.map((line) => (
+                  <ChecklistItem key={line.id} {...line} compact />
+                ))
+              )}
+            </ul>
           </section>
         </div>
       )}

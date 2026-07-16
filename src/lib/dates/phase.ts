@@ -84,11 +84,38 @@ export function getPhaseInfo(
 }
 
 /**
- * Which phase a given date falls in, purely from day-of-month — the
- * phase itself doesn't depend on which month it is, only Execution's
- * *display range* does (it needs to know whether "today" is in the
- * 25–31 half or the 1–5 half to show the right two months).
+ * Which phases are selectable for a given cycle month, relative to the
+ * real current calendar month — the rule worked out from three concrete
+ * examples: a past cycle has nothing left to plan or execute (Tracking
+ * only), a future cycle hasn't started (Planning only), and the current
+ * cycle allows browsing all three freely.
  */
+export function phaseAvailability(
+  targetMonth: string,
+  currentMonth: string,
+): Phase[] {
+  if (targetMonth < currentMonth) return ["tracking"];
+  if (targetMonth > currentMonth) return ["planning"];
+  return ["planning", "execution", "tracking"];
+}
+
+/**
+ * The phase a cycle month defaults to when first selected. Current
+ * month mirrors the real global phase right now — except Planning,
+ * which is inherently about *next* month, so the current month falls
+ * back to Tracking (its settled state) rather than showing Planning
+ * about itself.
+ */
+export function defaultPhaseForMonth(
+  targetMonth: string,
+  currentMonth: string,
+  today: Date = new Date(),
+): Phase {
+  if (targetMonth < currentMonth) return "tracking";
+  if (targetMonth > currentMonth) return "planning";
+  const globalPhase = getCurrentPhase(today).phase;
+  return globalPhase === "planning" ? "tracking" : globalPhase;
+}
 export function getCurrentPhase(date: Date = new Date()): PhaseInfo {
   const day = date.getUTCDate();
   const year = date.getUTCFullYear();

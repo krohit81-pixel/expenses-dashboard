@@ -10,16 +10,15 @@ import {
   formatMoneyDisplay,
   isNegativeMoney,
   moneyToDbNumber,
-  negateMoney,
   sumMoney,
   ZERO,
   type Money,
 } from "@/lib/money";
 import { currentMonth, monthLabel, shiftMonth } from "@/lib/dates/month";
-import { getCurrentPhase, getPhaseInfo, type Phase } from "@/lib/dates/phase";
+import { getPhaseInfo, type Phase } from "@/lib/dates/phase";
 import { computeHomeStats } from "@/lib/budget/home-stats";
 import { Hero } from "@/components/ui/hero";
-import { HomePhaseView } from "@/features/home/HomePhaseView";
+import { HomePhaseView, type MonthOption } from "@/features/home/HomePhaseView";
 
 export const metadata: Metadata = {
   title: "Home",
@@ -34,34 +33,40 @@ function ordinalSuffix(day: number | null | undefined): string {
 }
 
 /**
- * v0.5.1: replaces the old Dashboard content. Route stays /dashboard
- * (avoids touching middleware/onboarding redirects/nav hrefs for a pure
- * rename) — nav label is "Home" now, matching the product pivot's own
- * language ("the Budget screen becomes the primary dashboard").
+ * v0.5.1: replaces the old Dashboard content. v0.5.3: adds the cycle
+ * dropdown — the user picks a month, and the checklist/outlook below
+ * refresh to that month's own tagged data, with the phase tabs
+ * auto-defaulting per month (see lib/dates/phase.ts's
+ * defaultPhaseForMonth) while still browsable within whatever that
+ * month allows (see phaseAvailability — past=Tracking only,
+ * future=Planning only, current=all three).
  *
- * "Current balances" and its per-account progress bars are carried over
- * unchanged from the old Dashboard — genuinely useful, not part of the
- * phase-aware redesign itself. The old "Upcoming next 3 months" section
- * is gone: superseded by the phase-aware checklist/outlook below, which
- * uses tagged (counted) data instead of a flat list of everything
- * pending in the next 90 days regardless of whether it's tagged to
- * anything.
+ * Fetches a 6-month window (2 back, current, 3 ahead) in parallel up
+ * front rather than fetching on-demand when the dropdown changes —
+ * avoids a server round-trip per selection, and the data volumes here
+ * (a handful of recurring items + one-offs per month) are small enough
+ * that fetching 6 months costs little over fetching 2.
  */
 export default async function HomePage() {
   const user = await requireUser();
-  const today = new Date();
-  const phaseNow = getCurrentPhase(today);
   const thisMonth = currentMonth();
-  const nextMonth = shiftMonth(thisMonth, 1);
+  const monthWindow = [-2, -1, 0, 1, 2, 3].map((offset) =>
+    shiftMonth(thisMonth, offset),
+  );
 
-  const [accounts, recurring, settings, currentSnapshot, nextSnapshot] =
-    await Promise.all([
-      listAccounts(),
-      listRecurringTransactions(),
-      getUserSettings(user.id),
-      getMonthlyBudgetSnapshot(thisMonth),
-      getMonthlyBudgetSnapshot(nextMonth),
-    ]);
+  const [accounts, recurring, settings, ...snapshots] = await Promise.all([
+    listAccounts(),
+    listRecurringTransactions(),
+    getUserSettings(user.id),
+    ...monthWindow.map((m) => getMonthlyBudgetSnapshot(m)),
+  ]);
+
+  const months: MonthOption[] = monthWindow.map((month, i) => ({
+    month,
+    label: monthLabel(month),
+    snapshot: snapshots[i]!,
+    isCurrentRealMonth: month === thisMonth,
+  }));
 
   const accountName = new Map(
     accounts.map((account) => [account.id, account.name]),
@@ -103,25 +108,13 @@ export default async function HomePage() {
     }
   }
 
+  // Hero's stat row is always about the real current month specifically
+  // — it's the one number that shouldn't shift depending on which cycle
+  // you're browsing in the dropdown below.
+  const currentSnapshot = months.find((m) => m.isCurrentRealMonth)!.snapshot;
   const homeStats = computeHomeStats(currentSnapshot);
 
-  // Simple health heuristic: would next month's tagged income cover its
-  // tagged commitments? A real "confidence" model (accounting for
-  // partial tagging, historical variance, etc.) is future work — this is
-  // a first, honest approximation, not a claim of precision.
-  const nextOneOffCommitted = sumMoney(
-    nextSnapshot.oneOff.filter((l) => l.kind !== "income").map((l) => l.amount),
-  );
-  const nextCommittedTotal = addMoney(
-    nextSnapshot.fixedExpenseTotal,
-    nextOneOffCommitted,
-  );
-  const nextProjectedClosing = addMoney(
-    nextSnapshot.incomeTotal,
-    negateMoney(nextCommittedTotal),
-  );
-  const nextHealthy = !isNegativeMoney(nextProjectedClosing);
-
+  const today = new Date();
   const phaseInfos: Record<Phase, ReturnType<typeof getPhaseInfo>> = {
     planning: getPhaseInfo("planning", today),
     execution: getPhaseInfo("execution", today),
@@ -178,14 +171,9 @@ export default async function HomePage() {
       </Hero>
 
       <HomePhaseView
-        currentPhase={phaseNow.phase}
+        months={months}
+        initialMonth={thisMonth}
         phaseInfos={phaseInfos}
-        currentMonthLabel={monthLabel(thisMonth)}
-        nextMonthLabel={monthLabel(nextMonth)}
-        currentSnapshot={currentSnapshot}
-        nextSnapshot={nextSnapshot}
-        nextHealthy={nextHealthy}
-        nextProjectedClosing={nextProjectedClosing}
         accountName={accountName}
         currency={currency}
       />
