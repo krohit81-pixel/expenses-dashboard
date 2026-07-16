@@ -175,11 +175,16 @@ export async function updateTransactionAction(
   _prevState: UpdateTransactionFormState,
   formData: FormData,
 ): Promise<UpdateTransactionFormState> {
+  const cycleMonthRaw = formValue(formData, "cycleMonth");
+  const cycleMonth =
+    cycleMonthRaw === "untagged" ? null : (cycleMonthRaw ?? undefined);
+
   const parsed = updateTransactionInputSchema.safeParse({
     id: formValue(formData, "id"),
     amount: formValue(formData, "amount"),
     occurredOn: formValue(formData, "occurredOn"),
     memo: formValue(formData, "memo") ?? null,
+    cycleMonth,
   });
 
   if (!parsed.success) {

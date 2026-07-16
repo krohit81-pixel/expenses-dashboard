@@ -117,16 +117,24 @@ function OutlookCard({
           {healthy ? "Healthy" : "Tight"}
         </span>
       </div>
-      <div className={`grid gap-2 ${compact ? "grid-cols-4" : "grid-cols-2"}`}>
-        <div className="rounded-xl bg-bg px-2.5 py-2">
+      <div className="grid grid-cols-2 gap-2">
+        <div
+          className={`rounded-xl bg-bg ${compact ? "px-2 py-1.5" : "px-2.5 py-2"}`}
+        >
           <div className="text-[10px] text-ink-faint">Expected income</div>
-          <div className="mt-0.5 font-display text-sm font-extrabold text-ink">
+          <div
+            className={`mt-0.5 font-display font-extrabold text-ink ${compact ? "text-xs" : "text-sm"}`}
+          >
             {formatMoneyDisplay(snapshot.incomeTotal, currency)}
           </div>
         </div>
-        <div className="rounded-xl bg-bg px-2.5 py-2">
+        <div
+          className={`rounded-xl bg-bg ${compact ? "px-2 py-1.5" : "px-2.5 py-2"}`}
+        >
           <div className="text-[10px] text-ink-faint">Recurring</div>
-          <div className="mt-0.5 font-display text-sm font-extrabold text-ink">
+          <div
+            className={`mt-0.5 font-display font-extrabold text-ink ${compact ? "text-xs" : "text-sm"}`}
+          >
             {formatMoneyDisplay(snapshot.fixedExpenseTotal, currency)}
           </div>
         </div>
@@ -141,9 +149,7 @@ function OutlookCard({
             </div>
           </div>
         )}
-        <div
-          className={`rounded-xl bg-accent-soft px-2.5 py-2 ${compact ? "col-span-2" : "col-span-2 flex items-center justify-between"}`}
-        >
+        <div className="col-span-2 flex items-center justify-between rounded-xl bg-accent-soft px-2.5 py-2">
           <div className="text-[10px] text-accent">
             Projected closing balance
           </div>

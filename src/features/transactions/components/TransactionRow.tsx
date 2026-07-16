@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 
 import { formatMoneyDisplay, type Money } from "@/lib/money";
+import { monthOptions, shortMonthLabel } from "@/lib/dates/month";
 import { Spinner } from "@/components/ui/spinner";
 import { transactionDisplayTitle } from "@/features/transactions/format";
 import {
@@ -31,6 +32,7 @@ export function TransactionRow({
     occurredOn: string;
     status: string;
     memo: string | null;
+    cycleMonth: string | null;
     splits: { categoryId: string }[];
   };
   accountName: Map<string, string>;
@@ -84,14 +86,33 @@ export function TransactionRow({
               className="h-9 rounded-xl border-[1.5px] border-line px-2.5 text-sm"
             />
           </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-semibold text-ink-faint">
+              Counts toward
+            </label>
+            <select
+              name="cycleMonth"
+              defaultValue={transaction.cycleMonth ?? "untagged"}
+              className="h-9 rounded-xl border-[1.5px] border-line px-2.5 text-sm"
+            >
+              <option value="untagged">
+                Untagged &mdash; not counted anywhere
+              </option>
+              {monthOptions(8, -2).map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label} cycle
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="flex min-w-[140px] flex-1 flex-col gap-1">
             <label className="text-[10px] font-semibold text-ink-faint">
-              Note &middot; e.g. which billing cycle
+              Note (optional)
             </label>
             <input
               name="memo"
               defaultValue={transaction.memo ?? ""}
-              placeholder="e.g. August cycle"
+              placeholder="e.g. paying early from July salary"
               className="h-9 rounded-xl border-[1.5px] border-line px-2.5 text-sm"
             />
           </div>
@@ -130,6 +151,14 @@ export function TransactionRow({
           {transaction.occurredOn} &middot;{" "}
           {accountName.get(transaction.accountId)}
           {transaction.status === "pending" && " · Scheduled"}
+          {transaction.cycleMonth ? (
+            ` \u00b7 ${shortMonthLabel(transaction.cycleMonth)} cycle`
+          ) : (
+            <span className="text-negative">
+              {" "}
+              &middot; Untagged &mdash; not counted
+            </span>
+          )}
           {transaction.memo && ` \u00b7 ${transaction.memo}`}
           {transaction.splits.length > 0 &&
             ` \u00b7 ${transaction.splits
