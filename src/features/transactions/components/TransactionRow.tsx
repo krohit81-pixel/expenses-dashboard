@@ -8,6 +8,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { transactionDisplayTitle } from "@/features/transactions/format";
 import {
   markTransactionPaidAction,
+  markTransactionPendingAction,
   updateTransactionAction,
   type MarkPaidFormState,
   type UpdateTransactionFormState,
@@ -47,6 +48,8 @@ export function TransactionRow({
     markTransactionPaidAction,
     initialMarkPaidState,
   );
+  const [markPendingState, markPendingAction, isMarkPendingPending] =
+    useActionState(markTransactionPendingAction, initialMarkPaidState);
 
   useEffect(() => {
     if (updateState.success) {
@@ -188,7 +191,7 @@ export function TransactionRow({
             &#9998;
           </button>
         </div>
-        {transaction.status === "pending" && (
+        {transaction.status === "pending" ? (
           <form action={markPaidAction}>
             <input type="hidden" name="id" value={transaction.id} />
             <button
@@ -202,6 +205,23 @@ export function TransactionRow({
             {markPaidState.error && (
               <p className="mt-1 text-[10px] text-negative">
                 {markPaidState.error}
+              </p>
+            )}
+          </form>
+        ) : (
+          <form action={markPendingAction}>
+            <input type="hidden" name="id" value={transaction.id} />
+            <button
+              type="submit"
+              disabled={isMarkPendingPending}
+              className="flex items-center gap-1 rounded-full bg-bg px-2.5 py-1 font-display text-[10px] font-bold text-ink-soft disabled:opacity-70"
+            >
+              {isMarkPendingPending && <Spinner className="size-3" />}
+              Undo &mdash; not actually paid
+            </button>
+            {markPendingState.error && (
+              <p className="mt-1 text-[10px] text-negative">
+                {markPendingState.error}
               </p>
             )}
           </form>
