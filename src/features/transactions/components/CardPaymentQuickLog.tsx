@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 
 import { Spinner } from "@/components/ui/spinner";
+import { monthOptions } from "@/lib/dates/month";
 
 import {
   logCardPaymentAction,
@@ -18,6 +19,10 @@ function defaultPayOnDate(): string {
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
   );
   return nextMonth.toISOString().slice(0, 10);
+}
+
+function defaultCycleMonth(): string {
+  return defaultPayOnDate().slice(0, 7);
 }
 
 export function CardPaymentQuickLog({
@@ -160,15 +165,36 @@ export function CardPaymentQuickLog({
 
           <div className="mb-4 flex flex-col gap-1.5">
             <label
+              htmlFor="cycleMonth"
+              className="text-xs font-semibold text-ink-faint"
+            >
+              Counts toward
+            </label>
+            <select
+              id="cycleMonth"
+              name="cycleMonth"
+              defaultValue={defaultCycleMonth()}
+              className="h-11 rounded-2xl border-[1.5px] border-line px-3.5 text-sm"
+            >
+              {monthOptions(6).map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label} cycle
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="mb-4 flex flex-col gap-1.5">
+            <label
               htmlFor="memo"
               className="text-xs font-semibold text-ink-faint"
             >
-              Note &middot; which billing cycle (optional)
+              Note (optional)
             </label>
             <input
               id="memo"
               name="memo"
-              placeholder="e.g. August cycle — paying early from July salary"
+              placeholder="e.g. paying early from July salary"
               className="h-11 rounded-2xl border-[1.5px] border-line px-3.5 text-sm"
             />
           </div>

@@ -63,7 +63,7 @@ function MoreIcon(props: SVGProps<SVGSVGElement>) {
  * and Net worth live under /more; nothing was deleted, just demoted.
  */
 const PRIMARY_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: HomeIcon },
+  { href: "/dashboard", label: "Home", icon: HomeIcon },
   { href: "/transactions", label: "Transactions", icon: SwapIcon },
   { href: "/calendar", label: "Calendar", icon: CalendarIcon },
   { href: "/intel", label: "Intel", icon: BarsIcon },

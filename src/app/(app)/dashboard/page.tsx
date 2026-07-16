@@ -3,56 +3,69 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth/require-user";
 import { listAccounts, getAccountBalance } from "@/services/AccountService";
 import { listRecurringTransactions } from "@/services/RecurringTransactionService";
-import { listTransactions } from "@/services/TransactionService";
 import { getUserSettings } from "@/services/UserSettingsService";
+import { getMonthlyBudgetSnapshot } from "@/services/BudgetSnapshotService";
 import {
   addMoney,
   formatMoneyDisplay,
   isNegativeMoney,
   moneyToDbNumber,
+  negateMoney,
   sumMoney,
   ZERO,
   type Money,
 } from "@/lib/money";
+import { currentMonth, monthLabel, shiftMonth } from "@/lib/dates/month";
+import { getCurrentPhase, getPhaseInfo, type Phase } from "@/lib/dates/phase";
+import { computeHomeStats } from "@/lib/budget/home-stats";
 import { Hero } from "@/components/ui/hero";
-import { transactionDisplayTitle } from "@/features/transactions/format";
+import { HomePhaseView } from "@/features/home/HomePhaseView";
 
 export const metadata: Metadata = {
-  title: "Dashboard",
+  title: "Home",
 };
 
-function monthLabel(isoDate: string): string {
-  return new Date(`${isoDate}T00:00:00Z`).toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+function ordinalSuffix(day: number | null | undefined): string {
+  if (!day) return "";
+  if (day % 10 === 1 && day !== 11) return "st";
+  if (day % 10 === 2 && day !== 12) return "nd";
+  if (day % 10 === 3 && day !== 13) return "rd";
+  return "th";
 }
 
-export default async function DashboardPage() {
+/**
+ * v0.5.1: replaces the old Dashboard content. Route stays /dashboard
+ * (avoids touching middleware/onboarding redirects/nav hrefs for a pure
+ * rename) — nav label is "Home" now, matching the product pivot's own
+ * language ("the Budget screen becomes the primary dashboard").
+ *
+ * "Current balances" and its per-account progress bars are carried over
+ * unchanged from the old Dashboard — genuinely useful, not part of the
+ * phase-aware redesign itself. The old "Upcoming next 3 months" section
+ * is gone: superseded by the phase-aware checklist/outlook below, which
+ * uses tagged (counted) data instead of a flat list of everything
+ * pending in the next 90 days regardless of whether it's tagged to
+ * anything.
+ */
+export default async function HomePage() {
   const user = await requireUser();
   const today = new Date();
-  const todayIso = today.toISOString().slice(0, 10);
-  const in90Days = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
+  const phaseNow = getCurrentPhase(today);
+  const thisMonth = currentMonth();
+  const nextMonth = shiftMonth(thisMonth, 1);
 
-  const [accounts, recurring, settings, upcoming] = await Promise.all([
-    listAccounts(),
-    listRecurringTransactions(),
-    getUserSettings(user.id),
-    listTransactions({
-      status: "pending",
-      occurredFrom: todayIso,
-      occurredTo: in90Days,
-      limit: 100,
-    }),
-  ]);
+  const [accounts, recurring, settings, currentSnapshot, nextSnapshot] =
+    await Promise.all([
+      listAccounts(),
+      listRecurringTransactions(),
+      getUserSettings(user.id),
+      getMonthlyBudgetSnapshot(thisMonth),
+      getMonthlyBudgetSnapshot(nextMonth),
+    ]);
 
   const accountName = new Map(
     accounts.map((account) => [account.id, account.name]),
   );
-
   const currency = settings?.baseCurrency ?? "USD";
 
   const balances = await Promise.all(
@@ -63,8 +76,7 @@ export default async function DashboardPage() {
   );
 
   // Savings/checking first, credit cards after — matches how the person
-  // actually thinks about these (money you have, then what you owe),
-  // rather than the alphabetical-by-name order this was in before.
+  // actually thinks about these (money you have, then what you owe).
   const TYPE_ORDER: Record<string, number> = {
     checking: 0,
     savings: 0,
@@ -76,12 +88,8 @@ export default async function DashboardPage() {
       (TYPE_ORDER[b.account.accountType] ?? 0),
   );
 
-  const netAcrossAccounts = sumMoney(balances.map((b) => b.balance));
-
   // Expected monthly credit per checking/savings account, from matching
   // recurring income templates — drives the "remaining" progress bar.
-  // Accounts with no matching income template (or non-checking types)
-  // just show a plain balance, no bar.
   const expectedCreditByAccount = new Map<string, Money>();
   for (const template of recurring) {
     if (template.kind === "income") {
@@ -95,34 +103,98 @@ export default async function DashboardPage() {
     }
   }
 
-  const upcomingByMonth = new Map<string, typeof upcoming.transactions>();
-  for (const transaction of upcoming.transactions) {
-    const key = transaction.occurredOn.slice(0, 7);
-    upcomingByMonth.set(key, [
-      ...(upcomingByMonth.get(key) ?? []),
-      transaction,
-    ]);
-  }
-  const upcomingMonths = Array.from(upcomingByMonth.keys()).sort();
-  const upcomingTotal = sumMoney(upcoming.transactions.map((t) => t.amount));
+  const homeStats = computeHomeStats(currentSnapshot);
+
+  // Simple health heuristic: would next month's tagged income cover its
+  // tagged commitments? A real "confidence" model (accounting for
+  // partial tagging, historical variance, etc.) is future work — this is
+  // a first, honest approximation, not a claim of precision.
+  const nextOneOffCommitted = sumMoney(
+    nextSnapshot.oneOff.filter((l) => l.kind !== "income").map((l) => l.amount),
+  );
+  const nextCommittedTotal = addMoney(
+    nextSnapshot.fixedExpenseTotal,
+    nextOneOffCommitted,
+  );
+  const nextProjectedClosing = addMoney(
+    nextSnapshot.incomeTotal,
+    negateMoney(nextCommittedTotal),
+  );
+  const nextHealthy = !isNegativeMoney(nextProjectedClosing);
+
+  const phaseInfos: Record<Phase, ReturnType<typeof getPhaseInfo>> = {
+    planning: getPhaseInfo("planning", today),
+    execution: getPhaseInfo("execution", today),
+    tracking: getPhaseInfo("tracking", today),
+  };
 
   return (
     <div>
       <Hero
-        title="Dashboard"
-        label="Net across all accounts"
-        amount={formatMoneyDisplay(netAcrossAccounts, currency)}
-        sub={new Date().toLocaleDateString("en-US", {
-          month: "long",
-          year: "numeric",
-        })}
+        title="Home"
+        label="Available cash right now"
+        amount={formatMoneyDisplay(
+          sumMoney(balances.map((b) => b.balance)),
+          currency,
+        )}
+      >
+        <div className="mt-4">
+          <div className="font-display text-[10px] font-bold uppercase tracking-wide text-white/45">
+            This month &middot; {monthLabel(thisMonth)}
+          </div>
+          <div className="mt-1.5 grid grid-cols-4 gap-2">
+            <div className="rounded-xl bg-white/10 px-2 py-2">
+              <div className="text-[9.5px] uppercase text-white/55">
+                Expected
+              </div>
+              <div className="mt-0.5 font-display text-[13px] font-extrabold">
+                {formatMoneyDisplay(homeStats.expected, currency)}
+              </div>
+            </div>
+            <div className="rounded-xl bg-white/10 px-2 py-2">
+              <div className="text-[9.5px] uppercase text-white/55">
+                Committed
+              </div>
+              <div className="mt-0.5 font-display text-[13px] font-extrabold">
+                {formatMoneyDisplay(homeStats.committed, currency)}
+              </div>
+            </div>
+            <div className="rounded-xl bg-white/10 px-2 py-2">
+              <div className="text-[9.5px] uppercase text-white/55">Paid</div>
+              <div className="mt-0.5 font-display text-[13px] font-extrabold">
+                {formatMoneyDisplay(homeStats.paid, currency)}
+              </div>
+            </div>
+            <div className="rounded-xl bg-white/10 px-2 py-2">
+              <div className="text-[9.5px] uppercase text-white/55">
+                Remaining
+              </div>
+              <div className="mt-0.5 font-display text-[13px] font-extrabold">
+                {formatMoneyDisplay(homeStats.remaining, currency)}
+              </div>
+            </div>
+          </div>
+        </div>
+      </Hero>
+
+      <HomePhaseView
+        currentPhase={phaseNow.phase}
+        phaseInfos={phaseInfos}
+        currentMonthLabel={monthLabel(thisMonth)}
+        nextMonthLabel={monthLabel(nextMonth)}
+        currentSnapshot={currentSnapshot}
+        nextSnapshot={nextSnapshot}
+        nextHealthy={nextHealthy}
+        nextProjectedClosing={nextProjectedClosing}
+        accountName={accountName}
+        currency={currency}
       />
 
-      <div className="space-y-8 p-5 sm:p-8">
+      <div className="px-5 pb-2 sm:px-8">
         <section>
           <div className="mb-3 flex items-baseline justify-between">
             <h2 className="font-display text-[15px] font-bold text-ink">
-              Current balances
+              Accounts
             </h2>
             <span className="text-xs text-ink-faint">
               {accounts.length} account{accounts.length === 1 ? "" : "s"}
@@ -203,64 +275,7 @@ export default async function DashboardPage() {
             </div>
           )}
         </section>
-
-        <section>
-          <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="font-display text-[15px] font-bold text-ink">
-              Upcoming · next 3 months
-            </h2>
-            <span className="text-xs text-ink-faint">
-              {formatMoneyDisplay(upcomingTotal, currency)} total
-            </span>
-          </div>
-
-          <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-            {upcomingMonths.length === 0 ? (
-              <p className="p-4 text-sm text-ink-faint">
-                Nothing scheduled yet.
-              </p>
-            ) : (
-              upcomingMonths.map((month) => (
-                <div key={month}>
-                  <div className="px-[18px] pb-1 pt-3.5 font-display text-[11px] font-bold uppercase tracking-wide text-ink-faint">
-                    {monthLabel(`${month}-01`)}
-                  </div>
-                  <ul>
-                    {(upcomingByMonth.get(month) ?? []).map((t) => (
-                      <li
-                        key={t.id}
-                        className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-3.5 last:border-b-0"
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-semibold text-ink">
-                            {transactionDisplayTitle(t, accountName)}
-                          </div>
-                          <div className="text-xs text-ink-faint">
-                            {t.kind === "transfer"
-                              ? "Scheduled transfer"
-                              : "One-time"}
-                          </div>
-                        </div>
-                        <div className="whitespace-nowrap font-display text-[15px] font-bold text-negative">
-                          &minus;{formatMoneyDisplay(t.amount, t.currencyCode)}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
       </div>
     </div>
   );
-}
-
-function ordinalSuffix(day: number | null | undefined): string {
-  if (!day) return "";
-  if (day % 10 === 1 && day !== 11) return "st";
-  if (day % 10 === 2 && day !== 12) return "nd";
-  if (day % 10 === 3 && day !== 13) return "rd";
-  return "th";
 }

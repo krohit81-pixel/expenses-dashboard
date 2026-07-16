@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 
 import { Spinner } from "@/components/ui/spinner";
+import { monthOptions } from "@/lib/dates/month";
 import {
   tagRecurringToCycleAction,
   type TagToCycleFormState,
@@ -10,30 +11,12 @@ import {
 
 const initialState: TagToCycleFormState = {};
 
-function nextMonths(count: number): { value: string; label: string }[] {
-  const now = new Date();
-  const months: { value: string; label: string }[] = [];
-  for (let i = 0; i < count; i++) {
-    const d = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i, 1),
-    );
-    const value = d.toISOString().slice(0, 7);
-    const label = d.toLocaleDateString("en-US", {
-      month: "short",
-      year: "numeric",
-      timeZone: "UTC",
-    });
-    months.push({ value, label });
-  }
-  return months;
-}
-
 export function TagToCycleButton({ templateId }: { templateId: string }) {
   const [state, formAction, isPending] = useActionState(
     tagRecurringToCycleAction,
     initialState,
   );
-  const months = nextMonths(6);
+  const months = monthOptions(6);
 
   return (
     <form action={formAction} className="flex shrink-0 items-center gap-1">

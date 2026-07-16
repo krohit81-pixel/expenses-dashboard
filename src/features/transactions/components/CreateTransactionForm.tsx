@@ -7,6 +7,7 @@ import { FieldError } from "@/components/ui/field-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { monthOptions } from "@/lib/dates/month";
 import {
   createTransactionAction,
   type CreateTransactionFormState,
@@ -150,6 +151,21 @@ export function CreateTransactionForm({
           maxLength={300}
           placeholder="e.g. Groceries at DMart"
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="cycleMonth">Counts toward</Label>
+        <Select
+          id="cycleMonth"
+          name="cycleMonth"
+          defaultValue={monthOptions(6)[0]?.value}
+        >
+          {monthOptions(6).map((m) => (
+            <option key={m.value} value={m.value}>
+              {m.label} cycle
+            </option>
+          ))}
+        </Select>
       </div>
 
       {kind !== "transfer" && (

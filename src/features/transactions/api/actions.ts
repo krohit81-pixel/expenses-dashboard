@@ -34,6 +34,7 @@ export async function createTransactionAction(
     occurredOn: formValue(formData, "occurredOn"),
     payee: formValue(formData, "payee") ?? null,
     memo: formValue(formData, "memo") ?? null,
+    cycleMonth: formValue(formData, "cycleMonth"),
     amount: formValue(formData, "amount"),
   };
 
@@ -105,6 +106,7 @@ export async function logCardPaymentAction(
     currencyCode: formValue(formData, "currencyCode"),
     occurredOn: formValue(formData, "payOn"),
     memo: formValue(formData, "memo"),
+    cycleMonth: formValue(formData, "cycleMonth"),
     status: "pending" as const,
   };
 

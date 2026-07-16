@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { isValidMonth, monthLabel, shiftMonth } from "./month";
+import {
+  currentMonth,
+  isValidMonth,
+  monthLabel,
+  monthOptions,
+  shiftMonth,
+} from "./month";
 
 describe("shiftMonth", () => {
   it("advances within the same year", () => {
@@ -47,5 +53,38 @@ describe("isValidMonth", () => {
     expect(isValidMonth("not-a-month")).toBe(false);
     expect(isValidMonth(undefined)).toBe(false);
     expect(isValidMonth("")).toBe(false);
+  });
+});
+
+describe("monthOptions", () => {
+  it("returns the requested count, starting from this month by default", () => {
+    const options = monthOptions(3);
+    expect(options).toHaveLength(3);
+    expect(options[0]?.value).toBe(currentMonth());
+  });
+
+  it("each option's value and label agree on the same month", () => {
+    const options = monthOptions(4);
+    options.forEach((opt) => {
+      const [, expectedMonthNum] = opt.value.split("-");
+      const labelMonthIndex =
+        new Date(`${opt.value}-01T00:00:00Z`).getUTCMonth() + 1;
+      expect(Number(expectedMonthNum)).toBe(labelMonthIndex);
+    });
+  });
+
+  it("respects a startOffset, e.g. starting from next month", () => {
+    const fromNow = monthOptions(1, 0);
+    const fromNext = monthOptions(1, 1);
+    expect(fromNext[0]?.value).toBe(shiftMonth(fromNow[0]!.value, 1));
+  });
+
+  it("produces consecutive months with no gaps or duplicates", () => {
+    const options = monthOptions(6);
+    const values = options.map((o) => o.value);
+    expect(new Set(values).size).toBe(6);
+    for (let i = 1; i < values.length; i++) {
+      expect(values[i]).toBe(shiftMonth(values[i - 1]!, 1));
+    }
   });
 });

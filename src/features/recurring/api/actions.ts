@@ -184,6 +184,7 @@ export async function tagRecurringToCycleAction(
 
   revalidatePath("/budgets");
   revalidatePath("/recurring");
+  revalidatePath("/dashboard");
   revalidatePath("/transactions");
   return { success: true };
 }
