@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import {
   createTransaction,
   markTransactionPaid,
+  markTransactionPending,
   updateTransaction,
 } from "@/services/TransactionService";
 import {
@@ -154,6 +155,30 @@ export async function markTransactionPaidAction(
 
   try {
     await markTransactionPaid(id);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Something went wrong",
+    };
+  }
+
+  revalidatePath("/transactions");
+  revalidatePath("/dashboard");
+  revalidatePath("/accounts");
+  return {};
+}
+
+export async function markTransactionPendingAction(
+  _prevState: MarkPaidFormState,
+  formData: FormData,
+): Promise<MarkPaidFormState> {
+  const id = formValue(formData, "id");
+
+  if (!id) {
+    return { error: "Missing transaction id" };
+  }
+
+  try {
+    await markTransactionPending(id);
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "Something went wrong",

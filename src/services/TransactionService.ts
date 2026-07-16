@@ -309,6 +309,29 @@ export async function markTransactionPaid(
 }
 
 /**
+ * Reverses markTransactionPaid — flips a posted transaction back to
+ * pending. Added after a real report: there was no way to undo an
+ * accidental "mark paid" tap, which (per getAccountBalance only
+ * counting posted transactions) had already moved the amount in or out
+ * of the account's computed balance.
+ */
+export async function markTransactionPending(
+  transactionId: string,
+): Promise<void> {
+  const supabase = createServiceClient();
+  const { error } = await supabase
+    .from("transactions")
+    .update({ status: "pending" })
+    .eq("id", transactionId)
+    .eq("user_id", OWNER_USER_ID)
+    .eq("status", "posted");
+
+  if (error) {
+    throw new Error(`Failed to unmark transaction: ${error.message}`);
+  }
+}
+
+/**
  * Updates a transaction's amount, date, and memo — see the narrow-scope
  * note on updateTransactionInputSchema. Doesn't touch splits, so a
  * multi-category expense's per-category breakdown can't be edited this

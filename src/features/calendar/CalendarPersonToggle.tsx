@@ -13,19 +13,23 @@ function TravelWindows({ windows }: { windows: TravelWindow[] }) {
   return (
     <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
       {windows.map((w) => (
-        <div
-          key={w.name}
-          className="flex items-center justify-between gap-3 rounded-2xl bg-positive-soft px-4 py-3.5"
-        >
-          <div>
-            <div className="font-display text-sm font-bold text-positive">
-              {w.name}
+        <div key={w.name} className="rounded-2xl bg-positive-soft px-4 py-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="font-display text-sm font-bold text-positive">
+                {w.name}
+              </div>
+              <div className="mt-0.5 text-xs text-ink-soft">{w.range}</div>
             </div>
-            <div className="mt-0.5 text-xs text-ink-soft">{w.range}</div>
+            <span className="whitespace-nowrap rounded-full bg-surface px-2.5 py-1 font-display text-xs font-extrabold text-positive">
+              {w.days}
+            </span>
           </div>
-          <span className="whitespace-nowrap rounded-full bg-surface px-2.5 py-1 font-display text-xs font-extrabold text-positive">
-            {w.days}
-          </span>
+          {w.note && (
+            <p className="mt-2 text-[11px] leading-relaxed text-ink-soft">
+              {w.note}
+            </p>
+          )}
         </div>
       ))}
     </div>

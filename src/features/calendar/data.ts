@@ -31,6 +31,9 @@ export interface TravelWindow {
   name: string;
   range: string;
   days: string;
+  /** A caveat too long for the pill badge — rendered as a small footnote
+   * below the card instead of crammed into it. */
+  note?: string;
 }
 
 export const TAG_STYLES: Record<EventTag, string> = {
@@ -370,7 +373,8 @@ export const ROHANA_TRAVEL_WINDOWS: TravelWindow[] = [
   {
     name: "Summer vacation begins",
     range: "From Sun 9 May 2027",
-    days: "12 weeks (Special Term optional, see notes)",
+    days: "12 weeks",
+    note: "Rohana's optional Special Terms (10 May\u201319 Jun and 21 Jun\u201331 Jul) can eat most of this if he enrolls in them.",
   },
 ];
 

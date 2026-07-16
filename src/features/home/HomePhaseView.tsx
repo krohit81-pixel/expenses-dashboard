@@ -316,12 +316,16 @@ export function HomePhaseView({
           </section>
           {checklist.length > 0 && (
             <section>
-              <h2 className="mb-3 font-display text-[15px] font-bold text-ink">
+              <h2 className="mb-1 font-display text-[15px] font-bold text-ink">
                 Tagged to {selected.label} so far
               </h2>
+              <p className="mb-3 text-xs text-ink-faint">
+                A status glance, not an action surface — mark things paid on the
+                Execution tab once it&apos;s actually time.
+              </p>
               <ul className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-                {checklist.slice(0, 4).map((line) => (
-                  <ChecklistItem key={line.id} {...line} compact />
+                {checklist.map((line) => (
+                  <ChecklistItem key={line.id} {...line} compact readOnly />
                 ))}
               </ul>
             </section>
@@ -354,7 +358,11 @@ export function HomePhaseView({
                 </p>
               ) : (
                 [...pending, ...done].map((line) => (
-                  <ChecklistItem key={line.id} {...line} />
+                  <ChecklistItem
+                    key={line.id}
+                    {...line}
+                    readOnly={!selected.isCurrentRealMonth}
+                  />
                 ))
               )}
             </ul>
@@ -408,7 +416,7 @@ export function HomePhaseView({
                 </p>
               ) : (
                 checklist.map((line) => (
-                  <ChecklistItem key={line.id} {...line} compact />
+                  <ChecklistItem key={line.id} {...line} compact readOnly />
                 ))
               )}
             </ul>

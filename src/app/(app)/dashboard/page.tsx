@@ -41,7 +41,7 @@ function ordinalSuffix(day: number | null | undefined): string {
  * month allows (see phaseAvailability — past=Tracking only,
  * future=Planning only, current=all three).
  *
- * Fetches a 6-month window (2 back, current, 3 ahead) in parallel up
+ * Fetches a 10-month window (6 back, current, 3 ahead) in parallel up
  * front rather than fetching on-demand when the dropdown changes —
  * avoids a server round-trip per selection, and the data volumes here
  * (a handful of recurring items + one-offs per month) are small enough
@@ -50,7 +50,7 @@ function ordinalSuffix(day: number | null | undefined): string {
 export default async function HomePage() {
   const user = await requireUser();
   const thisMonth = currentMonth();
-  const monthWindow = [-2, -1, 0, 1, 2, 3].map((offset) =>
+  const monthWindow = [-6, -5, -4, -3, -2, -1, 0, 1, 2, 3].map((offset) =>
     shiftMonth(thisMonth, offset),
   );
 
