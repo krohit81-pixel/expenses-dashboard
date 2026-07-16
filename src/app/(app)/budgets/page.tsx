@@ -6,12 +6,8 @@ import { listAccounts } from "@/services/AccountService";
 import { listCategories } from "@/services/CategoryService";
 import { getUserSettings } from "@/services/UserSettingsService";
 import { requireUser } from "@/lib/auth/require-user";
-import {
-  addMoney,
-  formatMoneyDisplay,
-  negateMoney,
-  sumMoney,
-} from "@/lib/money";
+import { formatMoneyDisplay, negateMoney, sumMoney } from "@/lib/money";
+import { computeProjectedClosing } from "@/lib/budget/home-stats";
 import {
   currentMonth,
   isValidMonth,
@@ -66,10 +62,7 @@ export default async function BudgetsPage({
     accounts.map((account) => [account.id, account.name]),
   );
   const currency = settings?.baseCurrency ?? "USD";
-  const fixedNet = addMoney(
-    snapshot.incomeTotal,
-    negateMoney(snapshot.fixedExpenseTotal),
-  );
+  const projectedClosing = computeProjectedClosing(snapshot);
 
   const oneOffTotal = sumMoney(
     snapshot.oneOff.map((line) =>
@@ -81,9 +74,9 @@ export default async function BudgetsPage({
     <div>
       <Hero
         title="Budgets"
-        label="Fixed net, monthly"
-        amount={formatMoneyDisplay(fixedNet, currency)}
-        sub={`${formatMoneyDisplay(snapshot.incomeTotal, currency)} in \u2212 ${formatMoneyDisplay(snapshot.fixedExpenseTotal, currency)} fixed out, for ${monthLabel(month)}.`}
+        label="Projected balance, this cycle"
+        amount={formatMoneyDisplay(projectedClosing, currency)}
+        sub={`${formatMoneyDisplay(snapshot.incomeTotal, currency)} in \u2212 ${formatMoneyDisplay(snapshot.fixedExpenseTotal, currency)} fixed \u2212 card/one-off commitments, for ${monthLabel(month)}.`}
       >
         <div className="mt-4 flex items-center gap-2">
           <Link

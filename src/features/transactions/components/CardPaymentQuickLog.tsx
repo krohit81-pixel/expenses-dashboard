@@ -204,32 +204,7 @@ export function CardPaymentQuickLog({
               </select>
             </div>
 
-            <div className="mb-4 flex flex-col gap-1.5">
-              <label
-                htmlFor="cycleMonth"
-                className="text-xs font-semibold text-ink-faint"
-              >
-                Counts toward
-              </label>
-              <select
-                key={selectedCycle}
-                id="cycleMonth"
-                name="cycleMonth"
-                defaultValue={selectedCycle}
-                className="h-11 rounded-2xl border-[1.5px] border-line px-3.5 text-sm"
-              >
-                {monthOptions(8, -2).map((m) => (
-                  <option key={m.value} value={m.value}>
-                    {m.label} cycle
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-ink-faint">
-                Defaults to match &ldquo;Reviewing cycle&rdquo; above — change
-                it here if this specific payment counts toward a different one.
-              </p>
-            </div>
-
+            <input type="hidden" name="cycleMonth" value={selectedCycle} />
             <div className="mb-4 flex flex-col gap-1.5">
               <label
                 htmlFor="memo"

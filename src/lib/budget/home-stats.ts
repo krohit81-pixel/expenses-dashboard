@@ -38,3 +38,29 @@ export function computeHomeStats(snapshot: MonthlyBudgetSnapshot): HomeStats {
 
   return { expected, committed, paid, remaining };
 }
+
+/**
+ * Income receivables minus everything committed to go out (fixed
+ * recurring expenses, card payments, and other one-off expenses/
+ * transfers) — the actual "will this month end up positive" number.
+ * One-off INCOME (e.g. rent received) is deliberately excluded from
+ * both sides here: it's not part of "income receivables" (that's the
+ * recurring income section specifically), and it already isn't a
+ * commitment, so it doesn't belong in the subtracted half either.
+ *
+ * Extracted from what used to be a duplicate inline function inside
+ * HomePhaseView — Budgets' headline needed the exact same math, and
+ * hand-copying it a second time is exactly the kind of thing that
+ * quietly drifts apart later.
+ */
+export function computeProjectedClosing(
+  snapshot: MonthlyBudgetSnapshot,
+): Money {
+  const oneOffCommitted = sumMoney(
+    snapshot.oneOff
+      .filter((line) => line.kind !== "income")
+      .map((line) => line.amount),
+  );
+  const committed = addMoney(snapshot.fixedExpenseTotal, oneOffCommitted);
+  return addMoney(snapshot.incomeTotal, negateMoney(committed));
+}

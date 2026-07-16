@@ -1,18 +1,21 @@
 import { describe, expect, it } from "vitest";
 
-import { computeHomeStats } from "./home-stats";
+import { sumMoney } from "@/lib/money";
+import { computeHomeStats, computeProjectedClosing } from "./home-stats";
 import type { MonthlyBudgetSnapshot } from "@/services/BudgetSnapshotService";
 
 function snapshot(
   overrides: Partial<MonthlyBudgetSnapshot> = {},
 ): MonthlyBudgetSnapshot {
+  const income = overrides.income ?? [];
+  const fixedExpenses = overrides.fixedExpenses ?? [];
   return {
     month: "2026-08",
-    income: [],
-    fixedExpenses: [],
+    income,
+    fixedExpenses,
     oneOff: [],
-    incomeTotal: "0.00" as MonthlyBudgetSnapshot["incomeTotal"],
-    fixedExpenseTotal: "0.00" as MonthlyBudgetSnapshot["fixedExpenseTotal"],
+    incomeTotal: sumMoney(income.map((l) => l.amount)),
+    fixedExpenseTotal: sumMoney(fixedExpenses.map((l) => l.amount)),
     ...overrides,
   };
 }
@@ -142,5 +145,120 @@ describe("computeHomeStats", () => {
       }),
     );
     expect(stats.remaining).toBe("0.00");
+  });
+});
+
+describe("computeProjectedClosing", () => {
+  it("is zero for an empty month", () => {
+    expect(computeProjectedClosing(snapshot())).toBe("0.00");
+  });
+
+  it("subtracts fixed expenses from income", () => {
+    const result = computeProjectedClosing(
+      snapshot({
+        income: [
+          {
+            id: "1",
+            name: "Salary",
+            amount: "100000.00" as never,
+            currencyCode: "INR",
+            status: "posted",
+          },
+        ],
+        fixedExpenses: [
+          {
+            id: "2",
+            name: "Rent",
+            amount: "30000.00" as never,
+            currencyCode: "INR",
+            status: "posted",
+          },
+        ],
+      }),
+    );
+    expect(result).toBe("70000.00");
+  });
+
+  it("also subtracts one-off card payments and expenses", () => {
+    const result = computeProjectedClosing(
+      snapshot({
+        income: [
+          {
+            id: "1",
+            name: "Salary",
+            amount: "100000.00" as never,
+            currencyCode: "INR",
+            status: "posted",
+          },
+        ],
+        oneOff: [
+          {
+            id: "2",
+            payee: "Card statement",
+            amount: "20000.00" as never,
+            currencyCode: "INR",
+            kind: "transfer",
+            transferAccountId: "acct-1",
+            status: "pending",
+          },
+        ],
+      }),
+    );
+    expect(result).toBe("80000.00");
+  });
+
+  it("excludes one-off income from both sides — it's neither income receivables nor a commitment", () => {
+    const result = computeProjectedClosing(
+      snapshot({
+        income: [
+          {
+            id: "1",
+            name: "Salary",
+            amount: "100000.00" as never,
+            currencyCode: "INR",
+            status: "posted",
+          },
+        ],
+        oneOff: [
+          {
+            id: "2",
+            payee: "Rent received",
+            amount: "18000.00" as never,
+            currencyCode: "INR",
+            kind: "income",
+            transferAccountId: null,
+            status: "pending",
+          },
+        ],
+      }),
+    );
+    // Should still be 100000, not 118000 — one-off income isn't counted here.
+    expect(result).toBe("100000.00");
+  });
+
+  it("can go negative when commitments exceed income", () => {
+    const result = computeProjectedClosing(
+      snapshot({
+        income: [
+          {
+            id: "1",
+            name: "Salary",
+            amount: "50000.00" as never,
+            currencyCode: "INR",
+            status: "posted",
+          },
+        ],
+        fixedExpenses: [
+          {
+            id: "2",
+            name: "Rent",
+            amount: "70000.00" as never,
+            currencyCode: "INR",
+            status: "posted",
+          },
+        ],
+      }),
+    );
+    expect(result).toBe("-20000.00");
   });
 });

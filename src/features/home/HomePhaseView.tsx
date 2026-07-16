@@ -3,14 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import {
-  formatMoneyDisplay,
-  isNegativeMoney,
-  addMoney,
-  negateMoney,
-  sumMoney,
-  type Money,
-} from "@/lib/money";
+import { formatMoneyDisplay, isNegativeMoney, type Money } from "@/lib/money";
+import { computeProjectedClosing } from "@/lib/budget/home-stats";
 import {
   phaseAvailability,
   defaultPhaseForMonth,
@@ -92,14 +86,6 @@ function snapshotToChecklist(
   return [...recurring, ...oneOff];
 }
 
-function projectedClosing(snapshot: MonthlyBudgetSnapshot): Money {
-  const oneOffCommitted = sumMoney(
-    snapshot.oneOff.filter((l) => l.kind !== "income").map((l) => l.amount),
-  );
-  const committed = addMoney(snapshot.fixedExpenseTotal, oneOffCommitted);
-  return addMoney(snapshot.incomeTotal, negateMoney(committed));
-}
-
 function OutlookCard({
   monthLabel,
   snapshot,
@@ -113,7 +99,7 @@ function OutlookCard({
   note?: string;
   compact?: boolean;
 }) {
-  const closing = projectedClosing(snapshot);
+  const closing = computeProjectedClosing(snapshot);
   const healthy = !isNegativeMoney(closing);
   const cardPaymentsTotal = snapshot.oneOff
     .filter((l) => l.kind !== "income")
