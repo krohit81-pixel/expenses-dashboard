@@ -10,13 +10,11 @@ import {
   formatMoneyDisplay,
   isNegativeMoney,
   moneyToDbNumber,
-  negateMoney,
   sumMoney,
   ZERO,
   type Money,
 } from "@/lib/money";
 import { currentMonth, monthLabel, shiftMonth } from "@/lib/dates/month";
-import { computeHomeStats } from "@/lib/budget/home-stats";
 import { Hero } from "@/components/ui/hero";
 import { HomePhaseView, type MonthOption } from "@/features/home/HomePhaseView";
 
@@ -105,21 +103,7 @@ export default async function HomePage() {
     }
   }
 
-  // Hero's stat row is always about the real current month specifically
-  // — it's the one number that shouldn't shift depending on which cycle
-  // you're browsing in the dropdown below.
-  const currentSnapshot = months.find((m) => m.isCurrentRealMonth)!.snapshot;
-  const homeStats = computeHomeStats(currentSnapshot);
   const availableCash = sumMoney(balances.map((b) => b.balance));
-  // "Remaining" means "what you'll actually have left," not "how much
-  // of what's committed hasn't been paid yet" (that's homeStats.remaining
-  // itself — the unpaid portion). Real report: cash 6,000 minus 5,000
-  // still-unpaid committed should read as a projected 1,000 left, not
-  // just restate the 5,000 that's unpaid.
-  const projectedRemaining = addMoney(
-    availableCash,
-    negateMoney(homeStats.remaining),
-  );
 
   return (
     <div>
@@ -127,45 +111,7 @@ export default async function HomePage() {
         title="Home"
         label="Available cash right now"
         amount={formatMoneyDisplay(availableCash, currency)}
-      >
-        <div className="mt-4">
-          <div className="font-display text-[10px] font-bold uppercase tracking-wide text-white/45">
-            This month &middot; {monthLabel(thisMonth)}
-          </div>
-          <div className="mt-1.5 grid grid-cols-4 gap-2">
-            <div className="rounded-xl bg-white/10 px-2 py-2">
-              <div className="text-[9.5px] uppercase text-white/55">
-                Expected
-              </div>
-              <div className="mt-0.5 font-display text-[13px] font-extrabold">
-                {formatMoneyDisplay(homeStats.expected, currency)}
-              </div>
-            </div>
-            <div className="rounded-xl bg-white/10 px-2 py-2">
-              <div className="text-[9.5px] uppercase text-white/55">
-                Committed
-              </div>
-              <div className="mt-0.5 font-display text-[13px] font-extrabold">
-                {formatMoneyDisplay(homeStats.committed, currency)}
-              </div>
-            </div>
-            <div className="rounded-xl bg-white/10 px-2 py-2">
-              <div className="text-[9.5px] uppercase text-white/55">Paid</div>
-              <div className="mt-0.5 font-display text-[13px] font-extrabold">
-                {formatMoneyDisplay(homeStats.paid, currency)}
-              </div>
-            </div>
-            <div className="rounded-xl bg-white/10 px-2 py-2">
-              <div className="text-[9.5px] uppercase text-white/55">
-                Remaining
-              </div>
-              <div className="mt-0.5 font-display text-[13px] font-extrabold">
-                {formatMoneyDisplay(projectedRemaining, currency)}
-              </div>
-            </div>
-          </div>
-        </div>
-      </Hero>
+      />
 
       <HomePhaseView
         months={months}

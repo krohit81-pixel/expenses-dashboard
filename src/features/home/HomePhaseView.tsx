@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import { formatMoneyDisplay, isNegativeMoney, type Money } from "@/lib/money";
+import {
+  formatMoneyDisplay,
+  isNegativeMoney,
+  sumMoney,
+  type Money,
+} from "@/lib/money";
 import { computeProjectedClosing } from "@/lib/budget/home-stats";
 import {
   phaseAvailability,
@@ -13,6 +18,7 @@ import {
 } from "@/lib/dates/phase";
 import type { MonthlyBudgetSnapshot } from "@/services/BudgetSnapshotService";
 import { ChecklistItem } from "@/features/home/ChecklistItem";
+import { SplitCard } from "@/components/ui/split-card";
 import { transactionDisplayTitle } from "@/features/transactions/format";
 
 const PHASES: Phase[] = ["planning", "execution", "tracking"];
@@ -24,12 +30,12 @@ const PHASE_LABEL: Record<Phase, string> = {
 const PHASE_STRIP_CLASS: Record<Phase, string> = {
   planning: "bg-accent-soft",
   execution: "bg-positive-soft",
-  tracking: "bg-amber-100",
+  tracking: "bg-amber-100 dark:bg-amber-950",
 };
 const PHASE_NAME_CLASS: Record<Phase, string> = {
   planning: "text-accent",
   execution: "text-positive",
-  tracking: "text-amber-700",
+  tracking: "text-amber-700 dark:text-amber-400",
 };
 const PHASE_ICON: Record<Phase, string> = {
   planning: "\u{1F4CB}",
@@ -119,7 +125,7 @@ function OutlookCard({
           className={`rounded-full px-2.5 py-1 font-display text-[10px] font-extrabold ${
             healthy
               ? "bg-positive-soft text-positive"
-              : "bg-amber-100 text-amber-700"
+              : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
           }`}
         >
           {healthy ? "Healthy" : "Tight"}
@@ -217,8 +223,10 @@ export function HomePhaseView({
   }
 
   const checklist = snapshotToChecklist(selected.snapshot, accountName);
-  const pending = checklist.filter((l) => l.status === "pending");
-  const done = checklist.filter((l) => l.status === "posted");
+  const incomeLines = checklist.filter((l) => l.direction === "in");
+  const expenseLines = checklist.filter((l) => l.direction === "out");
+  const incomeSum = sumMoney(incomeLines.map((l) => l.amount));
+  const expenseSum = sumMoney(expenseLines.map((l) => l.amount));
 
   return (
     <>
@@ -313,11 +321,28 @@ export function HomePhaseView({
                 A status glance, not an action surface — mark things paid on the
                 Execution tab once it&apos;s actually time.
               </p>
-              <ul className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-                {checklist.map((line) => (
-                  <ChecklistItem key={line.id} {...line} compact readOnly />
-                ))}
-              </ul>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <SplitCard
+                  title="Income"
+                  titleColorClass="text-positive"
+                  total={`+${formatMoneyDisplay(incomeSum, currency)}`}
+                  isEmpty={incomeLines.length === 0}
+                >
+                  {incomeLines.map((line) => (
+                    <ChecklistItem key={line.id} {...line} compact readOnly />
+                  ))}
+                </SplitCard>
+                <SplitCard
+                  title="Expenses"
+                  titleColorClass="text-negative"
+                  total={`\u2212${formatMoneyDisplay(expenseSum, currency)}`}
+                  isEmpty={expenseLines.length === 0}
+                >
+                  {expenseLines.map((line) => (
+                    <ChecklistItem key={line.id} {...line} compact readOnly />
+                  ))}
+                </SplitCard>
+              </div>
             </section>
           )}
         </div>
@@ -332,9 +357,9 @@ export function HomePhaseView({
             <p className="mb-3 text-xs text-ink-faint">
               Tap the circle to confirm — each one updates your numbers above.
             </p>
-            <ul className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-              {checklist.length === 0 ? (
-                <p className="p-4 text-sm text-ink-faint">
+            {checklist.length === 0 ? (
+              <div className="rounded-[20px] bg-surface p-4 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+                <p className="text-sm text-ink-faint">
                   Nothing tagged to {selected.label} yet — tag recurring items
                   on{" "}
                   <Link href="/recurring" className="underline">
@@ -346,16 +371,45 @@ export function HomePhaseView({
                   </Link>
                   .
                 </p>
-              ) : (
-                [...pending, ...done].map((line) => (
-                  <ChecklistItem
-                    key={line.id}
-                    {...line}
-                    readOnly={!selected.isCurrentRealMonth}
-                  />
-                ))
-              )}
-            </ul>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <SplitCard
+                  title="Income"
+                  titleColorClass="text-positive"
+                  total={`+${formatMoneyDisplay(incomeSum, currency)}`}
+                  isEmpty={incomeLines.length === 0}
+                >
+                  {[
+                    ...incomeLines.filter((l) => l.status === "pending"),
+                    ...incomeLines.filter((l) => l.status === "posted"),
+                  ].map((line) => (
+                    <ChecklistItem
+                      key={line.id}
+                      {...line}
+                      readOnly={!selected.isCurrentRealMonth}
+                    />
+                  ))}
+                </SplitCard>
+                <SplitCard
+                  title="Expenses"
+                  titleColorClass="text-negative"
+                  total={`\u2212${formatMoneyDisplay(expenseSum, currency)}`}
+                  isEmpty={expenseLines.length === 0}
+                >
+                  {[
+                    ...expenseLines.filter((l) => l.status === "pending"),
+                    ...expenseLines.filter((l) => l.status === "posted"),
+                  ].map((line) => (
+                    <ChecklistItem
+                      key={line.id}
+                      {...line}
+                      readOnly={!selected.isCurrentRealMonth}
+                    />
+                  ))}
+                </SplitCard>
+              </div>
+            )}
           </section>
           <section>
             <h2 className="mb-3 font-display text-[15px] font-bold text-ink">
@@ -399,17 +453,36 @@ export function HomePhaseView({
             <h2 className="mb-3 font-display text-[15px] font-bold text-ink">
               {selected.label}, settled
             </h2>
-            <ul className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-              {checklist.length === 0 ? (
-                <p className="p-4 text-sm text-ink-faint">
+            {checklist.length === 0 ? (
+              <div className="rounded-[20px] bg-surface p-4 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+                <p className="text-sm text-ink-faint">
                   Nothing tagged to {selected.label}.
                 </p>
-              ) : (
-                checklist.map((line) => (
-                  <ChecklistItem key={line.id} {...line} compact readOnly />
-                ))
-              )}
-            </ul>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <SplitCard
+                  title="Income"
+                  titleColorClass="text-positive"
+                  total={`+${formatMoneyDisplay(incomeSum, currency)}`}
+                  isEmpty={incomeLines.length === 0}
+                >
+                  {incomeLines.map((line) => (
+                    <ChecklistItem key={line.id} {...line} compact readOnly />
+                  ))}
+                </SplitCard>
+                <SplitCard
+                  title="Expenses"
+                  titleColorClass="text-negative"
+                  total={`\u2212${formatMoneyDisplay(expenseSum, currency)}`}
+                  isEmpty={expenseLines.length === 0}
+                >
+                  {expenseLines.map((line) => (
+                    <ChecklistItem key={line.id} {...line} compact readOnly />
+                  ))}
+                </SplitCard>
+              </div>
+            )}
           </section>
         </div>
       )}

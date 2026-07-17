@@ -46,6 +46,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* Runs before hydration to avoid a flash of the wrong theme —
+            standard pattern for class-based dark mode with SSR. Falls
+            back to system preference only when the person hasn't
+            explicitly chosen yet (no stored value). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('atlas-theme');var d=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');}catch(e){}})();`,
+          }}
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"

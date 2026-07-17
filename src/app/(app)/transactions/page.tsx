@@ -7,7 +7,9 @@ import { listCategories } from "@/services/CategoryService";
 import { getUserSettings } from "@/services/UserSettingsService";
 import { requireUser } from "@/lib/auth/require-user";
 import { monthOptions } from "@/lib/dates/month";
+import { formatMoneyDisplay, sumMoney } from "@/lib/money";
 import { Hero } from "@/components/ui/hero";
+import { SplitCard } from "@/components/ui/split-card";
 import { CreateTransactionForm } from "@/features/transactions/components/CreateTransactionForm";
 import { CardPaymentQuickLog } from "@/features/transactions/components/CardPaymentQuickLog";
 import { TransactionRow } from "@/features/transactions/components/TransactionRow";
@@ -70,6 +72,8 @@ export default async function TransactionsPage({
     categories.map((category) => [category.id, category.name]),
   );
   const defaultCurrency = settings?.baseCurrency ?? "USD";
+  const incomeTransactions = transactions.filter((t) => t.kind === "income");
+  const expenseTransactions = transactions.filter((t) => t.kind !== "income");
 
   const cardAccounts = accounts.filter((a) => a.accountType === "credit_card");
   const checkingAccounts = accounts.filter(
@@ -220,16 +224,38 @@ export default async function TransactionsPage({
               No transactions match these filters.
             </p>
           ) : (
-            <ul className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-              {transactions.map((transaction) => (
-                <TransactionRow
-                  key={transaction.id}
-                  transaction={transaction}
-                  accountName={accountName}
-                  categoryName={categoryName}
-                />
-              ))}
-            </ul>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <SplitCard
+                title="Income"
+                titleColorClass="text-positive"
+                total={`+${formatMoneyDisplay(sumMoney(incomeTransactions.map((t) => t.amount)), defaultCurrency)}`}
+                isEmpty={incomeTransactions.length === 0}
+              >
+                {incomeTransactions.map((transaction) => (
+                  <TransactionRow
+                    key={transaction.id}
+                    transaction={transaction}
+                    accountName={accountName}
+                    categoryName={categoryName}
+                  />
+                ))}
+              </SplitCard>
+              <SplitCard
+                title="Expenses & transfers"
+                titleColorClass="text-negative"
+                total={`\u2212${formatMoneyDisplay(sumMoney(expenseTransactions.map((t) => t.amount)), defaultCurrency)}`}
+                isEmpty={expenseTransactions.length === 0}
+              >
+                {expenseTransactions.map((transaction) => (
+                  <TransactionRow
+                    key={transaction.id}
+                    transaction={transaction}
+                    accountName={accountName}
+                    categoryName={categoryName}
+                  />
+                ))}
+              </SplitCard>
+            </div>
           )}
         </div>
 

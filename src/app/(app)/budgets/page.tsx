@@ -15,6 +15,7 @@ import {
   shiftMonth,
 } from "@/lib/dates/month";
 import { Hero } from "@/components/ui/hero";
+import { SplitCard } from "@/components/ui/split-card";
 import { transactionDisplayTitle } from "@/features/transactions/format";
 import { CreateRecurringTransactionForm } from "@/features/recurring/components/CreateRecurringTransactionForm";
 
@@ -109,85 +110,57 @@ export default async function BudgetsPage({
 
       <div className="space-y-4 p-5 sm:p-8">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-            <div className="flex items-center justify-between px-[18px] py-4">
-              <h2 className="font-display text-sm font-bold text-positive">
-                Income &amp; receivables
-              </h2>
-              <span className="font-display text-xs font-bold text-ink-faint">
-                +{formatMoneyDisplay(snapshot.incomeTotal, currency)}
-              </span>
-            </div>
-            {snapshot.income.length === 0 ? (
-              <p className="px-[18px] pb-4 text-sm text-ink-faint">
-                None this month.
-              </p>
-            ) : (
-              <ul>
-                {snapshot.income.map((line) => (
-                  <li
-                    key={line.id}
-                    className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-3 last:border-b-0"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-ink">
-                        {line.name}
-                      </p>
-                      {line.status === "pending" && (
-                        <p className="text-[11px] text-ink-faint">
-                          Not yet paid
-                        </p>
-                      )}
-                    </div>
-                    <p className="whitespace-nowrap font-display text-sm font-bold text-positive">
-                      +{formatMoneyDisplay(line.amount, line.currencyCode)}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <SplitCard
+            title="Income & receivables"
+            titleColorClass="text-positive"
+            total={`+${formatMoneyDisplay(snapshot.incomeTotal, currency)}`}
+            isEmpty={snapshot.income.length === 0}
+          >
+            {snapshot.income.map((line) => (
+              <li
+                key={line.id}
+                className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-3 last:border-b-0"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-ink">
+                    {line.name}
+                  </p>
+                  {line.status === "pending" && (
+                    <p className="text-[11px] text-ink-faint">Not yet paid</p>
+                  )}
+                </div>
+                <p className="whitespace-nowrap font-display text-sm font-bold text-positive">
+                  +{formatMoneyDisplay(line.amount, line.currencyCode)}
+                </p>
+              </li>
+            ))}
+          </SplitCard>
 
-          <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-            <div className="flex items-center justify-between px-[18px] py-4">
-              <h2 className="font-display text-sm font-bold text-negative">
-                Fixed expenses
-              </h2>
-              <span className="font-display text-xs font-bold text-ink-faint">
-                &minus;
-                {formatMoneyDisplay(snapshot.fixedExpenseTotal, currency)}
-              </span>
-            </div>
-            {snapshot.fixedExpenses.length === 0 ? (
-              <p className="px-[18px] pb-4 text-sm text-ink-faint">
-                None this month.
-              </p>
-            ) : (
-              <ul>
-                {snapshot.fixedExpenses.map((line) => (
-                  <li
-                    key={line.id}
-                    className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-3 last:border-b-0"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-ink">
-                        {line.name}
-                      </p>
-                      {line.status === "pending" && (
-                        <p className="text-[11px] text-ink-faint">
-                          Not yet paid
-                        </p>
-                      )}
-                    </div>
-                    <p className="whitespace-nowrap font-display text-sm font-bold text-negative">
-                      &minus;
-                      {formatMoneyDisplay(line.amount, line.currencyCode)}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <SplitCard
+            title="Fixed expenses"
+            titleColorClass="text-negative"
+            total={`\u2212${formatMoneyDisplay(snapshot.fixedExpenseTotal, currency)}`}
+            isEmpty={snapshot.fixedExpenses.length === 0}
+          >
+            {snapshot.fixedExpenses.map((line) => (
+              <li
+                key={line.id}
+                className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-3 last:border-b-0"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-ink">
+                    {line.name}
+                  </p>
+                  {line.status === "pending" && (
+                    <p className="text-[11px] text-ink-faint">Not yet paid</p>
+                  )}
+                </div>
+                <p className="whitespace-nowrap font-display text-sm font-bold text-negative">
+                  &minus;{formatMoneyDisplay(line.amount, line.currencyCode)}
+                </p>
+              </li>
+            ))}
+          </SplitCard>
         </div>
 
         <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">

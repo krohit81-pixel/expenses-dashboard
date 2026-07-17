@@ -11,6 +11,7 @@ import {
 import type { Metadata } from "next";
 
 import { Hero } from "@/components/ui/hero";
+import { ThemeToggle } from "@/features/settings/ThemeToggle";
 import { logoutAction } from "@/features/access-gate/api/actions";
 
 export const metadata: Metadata = {
@@ -84,6 +85,8 @@ export default function MorePage() {
             </li>
           ))}
         </ul>
+
+        <ThemeToggle />
 
         <form action={logoutAction}>
           <button

@@ -35,6 +35,34 @@
     --radius-sm: 0.875rem;
   }
 
+  /*
+   * Dark theme. Same hue families as light (purple/indigo brand, green
+   * positive, red negative) so it still reads as Atlas, not a generic
+   * dark skin — but lightness/saturation are re-tuned for a dark
+   * background rather than naively inverted. Text needs to go lighter
+   * for contrast; the "soft" tints (accent-soft, positive-soft,
+   * negative-soft) invert from pale washes to dark saturated tints,
+   * since a pale wash barely shows up against a dark card. The hero
+   * gradient stays close to its light-mode values — it was already dark
+   * indigo, so it doesn't need much adjustment either way.
+   */
+  .dark {
+    --bg: 260 22% 9%;
+    --surface: 260 18% 14%;
+    --hero-1: 254 55% 14%;
+    --hero-2: 257 50% 26%;
+    --ink: 270 15% 95%;
+    --ink-soft: 261 10% 70%;
+    --ink-faint: 265 10% 50%;
+    --accent: 263 75% 68%;
+    --accent-soft: 263 35% 22%;
+    --positive: 147 55% 55%;
+    --positive-soft: 142 30% 18%;
+    --negative: 347 70% 65%;
+    --negative-soft: 349 35% 20%;
+    --line: 300 12% 22%;
+  }
+
   * {
     @apply border-border;
   }
