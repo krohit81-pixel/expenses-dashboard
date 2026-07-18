@@ -1,61 +1,83 @@
 # API Design
 
-## API posture
+## There is no conventional API
 
-Expose a small BFF contract from Next.js. The web client should not encode business workflows as multi-table Supabase calls. Reads may use typed Supabase queries where RLS is sufficient; all stateful workflows pass through a service with Zod validation and a single transaction or RPC.
+This isn't a gap — it's the actual architecture. Reads happen directly
+in Server Components via `src/services/*.ts` functions; writes happen
+via Server Actions. There's no REST or GraphQL contract to design
+against, no request/response versioning concern, and no separate
+backend deployment. If a task description assumes an "API layer" in
+the traditional sense, that assumption doesn't match this codebase —
+work within the Server Component + Server Action pattern instead.
 
-## Conventions
+The **one exception**:
+`src/app/api/attachments/[attachmentId]/download/route.ts` — a real
+Route Handler, because signed-URL generation for private Storage
+attachments needs an actual HTTP endpoint the browser can navigate to
+directly (an `<a href>`, not a fetch from a Server Action).
 
-- Base path: `/api/v1` for route handlers intended as stable HTTP APIs.
-- IDs: UUIDs. Dates: ISO `YYYY-MM-DD`. Timestamps: ISO-8601 UTC.
-- Amounts: decimal strings such as `"1250.00"`, never JSON numbers.
-- Errors: `{ "error": { "code", "message", "fieldErrors?", "requestId" } }`.
-- Mutations require an idempotency key for imports, scheduled work, and retryable user actions.
-- Pagination uses cursor plus limit. All list endpoints accept an explicit date range where applicable.
+## The Server Action pattern, as actually used
 
-## Initial endpoint surface
+Every feature's mutations live in `src/features/<feature>/api/actions.ts`,
+marked `"use server"` at the top of the file. The shape, consistently:
 
-| Area | Read | Command |
-| --- | --- | --- |
-| Dashboard | `GET /dashboard?from&to` | None |
-| Accounts | `GET /accounts`, `GET /accounts/:id` | `POST /accounts`, `PATCH /accounts/:id`, archive command |
-| Transactions | `GET /transactions` | create, update, void, transfer, reconcile commands |
-| Categories | `GET /categories` | create, update, archive |
-| Budgets | `GET /budgets/:period` | create budget, set line, close period |
-| Imports | `GET /imports/:id` | create upload, parse, review, commit, discard |
-| Attachments | metadata reads | create signed upload, finalize, create signed download |
-| Assistant | conversation reads | submit prompt, approve action |
+```ts
+export interface SomeFormState {
+  error?: string;
+  success?: boolean;
+}
 
-## Example command
-
-```json
-POST /api/v1/transactions
-{
-  "accountId": "uuid",
-  "kind": "expense",
-  "amount": "42.50",
-  "currencyCode": "USD",
-  "occurredOn": "2026-07-10",
-  "payee": "Grocer",
-  "splits": [{ "categoryId": "uuid", "amount": "42.50" }]
+export async function someAction(
+  _prevState: SomeFormState,
+  formData: FormData,
+): Promise<SomeFormState> {
+  const parsed = someInputSchema.safeParse({
+    field: formValue(formData, "field"),
+    // ...
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+  try {
+    await someServiceFunction(parsed.data);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Something went wrong" };
+  }
+  revalidatePath("/relevant-route");
+  // ...revalidate every route whose displayed data this mutation affects
+  return { success: true };
 }
 ```
 
-The service validates the request, confirms account and categories are owned by the session user, validates split totals, writes the header and splits atomically, and returns a typed DTO. Do not expose raw database rows as a long-term API contract.
+Client components call these via React's `useActionState`, giving
+`isPending`/error state without hand-rolled fetch logic. `formValue` is
+a small shared helper (`src/features/transactions/api/actions.ts` and
+similar files) that reads a `FormData` field and returns `undefined`
+for an empty string — meaning **empty string and "field omitted" are
+indistinguishable** by default. This mattered concretely once: clearing
+a `cycle_month` tag needed a real value ("untagged") distinct from
+omitting the field, so `TransactionRow`'s cycle select uses a sentinel
+string (`"untagged"`) rather than an empty option value, translated to
+explicit `null` inside the action. Keep this in mind any time a field's
+"empty" and "absent" states need to mean different things.
 
-## Server-side database access
+## `revalidatePath` discipline
 
-- Session-scoped calls use the user token and RLS.
-- Trusted service operations use the service-role client only inside server-only modules.
-- Multi-step writes use a database RPC or a service transaction where the database client supports it. Validation must be repeated at the database layer for high-risk invariants.
-- Never accept `user_id` from a browser command. Infer it from the authenticated session.
+Every action revalidates every route whose displayed numbers the
+mutation could affect — not just the page the form lives on. Tagging a
+recurring transaction to a cycle (`tagRecurringToCycleAction`) touches
+`/budgets`, `/recurring`, `/transactions`, *and* `/dashboard` (Home
+shows tagged data too). Marking a transaction paid touches
+`/transactions`, `/dashboard`, `/accounts`, and possibly `/budgets`.
+When adding a new mutation, trace which pages read the affected data
+before assuming the revalidate list is obvious — this project has hit
+"stale number on a page nobody thought to revalidate" more than once.
 
-## Error classes
+## Validation boundary
 
-- `400`: malformed request or failed Zod validation.
-- `401`: no valid session.
-- `403`: session is valid but ownership or role check fails.
-- `404`: record not found within the caller's visible scope.
-- `409`: idempotency conflict, duplicate import, or stale reconciliation state.
-- `422`: valid structure but invalid financial invariant.
-- `429`: rate limit exceeded.
+Zod schemas in each feature's `schemas.ts` are the single validation
+point for that feature's mutations — not duplicated in the action, not
+re-validated in the service layer beyond what TypeScript's types
+already guarantee. `zMoney` specifically is lenient on input format
+(see `docs/02-system-architecture.md`'s money-handling section) but
+strict on output shape.

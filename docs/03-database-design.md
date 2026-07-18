@@ -2,60 +2,129 @@
 
 ## Schema ownership
 
-All application data belongs in the `finance` schema in the existing Vitals Supabase project. `auth` and `storage` remain Supabase-managed schemas. The public schema must not become a second home for finance data.
+All application data lives in the `finance` schema of the Supabase
+project referred to as "Vitals." `auth` and `storage` are
+Supabase-managed. The `finance` schema must be added to Vitals' exposed
+API schemas for any client (including the service-role client) to query
+it — this is a Supabase project *settings* step, not something a
+migration can do.
 
-```mermaid
-erDiagram
-  ACCOUNTS ||--o| CREDIT_CARDS : specializes
-  ACCOUNTS ||--o| LOANS : specializes
-  ACCOUNTS ||--o{ TRANSACTIONS : records
-  CATEGORIES ||--o{ TRANSACTION_SPLITS : classifies
-  TRANSACTIONS ||--o{ TRANSACTION_SPLITS : allocates
-  BUDGETS ||--o{ BUDGET_LINES : contains
-  CATEGORIES ||--o{ BUDGET_LINES : plans
-  RECURRING_TRANSACTIONS ||--o{ RECURRING_TRANSACTION_SPLITS : allocates
-  SECURITIES ||--o{ INVESTMENT_TRANSACTIONS : trades
-  ACCOUNTS ||--o{ INVESTMENT_TRANSACTIONS : holds
-  ATTACHMENTS ||--o{ TRANSACTION_ATTACHMENTS : links
-```
+## Tables actually in use
 
-## Existing model
+These are read/written by real code — grep `src/services/` for the
+table name if you want to confirm which service owns which table.
 
-The migrations establish:
+| Table | Used by | Notes |
+|---|---|---|
+| `user_settings` | `UserSettingsService` | One row per owner; base currency, timezone. Middleware checks this exists to gate `/onboarding`. |
+| `institutions` | `InstitutionService` | Simple lookup, referenced by `accounts.institution_id`. |
+| `accounts` | `AccountService` | `account_type` enum: `checking, savings, cash, credit_card, investment, loan, asset, liability`. Only `checking`/`savings`/`credit_card` are meaningfully exercised by current UI. |
+| `credit_cards` | `AccountService` | One-to-one with `accounts` where `account_type = 'credit_card'`. `payment_due_day` drives the "Due by the Nth" label on Home's account cards. |
+| `categories` | `CategoryService` | `category_kind` enum: `income, expense`. |
+| `recurring_transactions` + `recurring_transaction_splits` | `RecurringTransactionService` | **Reference data, not an auto-projection source** — see `docs/01-product-vision.md`'s cycle-tagging section. A template only counts toward a month if a real transaction is tagged to it. |
+| `transactions` + `transaction_splits` | `TransactionService`, `BudgetSnapshotService` | See "The `transactions` table in detail" below — this is the one to understand deeply. |
+| `assets`, `liabilities` (+ their `*_attachments` link tables) | `AssetService`, `LiabilityService`, `NetWorthService` | `asset_type`/`liability_type` enums exist but net worth aggregation mostly treats these as flat records. |
+| `attachments` + `transaction_attachments`/`account_attachments`/`asset_attachments`/`liability_attachments` | `AttachmentService` | Explicit link tables per entity type, not a polymorphic FK — deliberate choice for referential integrity. |
 
-- `user_settings`, `institutions`, and `accounts` as account ownership and currency foundations.
-- `credit_cards` and `loans` as one-to-one account specializations.
-- Hierarchical `categories`, `budgets`, and `budget_lines`.
-- `transactions` plus `transaction_splits` for income, expenses, transfers, and category allocation.
-- `recurring_transactions` and their category splits.
-- `assets`, `liabilities`, `securities`, and `investment_transactions` for net-worth and future investment capability.
-- `attachments` with explicit link tables rather than a polymorphic foreign key.
+## Tables that exist but have zero code referencing them
+
+These came from an early, more ambitious migration and were never wired
+up. **Do not assume they're part of the working system** — no service
+reads or writes them, confirmed by grepping every `.ts`/`.tsx` file for
+each table name (excluding the generated types file itself):
+
+- `budgets`, `budget_lines` — an earlier "period + planned amount per
+  category" budgeting model. Superseded entirely by
+  `BudgetSnapshotService`'s computed-from-transactions approach (see
+  the comment at the top of `src/app/(app)/budgets/page.tsx`). If a
+  future budgeting feature needs a stored "planned amount," that's new
+  design work, not a matter of wiring up these tables — they predate
+  the cycle-tagging model and don't have a `cycle_month` concept at
+  all.
+- `securities`, `investment_transactions` — investment tracking was
+  planned, never built. `docs/01-product-vision.md` lists this
+  explicitly as out of scope for now.
+- `loans` — one-to-one account specialization like `credit_cards`, but
+  no loan-specific UI or service was ever built against it.
+
+If you're asked to build investment tracking or a stored-budget
+feature, these tables are a reasonable *starting point* to evaluate,
+not a foregone conclusion — check whether their shape still fits the
+cycle-aware model before reusing them as-is.
+
+## The `transactions` table in detail
+
+This is the center of the whole app. Columns worth knowing precisely:
+
+- `kind`: `income | expense | transfer | adjustment`. `adjustment`
+  exists in the enum but isn't meaningfully used by current UI.
+- `status`: `pending | posted | void`. `pending` = scheduled/not yet
+  happened; `posted` = happened, counts toward account balances
+  (`getAccountBalance` only sums `posted` rows); `void` = soft-deleted
+  (see `voidTransaction`/`voidTransactionAction` — exposed as a
+  "Delete" button on `TransactionRow`, added after a real gap where
+  there was no way to remove a mistaken entry).
+- `occurred_on`: the literal date money moves (or is scheduled to).
+- `cycle_month` (added in migration `20260714000100`, nullable text,
+  `"YYYY-MM"` format, checked via regex): which month's cash-flow plan
+  this counts toward. **Independent of `occurred_on`.** Null means
+  untagged — excluded from every month's `BudgetSnapshotService`
+  output until tagged. See `docs/01-product-vision.md` for the full
+  reasoning; this is the single most important column in the schema to
+  understand before changing anything Budget- or Home-related.
+- `recurring_transaction_id`: nullable FK to `recurring_transactions`.
+  Present when a transaction was generated from (or manually tagged to)
+  a recurring template; null for one-off entries (card payments,
+  ad-hoc expenses).
+
+Defaulting behavior for `cycle_month` (in `TransactionService`'s
+`createTransaction`/`updateTransaction`, not the schema itself):
+omitting it on **create** defaults to `occurredOn`'s own month;
+omitting it on **update** means "don't touch it" (a different default
+— an edit that only changes the amount shouldn't silently clear or
+move an existing tag). Explicit `null` always means "leave/make
+untagged."
 
 ## Data invariants
 
-- All money uses `numeric(18,2)`; securities quantities and unit prices use `numeric(24,8)`.
-- `currency_code` is uppercase ISO-4217 text. Do not store currency symbols as data.
-- Amounts are positive; `transaction.kind` provides the semantic direction. Transfers require a distinct destination account.
-- Account, category, template, attachment, and other references must have the same `user_id`; the integrity-guard migration enforces this.
-- Credit-card, loan, asset, liability, and investment detail records require the corresponding account type.
-- Posted records are historical facts. Prefer `void` or correcting transactions over destructive edits once a record is reconciled.
+- All money uses `numeric(18,2)`. Securities-related tables (unused,
+  see above) use `numeric(24,8)` for quantities — irrelevant unless
+  investment tracking gets built.
+- `currency_code` is uppercase ISO-4217 text, enforced by a check
+  constraint (`^[A-Z]{3}$`).
+- Amounts are stored positive; `kind` (transactions) or the specific
+  in/out convention of the reading code provides direction.
+- An integrity-guard migration (`20260710000300`) enforces that
+  cross-references (account, category, template, attachment) share the
+  same `user_id` as the referencing row — meaningful mostly as a
+  data-integrity backstop given there's only one real `user_id` in
+  practice (the owner account), not a multi-tenant isolation
+  mechanism.
 
-## Required schema additions before each feature
+## Migration history (chronological, as of this writing)
 
-1. Add migration tests in a disposable Supabase database.
-2. Add database TypeScript types with `supabase gen types typescript --schema finance`.
-3. Add ownership triggers and RLS policies for every new table.
-4. Add supporting indexes from the query plan, not guesswork.
-5. Record a rollback or forward-fix procedure in the pull request.
+1. `20260710000100_create_finance_schema.sql` — the full initial
+   schema, including the vestigial tables noted above.
+2. `20260710000200_create_finance_attachment_bucket.sql` — private
+   Supabase Storage bucket for attachments.
+3. `20260710000300_add_finance_integrity_guards.sql` — cross-reference
+   `user_id` consistency triggers.
+4. `20260714000100_add_transaction_cycle_month.sql` — adds
+   `cycle_month` to `transactions`. Nullable, deliberately not
+   backfilled (no reliable way to infer intent for pre-existing rows —
+   see the migration's own comment). This is the migration that made
+   the entire Financial Cycle → Phase product model possible.
 
-## Reporting strategy
+Migrations are append-only once applied to Vitals — never edit an
+applied migration, add a corrective one instead.
 
-Start with parameterized aggregates over indexed tables. For common period queries, aggregate from `transactions` joined with `transaction_splits`; exclude `void` records. Introduce materialized views or daily snapshots only when explain-analyze evidence shows they are necessary. Any cached summary must record its range, timezone, account scope, and refresh time.
+## Supabase access pattern
 
-## Migration policy
-
-Migrations are append-only once applied to Vitals. Never rewrite an applied timestamped migration. Add a corrective migration instead. Before production application, back up, run on staging, inspect the generated schema diff, and apply through the Supabase CLI in CI.
-
-## Supabase access
-
-`service_role` has schema, table, sequence, and function grants. It bypasses RLS and is restricted to server jobs and route handlers. Add `finance` to the Vitals API exposed schemas before a client calls `supabase.schema('finance')`. The browser must never receive a service-role key.
+Every server-side query goes through the service-role client
+(`src/lib/supabase/service.ts`), which bypasses RLS entirely. RLS
+policies exist in the migrations but are not what's actually protecting
+this app's data day to day — the access-gate password (see
+`docs/02-system-architecture.md` and `docs/11-security-and-privacy.md`)
+is. The browser never receives the service-role key; there's also no
+scenario in the current app where the browser talks to Supabase
+directly at all for finance data.
