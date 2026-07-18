@@ -23,6 +23,11 @@ export const metadata: Metadata = {
  * public rather than gating travel behind the access-gate password —
  * a deliberate call, not an oversight: see the footnote paragraph below
  * for what that means for anyone with this link.
+ *
+ * v1.1.0: dropped the Hero's static "Next vacation window" label/amount
+ * (a hardcoded Diwali date that would silently go stale) and the
+ * "Family overlap" prose card (redundant with, and less legible than,
+ * the windows strip + grid below it).
  */
 export default async function CalendarPage() {
   const trips = await listTrips();
@@ -31,32 +36,9 @@ export default async function CalendarPage() {
 
   return (
     <div>
-      <Hero
-        title="Calendar"
-        label="Next vacation window"
-        amount="Diwali · Nov 6"
-        sub="12 days · AY 2026–27"
-      />
+      <Hero title="Calendar" />
 
       <div className="space-y-8 p-5 sm:p-8">
-        <div className="rounded-2xl bg-accent-soft px-4 py-3.5">
-          <div className="font-display text-sm font-bold text-accent">
-            Family overlap &middot; both free at once
-          </div>
-          <div className="mt-1 text-sm text-ink">
-            Wed 23 Dec 2026 &ndash; Sun 3 Jan 2027
-          </div>
-          <p className="mt-1.5 text-xs text-ink-soft">
-            Ahaana&apos;s winter vacation falls entirely inside Rohana&apos;s
-            much longer semester break (6 Dec &ndash; 10 Jan) &mdash; this is
-            the one confirmed window where both are off school at the same time.
-            Ahaana&apos;s summer overlaps Rohana&apos;s too, but Rohana&apos;s
-            optional Special Terms (10 May&ndash;19 Jun and 21 Jun&ndash;31 Jul)
-            can eat most of that if she enrolls in them &mdash; worth checking
-            with her before booking anything in that window.
-          </p>
-        </div>
-
         <TravelCalendarSection
           trips={trips}
           schoolItems={schoolItems}

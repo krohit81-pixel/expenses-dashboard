@@ -35,6 +35,19 @@
     --teal: 191 70% 32%;
     --teal-soft: 191 55% 93%;
 
+    /* Added for v1.1.0 — one bright, dedicated color per known person
+       (Rohit keeps --accent), so Ahaana/Rohana/Aradhana read as clearly
+       distinct on the windows strip, filter chips, and traveller
+       avatars instead of two of them sharing --positive. Chosen to sit
+       far apart on the hue wheel from each other and from the existing
+       accent/positive/negative/teal tokens. */
+    --rose: 340 82% 52%;
+    --rose-soft: 340 75% 95%;
+    --sky: 205 90% 50%;
+    --sky-soft: 205 80% 94%;
+    --amber: 32 92% 50%;
+    --amber-soft: 32 85% 94%;
+
     /* Kept for shadcn-style component compatibility (focus rings, etc.) */
     --background: var(--bg);
     --foreground: var(--ink);
@@ -73,6 +86,12 @@
     --line: 300 12% 22%;
     --teal: 191 65% 62%;
     --teal-soft: 191 35% 20%;
+    --rose: 340 80% 68%;
+    --rose-soft: 340 40% 22%;
+    --sky: 205 85% 65%;
+    --sky-soft: 205 45% 20%;
+    --amber: 32 88% 62%;
+    --amber-soft: 32 50% 20%;
   }
 
   * {
