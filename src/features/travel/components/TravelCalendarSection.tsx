@@ -9,19 +9,28 @@ import { GoodTravelWindows } from "@/features/travel/components/GoodTravelWindow
 import { TripCalendarGrid } from "@/features/travel/components/TripCalendarGrid";
 import { TripDetailedList } from "@/features/travel/components/TripDetailedList";
 import { AddTripModal } from "@/features/travel/components/AddTripModal";
+import { travelerColorClass } from "@/features/travel/travelers";
 import type { PersonTravelWindow } from "@/features/travel/travel-windows";
 import type { SchoolCalendarItem } from "@/features/travel/school-items";
 import type { Trip } from "@/services/TripService";
 
 type Visibility = { ahaana: boolean; rohana: boolean; travel: boolean };
 
+/**
+ * Ahaana/Rohana get the same per-person color everywhere (see
+ * travelers.ts) — this chip row, the windows strip, the detailed list's
+ * person pill, and any avatar for them as a trip traveller all resolve
+ * through travelerColorClass, so "Ahaana" is always the same color
+ * across the whole page rather than each component picking its own.
+ * Travel isn't a person, so it keeps its own dedicated --teal token.
+ */
 const FILTER_CHIPS: {
   key: keyof Visibility;
   label: string;
   activeClass: string;
 }[] = [
-  { key: "ahaana", label: "Ahaana", activeClass: "bg-positive" },
-  { key: "rohana", label: "Rohana", activeClass: "bg-positive" },
+  { key: "ahaana", label: "Ahaana", activeClass: travelerColorClass("Ahaana") },
+  { key: "rohana", label: "Rohana", activeClass: travelerColorClass("Rohana") },
   { key: "travel", label: "Travel", activeClass: "bg-teal" },
 ];
 

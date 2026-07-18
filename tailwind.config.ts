@@ -49,6 +49,20 @@ const config: Config = {
           DEFAULT: "hsl(var(--teal))",
           soft: "hsl(var(--teal-soft))",
         },
+        // Added for v1.1.0 — per-person colors, see globals.css's
+        // comment on --rose/--sky/--amber for why these exist.
+        rose: {
+          DEFAULT: "hsl(var(--rose))",
+          soft: "hsl(var(--rose-soft))",
+        },
+        sky: {
+          DEFAULT: "hsl(var(--sky))",
+          soft: "hsl(var(--sky-soft))",
+        },
+        amber: {
+          DEFAULT: "hsl(var(--amber))",
+          soft: "hsl(var(--amber-soft))",
+        },
         line: "hsl(var(--line))",
 
         // Compatibility aliases for pages not yet rewritten in this

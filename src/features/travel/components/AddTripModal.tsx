@@ -269,25 +269,34 @@ export function AddTripModal({
             />
           </div>
 
+          {/* min-w-0 on each cell is the fix, not cosmetic — Tailwind's
+              grid-cols-2 already puts minmax(0,1fr) on the *tracks*, but
+              each item is still a block box with the browser default
+              min-width: auto. iOS Safari's native date input has a wide
+              intrinsic content size, so without min-w-0 the item refuses
+              to shrink to its 50% track and the two inputs overlap
+              instead of sitting side by side. */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <Label htmlFor="trip-startDate">Departs</Label>
               <Input
                 id="trip-startDate"
                 name="startDate"
                 type="date"
                 required
+                className="w-full min-w-0"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <Label htmlFor="trip-endDate">Returns</Label>
               <Input
                 id="trip-endDate"
                 name="endDate"
                 type="date"
                 required
+                className="w-full min-w-0"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
