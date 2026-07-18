@@ -20,25 +20,28 @@ const initialUpdateState: UpdateTransactionFormState = {};
 const initialMarkPaidState: MarkPaidFormState = {};
 const initialVoidState: VoidTransactionFormState = {};
 
+/** Exported so callers that group/filter rows before rendering them (RecentTransactionsSection's cycle-month grouping) can type their intermediate arrays against the same shape, instead of re-declaring it. */
+export interface TransactionRowData {
+  id: string;
+  payee: string | null;
+  kind: string;
+  transferAccountId: string | null;
+  accountId: string;
+  amount: Money;
+  currencyCode: string;
+  occurredOn: string;
+  status: string;
+  memo: string | null;
+  cycleMonth: string | null;
+  splits: { categoryId: string }[];
+}
+
 export function TransactionRow({
   transaction,
   accountName,
   categoryName,
 }: {
-  transaction: {
-    id: string;
-    payee: string | null;
-    kind: string;
-    transferAccountId: string | null;
-    accountId: string;
-    amount: Money;
-    currencyCode: string;
-    occurredOn: string;
-    status: string;
-    memo: string | null;
-    cycleMonth: string | null;
-    splits: { categoryId: string }[];
-  };
+  transaction: TransactionRowData;
   accountName: Map<string, string>;
   categoryName: Map<string, string>;
 }) {
@@ -242,7 +245,11 @@ export function TransactionRow({
               className="flex items-center gap-1 rounded-full bg-positive-soft px-2.5 py-1 font-display text-[10px] font-bold text-positive disabled:opacity-70"
             >
               {isMarkPaidPending && <Spinner className="size-3" />}
-              Mark paid
+              {/* "Paid" reads wrong for income — you don't pay yourself a
+                  salary, you receive it. Same action either way (pending
+                  -> posted), just the label matching what actually
+                  happened for this transaction's direction. */}
+              {transaction.kind === "income" ? "Mark received" : "Mark paid"}
             </button>
             {markPaidState.error && (
               <p className="mt-1 text-[10px] text-negative">
@@ -259,7 +266,9 @@ export function TransactionRow({
               className="flex items-center gap-1 rounded-full bg-bg px-2.5 py-1 font-display text-[10px] font-bold text-ink-soft disabled:opacity-70"
             >
               {isMarkPendingPending && <Spinner className="size-3" />}
-              Undo &mdash; not actually paid
+              {transaction.kind === "income"
+                ? "Undo — not actually received"
+                : "Undo — not actually paid"}
             </button>
             {markPendingState.error && (
               <p className="mt-1 text-[10px] text-negative">

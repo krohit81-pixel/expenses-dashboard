@@ -10,7 +10,14 @@ import {
 
 const initialState: MarkPaidFormState = {};
 
-export function MarkPaidButton({ id }: { id: string }) {
+export function MarkPaidButton({
+  id,
+  kind,
+}: {
+  id: string;
+  /** "income" gets "Mark received" instead of "Mark paid" — see TransactionRow, which has the same distinction for its inline version of this button. */
+  kind?: string;
+}) {
   const [state, formAction, isPending] = useActionState(
     markTransactionPaidAction,
     initialState,
@@ -25,7 +32,7 @@ export function MarkPaidButton({ id }: { id: string }) {
         className="flex items-center gap-1 rounded-full bg-positive-soft px-2.5 py-1 font-display text-[10px] font-bold text-positive disabled:opacity-70"
       >
         {isPending && <Spinner className="size-3" />}
-        Mark paid
+        {kind === "income" ? "Mark received" : "Mark paid"}
       </button>
       {state.error && (
         <p className="mt-1 text-[10px] text-negative">{state.error}</p>
