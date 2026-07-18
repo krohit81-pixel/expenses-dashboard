@@ -271,7 +271,18 @@ export function HomePhaseView({
                 onClick={() => setPhaseOverride(phase)}
                 className={`flex-1 rounded-full py-2 font-display text-xs font-bold transition-colors ${
                   activePhase === phase
-                    ? "bg-ink text-white"
+                    ? // v1.1.4: was `bg-ink text-white`. --ink is a
+                      // near-black in light mode but flips to a
+                      // near-white in dark mode (see globals.css's
+                      // `.dark` block) — so this pill went white-on-
+                      // white the moment dark mode shipped, and the
+                      // active phase effectively vanished. --bg is
+                      // --ink's deliberate opposite in both themes (near-
+                      // white bg / near-black ink in light, near-black
+                      // bg / near-white ink in dark), so pairing them
+                      // keeps the pill readable in either theme instead
+                      // of hardcoding one direction.
+                      "bg-ink text-bg"
                     : allowed
                       ? "text-ink-soft"
                       : "text-ink-faint/40"

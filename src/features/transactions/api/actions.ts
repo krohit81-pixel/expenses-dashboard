@@ -47,6 +47,17 @@ export async function createTransactionAction(
       ...base,
       kind,
       transferAccountId: formValue(formData, "transferAccountId"),
+      // v1.1.4: a transfer entered here represents money the person is
+      // recording as already moved between their own accounts right
+      // now — unlike logCardPaymentAction's deliberately-pending
+      // scheduled payments (a future due date, confirmed later),
+      // there's no "not yet happened" step to this form's transfers, so
+      // defaulting to pending just added an extra "mark paid" tap
+      // before the balance reflected what the person just told the app
+      // was true. Forced to posted, overriding the schema's
+      // pending-by-default (which still applies to income/expense from
+      // this same form — this override is transfer-only).
+      status: "posted" as const,
     };
   } else if (mode === "split") {
     const categoryIds = formData.getAll("splitCategoryId");

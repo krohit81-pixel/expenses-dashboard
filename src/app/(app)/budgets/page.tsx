@@ -65,10 +65,20 @@ export default async function BudgetsPage({
   const currency = settings?.baseCurrency ?? "USD";
   const projectedClosing = computeProjectedClosing(snapshot);
 
+  // v1.1.4: transfers used to be lumped in with expenses here (any
+  // non-income line got negated and summed), which meant a transfer
+  // between the person's own accounts dragged this "net" figure down
+  // exactly like a real expense would — the same bug as
+  // computeProjectedClosing had, just duplicated in this page's own
+  // total instead of shared. Transfers are now excluded from the sum
+  // entirely rather than negated, matching the reasoning in
+  // lib/budget/home-stats.ts.
   const oneOffTotal = sumMoney(
-    snapshot.oneOff.map((line) =>
-      line.kind === "income" ? line.amount : negateMoney(line.amount),
-    ),
+    snapshot.oneOff
+      .filter((line) => line.kind !== "transfer")
+      .map((line) =>
+        line.kind === "income" ? line.amount : negateMoney(line.amount),
+      ),
   );
 
   return (
@@ -186,14 +196,30 @@ export default async function BudgetsPage({
                   <p className="min-w-0 truncate text-sm font-semibold text-ink">
                     {transactionDisplayTitle(line, accountName)}
                   </p>
-                  <p
-                    className={`whitespace-nowrap font-display text-sm font-bold ${
-                      line.kind === "income" ? "text-positive" : "text-negative"
-                    }`}
-                  >
-                    {line.kind === "income" ? "+" : "\u2212"}
-                    {formatMoneyDisplay(line.amount, line.currencyCode)}
-                  </p>
+                  {/* v1.1.4: a transfer no longer gets a red minus sign
+                      here — it isn't counted in the "net" total above
+                      anymore (it's neither money in nor money out
+                      overall), so showing it in red like an expense,
+                      right next to a total that no longer includes it,
+                      read as contradictory. Neutral color, no sign,
+                      "Transfer" label instead. */}
+                  {line.kind === "transfer" ? (
+                    <p className="whitespace-nowrap font-display text-sm font-bold text-ink-faint">
+                      Transfer &middot;{" "}
+                      {formatMoneyDisplay(line.amount, line.currencyCode)}
+                    </p>
+                  ) : (
+                    <p
+                      className={`whitespace-nowrap font-display text-sm font-bold ${
+                        line.kind === "income"
+                          ? "text-positive"
+                          : "text-negative"
+                      }`}
+                    >
+                      {line.kind === "income" ? "+" : "\u2212"}
+                      {formatMoneyDisplay(line.amount, line.currencyCode)}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

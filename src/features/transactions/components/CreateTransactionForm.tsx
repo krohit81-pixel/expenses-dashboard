@@ -49,6 +49,23 @@ export function CreateTransactionForm({
     (category) => category.kind === kind,
   );
   const today = new Date().toISOString().slice(0, 10);
+  /**
+   * v1.1.4: transfers here are restricted to real, spendable-money
+   * accounts (checking/savings/cash) at the person's request — moving
+   * money to/from a credit card, loan, investment, or asset/liability
+   * tracking entry through this general form isn't the intended use;
+   * card payments specifically already have their own dedicated flow
+   * (CardPaymentQuickLog, on this same page), and investment/asset/
+   * liability accounts are net-worth entries, not everyday transfer
+   * endpoints. Only applies to the Transfer tab's two account pickers —
+   * the plain "Account" select for expense/income still shows every
+   * account, since logging an expense against a credit card is normal.
+   */
+  const transferEligibleAccounts = accounts.filter((account) =>
+    (["checking", "savings", "cash"] as const).includes(
+      account.accountType as "checking" | "savings" | "cash",
+    ),
+  );
 
   return (
     <form action={formAction} className="space-y-4">
@@ -67,25 +84,34 @@ export function CreateTransactionForm({
         <input type="hidden" name="kind" value={kind} />
       </div>
 
+      {/* min-w-0 on every grid item here, not just the date field —
+          the Account <Select> can hit the same overflow with a long
+          account name, and Input/Select now default to min-w-0
+          themselves (see those components), but the grid *item* wrapper
+          still needs it too: a track sized via minmax(0,1fr) only
+          removes the track's own lower bound, it doesn't force an
+          oversized child to shrink into it. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
+        <div className="min-w-0 space-y-2">
           <Label htmlFor="accountId">
             {kind === "transfer" ? "From account" : "Account"}
           </Label>
           <Select id="accountId" name="accountId" required>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.name}
-              </option>
-            ))}
+            {(kind === "transfer" ? transferEligibleAccounts : accounts).map(
+              (account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ),
+            )}
           </Select>
         </div>
 
         {kind === "transfer" ? (
-          <div className="space-y-2">
+          <div className="min-w-0 space-y-2">
             <Label htmlFor="transferAccountId">To account</Label>
             <Select id="transferAccountId" name="transferAccountId" required>
-              {accounts.map((account) => (
+              {transferEligibleAccounts.map((account) => (
                 <option key={account.id} value={account.id}>
                   {account.name}
                 </option>
@@ -93,7 +119,7 @@ export function CreateTransactionForm({
             </Select>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="min-w-0 space-y-2">
             <Label htmlFor="occurredOn">Date</Label>
             <Input
               id="occurredOn"
@@ -107,7 +133,7 @@ export function CreateTransactionForm({
       </div>
 
       {kind === "transfer" && (
-        <div className="space-y-2">
+        <div className="min-w-0 space-y-2">
           <Label htmlFor="occurredOn">Date</Label>
           <Input
             id="occurredOn"

@@ -60,8 +60,10 @@ export function Hero({ title, label, amount, sub, children }: HeroProps) {
           {/* v1.1.3: moved next to the wordmark, at the user's request —
               it used to live in the top-right corner paired with the
               date, which read as one throwaway timestamp string rather
-              than "this is the version of the app you're looking at." */}
-          <span className="shrink-0 whitespace-nowrap rounded-full bg-white/15 px-1.5 py-[1.5px] font-display text-[10px] font-bold text-white/80">
+              than "this is the version of the app you're looking at."
+              v1.1.4: dropped the pill background behind it — plain text
+              reads as part of the wordmark, not a separate ui chip. */}
+          <span className="shrink-0 whitespace-nowrap font-display text-[11px] font-bold text-white/60">
             v{APP_VERSION}
           </span>
         </div>
