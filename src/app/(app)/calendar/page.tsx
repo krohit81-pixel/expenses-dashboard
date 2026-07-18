@@ -1,14 +1,11 @@
 import type { Metadata } from "next";
 
 import { Hero } from "@/components/ui/hero";
-import { CalendarPersonToggle } from "@/features/calendar/CalendarPersonToggle";
-import {
-  AHAANA_CALENDAR,
-  AHAANA_TRAVEL_WINDOWS,
-  ROHANA_CALENDAR,
-  ROHANA_TBC_HOLIDAYS,
-  ROHANA_TRAVEL_WINDOWS,
-} from "@/features/calendar/data";
+import { ROHANA_TBC_HOLIDAYS } from "@/features/calendar/data";
+import { TravelCalendarSection } from "@/features/travel/components/TravelCalendarSection";
+import { buildSchoolCalendarItems } from "@/features/travel/school-items";
+import { buildTravelWindows } from "@/features/travel/travel-windows";
+import { listTrips } from "@/services/TripService";
 
 export const metadata: Metadata = {
   title: "Calendar",
@@ -16,11 +13,22 @@ export const metadata: Metadata = {
 
 /**
  * Public route — no password required (see src/middleware.ts's
- * PUBLIC_PATHS). Data lives in features/calendar/data.ts now (was inline
- * here) — extracted once Rohana's calendar made this a two-person dataset
- * instead of one.
+ * PUBLIC_PATHS). Data lives in features/calendar/data.ts (Ahaana/Rohana's
+ * static school calendars) and, as of v1.0, finance.trips (booked
+ * travel, via TripService) — both shown together here.
+ *
+ * v1.0, Travel-in-Calendar: booked trips were originally scoped as their
+ * own "Travel" tab, then merged into this page instead (grid at the top,
+ * a merged detailed events list, an add-a-trip section below). Kept
+ * public rather than gating travel behind the access-gate password —
+ * a deliberate call, not an oversight: see the footnote paragraph below
+ * for what that means for anyone with this link.
  */
-export default function CalendarPage() {
+export default async function CalendarPage() {
+  const trips = await listTrips();
+  const schoolItems = buildSchoolCalendarItems();
+  const travelWindows = buildTravelWindows();
+
   return (
     <div>
       <Hero
@@ -49,31 +57,11 @@ export default function CalendarPage() {
           </p>
         </div>
 
-        <CalendarPersonToggle
-          ahaanaTravelWindows={AHAANA_TRAVEL_WINDOWS}
-          ahaanaCalendar={AHAANA_CALENDAR}
-          rohanaTravelWindows={ROHANA_TRAVEL_WINDOWS}
-          rohanaCalendar={ROHANA_CALENDAR}
+        <TravelCalendarSection
+          trips={trips}
+          schoolItems={schoolItems}
+          travelWindows={travelWindows}
         />
-
-        <div className="flex flex-wrap gap-x-4 gap-y-2">
-          <div className="flex items-center gap-1.5 text-xs text-ink-soft">
-            <span className="size-2.5 rounded-[3px] bg-positive" />
-            Vacation — good for travel
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-ink-soft">
-            <span className="size-2.5 rounded-[3px] bg-line" />
-            Holiday — single day off
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-ink-soft">
-            <span className="size-2.5 rounded-[3px] bg-negative" />
-            Exam — avoid travel
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-ink-soft">
-            <span className="size-2.5 rounded-[3px] bg-accent" />
-            School/university event
-          </div>
-        </div>
 
         <p className="text-xs leading-relaxed text-ink-faint">
           Ahaana&apos;s dates: Chatrabhuj Narsee School&apos;s official AY
@@ -84,7 +72,8 @@ export default function CalendarPage() {
           instructional week. Not yet dated by NUS:{" "}
           {ROHANA_TBC_HOLIDAYS.join(", ")} &mdash; re-check closer to the date.
           This page is public &mdash; anyone with the link can view it, no
-          password needed. Everything else in this app requires one.
+          password needed, including any trip you add below (destination, dates,
+          and flight name). Everything else in this app requires one.
         </p>
       </div>
     </div>

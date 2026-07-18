@@ -2,9 +2,16 @@
  * Generated-style types for the `finance` Postgres schema.
  *
  * IMPORTANT: This file is a hand-authored BOOTSTRAP, not the real output of
- * `supabase gen types typescript`. It was written by reading the three applied
+ * `supabase gen types typescript`. It was written by reading the applied
  * migrations in supabase/migrations/ column-by-column, but it has not been
  * verified against the live Vitals database and may drift.
+ *
+ * `finance.trips` (added by 20260718000100_create_trips.sql, v1.0 of the
+ * Travel-in-Calendar feature) was hand-added the same way, for the same
+ * reason: no live Supabase CLI/Docker in this session (documented fallback,
+ * not default practice — see docs/09-testing-strategy.md's "no live
+ * Supabase in most sessions" section). Re-run `npm run db:types` once you
+ * have CLI access, same as every other table here.
  *
  * Replace it with the real generated file as soon as you can run:
  *
@@ -974,6 +981,45 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      trips: {
+        Row: {
+          id: string;
+          user_id: string;
+          destination: string;
+          start_date: string;
+          end_date: string;
+          flight: string | null;
+          traveler_names: string[];
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          destination: string;
+          start_date: string;
+          end_date: string;
+          flight?: string | null;
+          traveler_names?: string[];
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          destination?: string;
+          start_date?: string;
+          end_date?: string;
+          flight?: string | null;
+          traveler_names?: string[];
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
       };
     };
     Views: Record<string, never>;

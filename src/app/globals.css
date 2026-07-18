@@ -25,6 +25,16 @@
     --negative-soft: 349 72% 94%;
     --line: 300 19% 92%;
 
+    /* Added for v1.0 (Travel-in-Calendar): booked travel needs its own
+       color, distinct from vacation/holiday/exam/event — those four are
+       already spoken for by finance/calendar/data.ts's EventTag colors,
+       and reusing "accent" for travel would make an actual booked trip
+       visually indistinguishable from a plain school "event" on the
+       merged calendar grid. Same hue family (indigo/purple-adjacent
+       palette), teal reads as clearly different at a glance. */
+    --teal: 191 70% 32%;
+    --teal-soft: 191 55% 93%;
+
     /* Kept for shadcn-style component compatibility (focus rings, etc.) */
     --background: var(--bg);
     --foreground: var(--ink);
@@ -61,6 +71,8 @@
     --negative: 347 70% 65%;
     --negative-soft: 349 35% 20%;
     --line: 300 12% 22%;
+    --teal: 191 65% 62%;
+    --teal-soft: 191 35% 20%;
   }
 
   * {

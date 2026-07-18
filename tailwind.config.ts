@@ -42,6 +42,13 @@ const config: Config = {
           DEFAULT: "hsl(var(--negative))",
           soft: "hsl(var(--negative-soft))",
         },
+        // Added for v1.0 (Travel-in-Calendar) — booked travel's own color,
+        // see globals.css's comment on --teal for why it's separate from
+        // the existing accent/positive/negative palette.
+        teal: {
+          DEFAULT: "hsl(var(--teal))",
+          soft: "hsl(var(--teal-soft))",
+        },
         line: "hsl(var(--line))",
 
         // Compatibility aliases for pages not yet rewritten in this
