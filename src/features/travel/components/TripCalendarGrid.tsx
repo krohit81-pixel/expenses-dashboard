@@ -15,11 +15,39 @@ import {
   TAG_STYLES,
   type EventTag,
 } from "@/features/calendar/data";
+import { travelerColorClass } from "@/features/travel/travelers";
 import type { SchoolCalendarItem } from "@/features/travel/school-items";
 import type { Trip } from "@/services/TripService";
 
 const TRAVEL_STYLE = "bg-teal text-white";
 const MAX_CHIPS_PER_DAY = 3;
+const PERSON_NAME = { ahaana: "Ahaana", rohana: "Rohana" } as const;
+/** Chips are ~9px text in an 84px-tall day cell — three stacked dots is
+ * about the ceiling before they blur into a solid smear rather than
+ * reading as separate people. A trip with more travellers than this
+ * still lists everyone in the chip's title tooltip. */
+const MAX_PERSON_DOTS = 3;
+
+/** Tiny colored dot per person on a chip — who's part of this event,
+ * at a glance, without opening it. Trips can have several travellers
+ * (Rohit, Aradhana, a custom name, ...); school items only ever have
+ * one (Ahaana or Rohana), so that case is always a single dot. */
+function PersonDots({ names }: { names: string[] }) {
+  if (names.length === 0) return null;
+  return (
+    <span className="flex shrink-0 items-center -space-x-[3px]">
+      {names.slice(0, MAX_PERSON_DOTS).map((name) => (
+        <span
+          key={name}
+          className={cn(
+            "size-[6px] shrink-0 rounded-full ring-1 ring-surface",
+            travelerColorClass(name),
+          )}
+        />
+      ))}
+    </span>
+  );
+}
 
 type Chip =
   | { kind: "school"; key: string; item: SchoolCalendarItem }
@@ -150,15 +178,16 @@ export function TripCalendarGrid({
                   return (
                     <span
                       key={chip.key}
-                      title={`${chip.trip.destination}${chip.trip.flight ? ` · ${chip.trip.flight}` : ""}`}
+                      title={`${chip.trip.destination}${chip.trip.flight ? ` · ${chip.trip.flight}` : ""}${chip.trip.travelerNames.length > 0 ? ` — ${chip.trip.travelerNames.join(", ")}` : ""}`}
                       className={cn(
-                        "truncate rounded px-1 py-[1.5px] font-display text-[9px] font-bold",
+                        "flex items-center gap-1 rounded px-1 py-[1.5px] font-display text-[9px] font-bold",
                         TRAVEL_STYLE,
                         isStart && "rounded-l-full",
                         isEnd && "rounded-r-full",
                       )}
                     >
-                      {label}
+                      <PersonDots names={chip.trip.travelerNames} />
+                      <span className="min-w-0 truncate">{label}</span>
                     </span>
                   );
                 }
@@ -166,18 +195,20 @@ export function TripCalendarGrid({
                 const isStart = dateISO === chip.item.startDate;
                 const isEnd = dateISO === chip.item.endDate;
                 const label = truncate(chip.item.title, 15);
+                const personName = PERSON_NAME[chip.item.person];
                 return (
                   <span
                     key={chip.key}
-                    title={`${chip.item.title} (${chip.item.person === "ahaana" ? "Ahaana" : "Rohana"})`}
+                    title={`${chip.item.title} (${personName})`}
                     className={cn(
-                      "truncate rounded px-1 py-[1.5px] font-display text-[9px] font-bold",
+                      "flex items-center gap-1 rounded px-1 py-[1.5px] font-display text-[9px] font-bold",
                       TAG_STYLES[chip.item.tag],
                       isStart && "rounded-l-full",
                       isEnd && "rounded-r-full",
                     )}
                   >
-                    {label}
+                    <PersonDots names={[personName]} />
+                    <span className="min-w-0 truncate">{label}</span>
                   </span>
                 );
               })}

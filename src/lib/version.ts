@@ -6,5 +6,5 @@
  * it's obvious which release is actually live without checking a deploy
  * log or git history.
  */
-export const APP_VERSION = "1.1.1";
+export const APP_VERSION = "1.1.2";
 export const APP_VERSION_DATE = "2026-07-18";
