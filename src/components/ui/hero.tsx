@@ -1,7 +1,11 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 
-import { APP_VERSION, APP_VERSION_DATE } from "@/lib/version";
+import {
+  APP_VERSION,
+  APP_VERSION_DATE,
+  formatVersionDate,
+} from "@/lib/version";
 
 interface HeroProps {
   /** The page name, e.g. "Transactions" — now a real heading (v1.1.1), not a small secondary label. See the note below for why it used to be de-emphasized and isn't anymore. */
@@ -41,7 +45,7 @@ export function Hero({ title, label, amount, sub, children }: HeroProps) {
   return (
     <header className="min-h-[190px] bg-gradient-to-br from-[hsl(var(--hero-1))] to-[hsl(var(--hero-2))] px-5 pb-6 pt-6 text-white sm:px-8">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <Image
             src="/atlas-mark.png"
             alt=""
@@ -53,9 +57,16 @@ export function Hero({ title, label, amount, sub, children }: HeroProps) {
           <span className="font-display text-[22px] font-extrabold tracking-tight">
             Atlas
           </span>
+          {/* v1.1.3: moved next to the wordmark, at the user's request —
+              it used to live in the top-right corner paired with the
+              date, which read as one throwaway timestamp string rather
+              than "this is the version of the app you're looking at." */}
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-white/15 px-1.5 py-[1.5px] font-display text-[10px] font-bold text-white/80">
+            v{APP_VERSION}
+          </span>
         </div>
-        <span className="shrink-0 whitespace-nowrap font-display text-[10px] font-semibold text-white/40">
-          v{APP_VERSION} &middot; {APP_VERSION_DATE}
+        <span className="shrink-0 whitespace-nowrap font-display text-[11.5px] font-semibold text-white/50">
+          {formatVersionDate(APP_VERSION_DATE)}
         </span>
       </div>
       {title && (

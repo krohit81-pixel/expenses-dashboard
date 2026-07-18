@@ -27,15 +27,27 @@ const PHASE_LABEL: Record<Phase, string> = {
   execution: "Execution",
   tracking: "Tracking",
 };
+/**
+ * v1.1.3: tracking used to be hardcoded Tailwind `amber-100`/`amber-950`
+ * (a literal palette swatch, not one of this app's own design tokens)
+ * with a `dark:` override bolted on — that override was never tuned
+ * against this app's actual dark surface/ink colors the way
+ * accent/positive and every other token in globals.css was, which is
+ * why it looked off in dark mode while planning/execution (both using
+ * real tokens) looked fine. Switched to `--amber`/`--amber-soft`, the
+ * token already added in v1.1.0 for Aradhana's traveller color and
+ * already dark-mode-tuned in globals.css's `.dark` block — same fix
+ * applied to the "Healthy/Tight" badge in OutlookCard below, which had
+ * the identical hardcoded-amber problem. */
 const PHASE_STRIP_CLASS: Record<Phase, string> = {
   planning: "bg-accent-soft",
   execution: "bg-positive-soft",
-  tracking: "bg-amber-100 dark:bg-amber-950",
+  tracking: "bg-amber-soft",
 };
 const PHASE_NAME_CLASS: Record<Phase, string> = {
   planning: "text-accent",
   execution: "text-positive",
-  tracking: "text-amber-700 dark:text-amber-400",
+  tracking: "text-amber",
 };
 const PHASE_ICON: Record<Phase, string> = {
   planning: "\u{1F4CB}",
@@ -125,7 +137,7 @@ function OutlookCard({
           className={`rounded-full px-2.5 py-1 font-display text-[10px] font-extrabold ${
             healthy
               ? "bg-positive-soft text-positive"
-              : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
+              : "bg-amber-soft text-amber"
           }`}
         >
           {healthy ? "Healthy" : "Tight"}

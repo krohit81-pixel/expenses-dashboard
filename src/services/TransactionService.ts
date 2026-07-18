@@ -61,6 +61,18 @@ export interface TransactionFilters {
   recurringTransactionId?: string;
   /** Exact match on cycle_month, e.g. "2026-08". */
   cycleMonth?: string;
+  /** Include voided (soft-deleted) rows in the result. Defaults to
+   * false — a voided transaction is meant to behave as deleted
+   * everywhere in the app, not just excluded from balance/budget math.
+   * Before this flag existed, listTransactions returned void rows
+   * unless a caller happened to pass status: "posted"/"pending"
+   * explicitly, which is how a deleted transaction kept showing up in
+   * the Transactions page's Recent list (that call passes no status
+   * filter at all) even though Home/Budgets already excluded it via
+   * their own after-the-fact `.filter(status !== "void")`. Explicit
+   * opt-in, not opt-out, so a future caller can't reintroduce the same
+   * bug by forgetting a filter. */
+  includeVoid?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -139,6 +151,8 @@ export async function listTransactions(
   }
   if (filters.status) {
     query = query.eq("status", filters.status);
+  } else if (!filters.includeVoid) {
+    query = query.neq("status", "void");
   }
   if (filters.occurredFrom) {
     query = query.gte("occurred_on", filters.occurredFrom);

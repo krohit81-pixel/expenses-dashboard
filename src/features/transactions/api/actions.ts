@@ -240,9 +240,18 @@ export interface VoidTransactionFormState {
  * Removes a transaction from view — a real request, not a workaround:
  * "I need to remove that income if incorrectly added." Soft-delete
  * (status: 'void') rather than a hard DB delete — voidTransaction
- * already existed for this, just never had UI wired to it. Void rows
- * are already excluded everywhere that matters (getAccountBalance only
- * counts posted; BudgetSnapshotService filters status !== "void").
+ * already existed for this, just never had UI wired to it.
+ *
+ * v1.1.3 fix: voiding a transaction used to leave it visible on the
+ * Transactions page's own Recent list, even though it correctly
+ * disappeared from Home/Budgets — those two already filtered void rows
+ * out themselves after fetching, but listTransactions() itself (what
+ * the Recent list calls, with no status filter at all) had no such
+ * exclusion, so a voided row came right back on the next render. Fixed
+ * at the source: listTransactions() now excludes status "void" by
+ * default for every caller, unless a filter explicitly asks for a
+ * specific status (or opts in via includeVoid) — see TransactionFilters
+ * in TransactionService.ts.
  */
 export async function voidTransactionAction(
   _prevState: VoidTransactionFormState,
