@@ -9,10 +9,9 @@ import { requireUser } from "@/lib/auth/require-user";
 import { monthOptions } from "@/lib/dates/month";
 import { formatMoneyDisplay, sumMoney } from "@/lib/money";
 import { Hero } from "@/components/ui/hero";
-import { SplitCard } from "@/components/ui/split-card";
 import { CreateTransactionForm } from "@/features/transactions/components/CreateTransactionForm";
 import { CardPaymentQuickLog } from "@/features/transactions/components/CardPaymentQuickLog";
-import { TransactionRow } from "@/features/transactions/components/TransactionRow";
+import { RecentTransactionsSection } from "@/features/transactions/components/RecentTransactionsSection";
 
 export const metadata: Metadata = {
   title: "Transactions",
@@ -209,55 +208,15 @@ export default async function TransactionsPage({
           </form>
         </div>
 
-        <div>
-          <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="font-display text-[15px] font-bold text-ink">
-              Recent
-            </h2>
-            <span className="text-xs text-ink-faint">
-              {total} transaction{total === 1 ? "" : "s"}
-            </span>
-          </div>
-
-          {transactions.length === 0 ? (
-            <p className="text-sm text-ink-faint">
-              No transactions match these filters.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <SplitCard
-                title="Income"
-                titleColorClass="text-positive"
-                total={`+${formatMoneyDisplay(sumMoney(incomeTransactions.map((t) => t.amount)), defaultCurrency)}`}
-                isEmpty={incomeTransactions.length === 0}
-              >
-                {incomeTransactions.map((transaction) => (
-                  <TransactionRow
-                    key={transaction.id}
-                    transaction={transaction}
-                    accountName={accountName}
-                    categoryName={categoryName}
-                  />
-                ))}
-              </SplitCard>
-              <SplitCard
-                title="Expenses & transfers"
-                titleColorClass="text-negative"
-                total={`\u2212${formatMoneyDisplay(sumMoney(expenseTransactions.map((t) => t.amount)), defaultCurrency)}`}
-                isEmpty={expenseTransactions.length === 0}
-              >
-                {expenseTransactions.map((transaction) => (
-                  <TransactionRow
-                    key={transaction.id}
-                    transaction={transaction}
-                    accountName={accountName}
-                    categoryName={categoryName}
-                  />
-                ))}
-              </SplitCard>
-            </div>
-          )}
-        </div>
+        <RecentTransactionsSection
+          incomeTransactions={incomeTransactions}
+          expenseTransactions={expenseTransactions}
+          incomeTotal={`+${formatMoneyDisplay(sumMoney(incomeTransactions.map((t) => t.amount)), defaultCurrency)}`}
+          expenseTotal={`\u2212${formatMoneyDisplay(sumMoney(expenseTransactions.map((t) => t.amount)), defaultCurrency)}`}
+          total={total}
+          accountName={accountName}
+          categoryName={categoryName}
+        />
 
         <div className="rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
           <h2 className="mb-4 font-display text-[15px] font-bold text-ink">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Sparkles, Upload, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -80,29 +80,62 @@ export function AddTripModal({
     setParseNote(null);
   }, [open, editingTrip, initialDate, defaultEntryTab]);
 
-  const [createState, createFormAction, isCreating] = useActionState(
-    createTripAction,
-    initialTripState,
-  );
-  const [updateState, updateFormAction, isUpdating] = useActionState(
-    updateTripAction,
-    initialTripState,
-  );
-  const [deleteState, deleteFormAction, isDeleting] = useActionState(
-    deleteTripAction,
-    initialTripState,
-  );
-
-  const activeState = isEditing ? updateState : createState;
-  const isPending = isEditing ? isUpdating : isCreating;
-
-  useEffect(() => {
-    if (createState.success || updateState.success || deleteState.success)
-      onClose();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only close on a fresh success, not on every state identity change
-  }, [createState.success, updateState.success, deleteState.success]);
+  // Direct-await + a synchronous local guard, not useActionState +
+  // useEffect(state.success). The previous version watched
+  // createState.success/updateState.success/deleteState.success in an
+  // effect and called onClose() when one flipped true — but
+  // revalidatePath("/calendar") inside the action can cause this
+  // component's subtree to re-render/remount before that effect
+  // observes the new state, so the modal sometimes never closed. The
+  // form stayed populated and submittable, and a second (or third) tap
+  // on "Save trip" fired another full createTripAction call each time —
+  // that's what produced three duplicate trips from three taps. Setting
+  // isSubmitting synchronously, before any await, and checking it at
+  // the top of the handler closes that window: a second tap while the
+  // first request is still in flight is a no-op, and closing happens
+  // deterministically from the awaited result, not from watching hook
+  // state across a possible remount.
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | undefined>(undefined);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | undefined>(undefined);
 
   if (!open) return null;
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    setFormError(undefined);
+
+    const formData = new FormData(event.currentTarget);
+    const action = isEditing ? updateTripAction : createTripAction;
+    const result = await action(initialTripState, formData);
+
+    if (result.success) {
+      onClose();
+      return;
+    }
+    setFormError(result.error);
+    setIsSubmitting(false);
+  }
+
+  async function handleDelete() {
+    if (!editingTrip || isDeleting) return;
+    setIsDeleting(true);
+    setDeleteError(undefined);
+
+    const formData = new FormData();
+    formData.set("id", editingTrip.id);
+    const result = await deleteTripAction(initialTripState, formData);
+
+    if (result.success) {
+      onClose();
+      return;
+    }
+    setDeleteError(result.error);
+    setIsDeleting(false);
+  }
 
   const travelerOptions = Array.from(
     new Set([...knownTravelers(), ...extraTravelerOptions]),
@@ -248,10 +281,7 @@ export function AddTripModal({
           </div>
         )}
 
-        <form
-          action={isEditing ? updateFormAction : createFormAction}
-          className="space-y-3.5"
-        >
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           {isEditing && (
             <input type="hidden" name="id" value={editingTrip.id} />
           )}
@@ -269,34 +299,36 @@ export function AddTripModal({
             />
           </div>
 
-          {/* min-w-0 on each cell is the fix, not cosmetic — Tailwind's
-              grid-cols-2 already puts minmax(0,1fr) on the *tracks*, but
-              each item is still a block box with the browser default
-              min-width: auto. iOS Safari's native date input has a wide
-              intrinsic content size, so without min-w-0 the item refuses
-              to shrink to its 50% track and the two inputs overlap
-              instead of sitting side by side. */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="min-w-0 space-y-1.5">
+          {/* Stacked on mobile, side-by-side from sm: up — not min-w-0.
+              The v1.1.0 fix (min-w-0 on the grid items + the inputs) helped
+              but didn't fully solve it: iOS Safari's native date input has
+              an intrinsic content width that varies with the device's
+              region/locale format, so a 50/50 split could still be too
+              narrow and clip/overlap on some phones. Single column on
+              narrow screens sidesteps the shrink problem entirely instead
+              of relying on it working out — each input gets the full
+              width, no contest over a shared row. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
               <Label htmlFor="trip-startDate">Departs</Label>
               <Input
                 id="trip-startDate"
                 name="startDate"
                 type="date"
                 required
-                className="w-full min-w-0"
+                className="w-full"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
             </div>
-            <div className="min-w-0 space-y-1.5">
+            <div className="space-y-1.5">
               <Label htmlFor="trip-endDate">Returns</Label>
               <Input
                 id="trip-endDate"
                 name="endDate"
                 type="date"
                 required
-                className="w-full min-w-0"
+                className="w-full"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
@@ -384,8 +416,8 @@ export function AddTripModal({
             />
           </div>
 
-          <FieldError message={activeState.error} />
-          <FieldError message={deleteState.error} />
+          <FieldError message={formError} />
+          <FieldError message={deleteError} />
 
           <div className="flex gap-2.5 pt-1">
             {isEditing && (
@@ -393,16 +425,12 @@ export function AddTripModal({
                 type="button"
                 variant="destructive"
                 loading={isDeleting}
-                onClick={() => {
-                  const formData = new FormData();
-                  formData.set("id", editingTrip.id);
-                  deleteFormAction(formData);
-                }}
+                onClick={handleDelete}
               >
                 Delete
               </Button>
             )}
-            <Button type="submit" className="flex-1" loading={isPending}>
+            <Button type="submit" className="flex-1" loading={isSubmitting}>
               Save trip
             </Button>
           </div>

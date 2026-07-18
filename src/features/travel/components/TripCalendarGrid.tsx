@@ -158,7 +158,7 @@ export function TripCalendarGrid({
                         isEnd && "rounded-r-full",
                       )}
                     >
-                      {isStart ? label : " "}
+                      {label}
                     </span>
                   );
                 }
@@ -177,7 +177,7 @@ export function TripCalendarGrid({
                       isEnd && "rounded-r-full",
                     )}
                   >
-                    {isStart ? label : " "}
+                    {label}
                   </span>
                 );
               })}
