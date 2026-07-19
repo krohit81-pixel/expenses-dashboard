@@ -87,6 +87,7 @@ function isActive(pathname: string, href: string): boolean {
 
 /** Desktop nav, rendered inside the gradient Hero — translucent pill links on the dark background. */
 /** Desktop nav — lives in the shared (app)/layout.tsx, present on every page regardless of whether that page has a Hero. */
+/** v1.1.6: label text bumped 13px -> 14.5px, alongside the same bump on BottomNav below, at the user's request. */
 export function TopNav() {
   const pathname = usePathname();
 
@@ -100,7 +101,7 @@ export function TopNav() {
             href={item.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "rounded-full px-3.5 py-2 font-display text-[13px] font-semibold transition-colors",
+              "rounded-full px-3.5 py-2 font-display text-[14.5px] font-semibold transition-colors",
               active
                 ? "bg-[hsl(var(--accent-soft))] text-[hsl(var(--accent))]"
                 : "text-[hsl(var(--ink-faint))] hover:text-[hsl(var(--ink))]",
@@ -119,6 +120,8 @@ export function TopNav() {
  * a thin top hairline, and color/weight as the only active-state signal.
  * Deliberately not a filled pill: reference apps (Bloomberg, a voice
  * assistant app) the person pointed to use exactly this quieter pattern.
+ *
+ * v1.1.6: label text bumped 10px -> 11.5px, at the user's request.
  */
 export function BottomNav() {
   const pathname = usePathname();
@@ -138,7 +141,7 @@ export function BottomNav() {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex flex-col items-center gap-1 py-3 font-display text-[10px] font-semibold tracking-wide",
+                  "flex flex-col items-center gap-1 py-3 font-display text-[11.5px] font-semibold tracking-wide",
                   active
                     ? "font-extrabold text-[hsl(var(--ink))]"
                     : "text-[hsl(var(--ink-faint))]",

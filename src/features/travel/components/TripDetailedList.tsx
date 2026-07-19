@@ -192,14 +192,32 @@ export function TripDetailedList({
                             </div>
                           )}
                         </div>
-                        <span
-                          className={cn(
-                            "shrink-0 whitespace-nowrap rounded-full px-2 py-1 font-display text-[9.5px] font-extrabold uppercase tracking-wide",
-                            TAG_STYLES[item.tag],
+                        <div className="flex shrink-0 flex-col items-end gap-1.5">
+                          <span
+                            className={cn(
+                              "whitespace-nowrap rounded-full px-2 py-1 font-display text-[9.5px] font-extrabold uppercase tracking-wide",
+                              TAG_STYLES[item.tag],
+                            )}
+                          >
+                            {TAG_LABELS[item.tag]}
+                          </span>
+                          {item.people.length > 0 && (
+                            <div className="flex">
+                              {item.people.map((name, i) => (
+                                <span
+                                  key={name}
+                                  style={{ marginLeft: i === 0 ? 0 : -6 }}
+                                  className={cn(
+                                    "flex size-[19px] items-center justify-center rounded-full border-2 border-surface font-display text-[8px] font-extrabold text-white",
+                                    travelerColorClass(name),
+                                  )}
+                                >
+                                  {travelerInitials(name)}
+                                </span>
+                              ))}
+                            </div>
                           )}
-                        >
-                          {TAG_LABELS[item.tag]}
-                        </span>
+                        </div>
                       </li>
                     );
                   }

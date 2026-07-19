@@ -8,9 +8,22 @@ import { z } from "zod";
  */
 const zEventTag = z.enum(["vacation", "holiday", "exam", "event"]);
 
+/**
+ * Who this event is tagged for (v1.1.6) — same free-text convention as
+ * finance.trips.traveler_names (see AddTripModal), just optional here:
+ * a dinner reminder doesn't have to be tagged to anyone to be useful,
+ * unlike a trip, which always needs at least one traveller to be worth
+ * showing at all. Empty array (the default) means untagged.
+ */
+const zEventPeople = z
+  .array(z.string().trim().min(1).max(60))
+  .default([])
+  .transform((names) => Array.from(new Set(names)));
+
 const baseCalendarEventFields = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
   tag: zEventTag,
+  people: zEventPeople,
   startDate: z.iso.date(),
   endDate: z.iso.date(),
   notes: z.string().trim().max(1000).nullable().optional(),

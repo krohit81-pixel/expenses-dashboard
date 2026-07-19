@@ -1027,6 +1027,7 @@ export type Database = {
           user_id: string;
           title: string;
           tag: string;
+          people: string[];
           start_date: string;
           end_date: string;
           notes: string | null;
@@ -1038,6 +1039,7 @@ export type Database = {
           user_id?: string;
           title: string;
           tag: string;
+          people?: string[];
           start_date: string;
           end_date: string;
           notes?: string | null;
@@ -1049,6 +1051,7 @@ export type Database = {
           user_id?: string;
           title?: string;
           tag?: string;
+          people?: string[];
           start_date?: string;
           end_date?: string;
           notes?: string | null;

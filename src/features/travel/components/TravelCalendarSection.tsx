@@ -11,26 +11,42 @@ import { TripCalendarGrid } from "@/features/travel/components/TripCalendarGrid"
 import { TripDetailedList } from "@/features/travel/components/TripDetailedList";
 import { AddTripModal } from "@/features/travel/components/AddTripModal";
 import { travelerColorClass } from "@/features/travel/travelers";
+import type { VisibilityFilter } from "@/features/travel/detailed-list";
 import type { PersonTravelWindow } from "@/features/travel/travel-windows";
 import type { SchoolCalendarItem } from "@/features/travel/school-items";
 import type { CalendarEvent } from "@/services/CalendarEventService";
 import type { Trip } from "@/services/TripService";
 
-type Visibility = { ahaana: boolean; rohana: boolean; travel: boolean };
+type Visibility = VisibilityFilter;
 
 /**
- * Ahaana/Rohana get the same per-person color everywhere (see
+ * Every named person gets the same per-person color everywhere (see
  * travelers.ts) — this chip row, the windows strip, the detailed list's
- * person pill, and any avatar for them as a trip traveller all resolve
- * through travelerColorClass, so "Ahaana" is always the same color
- * across the whole page rather than each component picking its own.
- * Travel isn't a person, so it keeps its own dedicated --teal token.
+ * person pill, and any avatar for them as a trip traveller or tagged
+ * event all resolve through travelerColorClass, so "Ahaana" (or
+ * "Rohit") is always the same color across the whole page rather than
+ * each component picking its own. Travel isn't a person, so it keeps
+ * its own dedicated --teal token.
+ *
+ * v1.1.6: Rohit and Aradhana got their own chips here, alongside
+ * Ahaana/Rohana. Unlike Ahaana/Rohana (each school item has exactly
+ * one person), Rohit/Aradhana can be tagged on a trip or manual event
+ * alongside other people, or not tagged at all — see
+ * arePeopleVisible() in detailed-list.ts for how "hide items tagged
+ * only to a hidden person, but keep untagged items visible" actually
+ * works.
  */
 const FILTER_CHIPS: {
   key: keyof Visibility;
   label: string;
   activeClass: string;
 }[] = [
+  { key: "rohit", label: "Rohit", activeClass: travelerColorClass("Rohit") },
+  {
+    key: "aradhana",
+    label: "Aradhana",
+    activeClass: travelerColorClass("Aradhana"),
+  },
   { key: "ahaana", label: "Ahaana", activeClass: travelerColorClass("Ahaana") },
   { key: "rohana", label: "Rohana", activeClass: travelerColorClass("Rohana") },
   { key: "travel", label: "Travel", activeClass: "bg-teal" },
@@ -60,6 +76,8 @@ export function TravelCalendarSection({
 }) {
   const [month, setMonth] = useState(currentMonth());
   const [visible, setVisible] = useState<Visibility>({
+    rohit: true,
+    aradhana: true,
     ahaana: true,
     rohana: true,
     travel: true,

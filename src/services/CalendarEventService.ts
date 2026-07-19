@@ -17,17 +17,20 @@ export interface CalendarEvent {
   id: string;
   title: string;
   tag: Exclude<EventTag, "trip">;
+  people: string[];
   startDate: string;
   endDate: string;
   notes: string | null;
 }
 
-const CALENDAR_EVENT_SELECT = "id, title, tag, start_date, end_date, notes";
+const CALENDAR_EVENT_SELECT =
+  "id, title, tag, people, start_date, end_date, notes";
 
 function mapRow(row: {
   id: string;
   title: string;
   tag: string;
+  people: string[];
   start_date: string;
   end_date: string;
   notes: string | null;
@@ -36,6 +39,7 @@ function mapRow(row: {
     id: row.id,
     title: row.title,
     tag: row.tag as Exclude<EventTag, "trip">,
+    people: row.people,
     startDate: row.start_date,
     endDate: row.end_date,
     notes: row.notes,
@@ -70,6 +74,7 @@ export async function createCalendarEvent(
       user_id: OWNER_USER_ID,
       title: parsed.title,
       tag: parsed.tag,
+      people: parsed.people,
       start_date: parsed.startDate,
       end_date: parsed.endDate,
       notes: parsed.notes ?? null,
@@ -95,6 +100,7 @@ export async function updateCalendarEvent(
     .update({
       title: parsed.title,
       tag: parsed.tag,
+      people: parsed.people,
       start_date: parsed.startDate,
       end_date: parsed.endDate,
       notes: parsed.notes ?? null,

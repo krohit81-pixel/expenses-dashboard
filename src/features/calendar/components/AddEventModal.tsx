@@ -8,6 +8,7 @@ import { FieldError } from "@/components/ui/field-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { TAG_LABELS, type EventTag } from "@/features/calendar/data";
 import {
   createCalendarEventAction,
@@ -15,6 +16,10 @@ import {
   updateCalendarEventAction,
   type CalendarEventFormState,
 } from "@/features/calendar/api/actions";
+import {
+  knownTravelers,
+  travelerColorClass,
+} from "@/features/travel/travelers";
 import type { CalendarEvent } from "@/services/CalendarEventService";
 
 const initialState: CalendarEventFormState = {};
@@ -35,6 +40,11 @@ const EVENT_TAGS: Exclude<EventTag, "trip">[] = [
  * folding a "what kind of thing is this" branch into AddTripModal,
  * which is already the more complex of the two (PDF upload, traveller
  * tagging) and shouldn't also carry an unrelated free-text-event mode.
+ *
+ * v1.1.6: gained the same people-tagging UI AddTripModal already had —
+ * same knownTravelers()/travelerColorClass toggle-chip + custom-add
+ * pattern, just optional here (an event doesn't need anyone tagged to
+ * be worth saving, unlike a trip).
  *
  * Uses the same direct-await + synchronous isSubmitting-guard pattern
  * AddTripModal was rewritten to use in v1.1.1, for the same reason:
@@ -60,6 +70,9 @@ export function AddEventModal({
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [selectedPeople, setSelectedPeople] = useState<string[]>([]);
+  const [customPerson, setCustomPerson] = useState("");
+  const [extraPeopleOptions, setExtraPeopleOptions] = useState<string[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -69,12 +82,16 @@ export function AddEventModal({
       setStartDate(editingEvent.startDate);
       setEndDate(editingEvent.endDate);
       setNotes(editingEvent.notes ?? "");
+      setSelectedPeople(editingEvent.people);
+      setExtraPeopleOptions(editingEvent.people);
     } else {
       setTitle("");
       setTag("event");
       setStartDate(initialDate ?? "");
       setEndDate(initialDate ?? "");
       setNotes("");
+      setSelectedPeople([]);
+      setExtraPeopleOptions([]);
     }
   }, [open, editingEvent, initialDate]);
 
@@ -120,6 +137,26 @@ export function AddEventModal({
     }
     setDeleteError(result.error);
     setIsDeleting(false);
+  }
+
+  const peopleOptions = Array.from(
+    new Set([...knownTravelers(), ...extraPeopleOptions]),
+  );
+
+  function togglePerson(name: string) {
+    setSelectedPeople((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
+    );
+  }
+
+  function addCustomPerson() {
+    const name = customPerson.trim();
+    if (!name) return;
+    setExtraPeopleOptions((prev) =>
+      prev.includes(name) ? prev : [...prev, name],
+    );
+    setSelectedPeople((prev) => (prev.includes(name) ? prev : [...prev, name]));
+    setCustomPerson("");
   }
 
   return (
@@ -201,6 +238,54 @@ export function AddEventModal({
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>
+              Who&apos;s this for{" "}
+              <span className="font-normal text-ink-faint">(optional)</span>
+            </Label>
+            <div className="flex flex-wrap gap-1.5">
+              {peopleOptions.map((name) => {
+                const selected = selectedPeople.includes(name);
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => togglePerson(name)}
+                    className={cn(
+                      "rounded-full border-[1.5px] border-line px-3 py-1.5 font-display text-xs font-bold text-ink-soft",
+                      selected &&
+                        cn(
+                          "border-transparent text-white",
+                          travelerColorClass(name),
+                        ),
+                    )}
+                  >
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+            {selectedPeople.map((name) => (
+              <input key={name} type="hidden" name="people" value={name} />
+            ))}
+            <div className="flex gap-2 pt-1">
+              <Input
+                placeholder="Add someone else…"
+                value={customPerson}
+                onChange={(e) => setCustomPerson(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addCustomPerson();
+                  }
+                }}
+              />
+              <Button type="button" variant="outline" onClick={addCustomPerson}>
+                Add
+              </Button>
             </div>
           </div>
 

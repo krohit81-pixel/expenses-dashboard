@@ -16,6 +16,10 @@ import {
   type EventTag,
 } from "@/features/calendar/data";
 import { travelerColorClass } from "@/features/travel/travelers";
+import {
+  arePeopleVisible,
+  type VisibilityFilter,
+} from "@/features/travel/detailed-list";
 import type { SchoolCalendarItem } from "@/features/travel/school-items";
 import type { CalendarEvent } from "@/services/CalendarEventService";
 import type { Trip } from "@/services/TripService";
@@ -60,12 +64,13 @@ function chipsForDate(
   trips: Trip[],
   schoolItems: SchoolCalendarItem[],
   calendarEvents: CalendarEvent[],
-  visible: { ahaana: boolean; rohana: boolean; travel: boolean },
+  visible: VisibilityFilter,
 ): Chip[] {
   const chips: Chip[] = [];
 
   if (visible.travel) {
     for (const trip of trips) {
+      if (!arePeopleVisible(trip.travelerNames, visible)) continue;
       if (dateISO >= trip.startDate && dateISO <= trip.endDate) {
         chips.push({ kind: "trip", key: `trip-${trip.id}`, trip });
       }
@@ -81,9 +86,11 @@ function chipsForDate(
       });
     }
   }
-  // Manual events always show — not tied to any of the visibility
-  // toggles above, same reasoning as detailed-list.ts's merge.
+  // Manual events aren't tied to Ahaana/Rohana/Travel — only the
+  // Rohit/Aradhana person filters can hide one, and only if it's
+  // tagged to a person those filters cover (see arePeopleVisible).
   for (const event of calendarEvents) {
+    if (!arePeopleVisible(event.people, visible)) continue;
     if (dateISO >= event.startDate && dateISO <= event.endDate) {
       chips.push({ kind: "manual", key: `manual-${event.id}`, event });
     }
@@ -107,7 +114,7 @@ export function TripCalendarGrid({
   trips: Trip[];
   schoolItems: SchoolCalendarItem[];
   calendarEvents: CalendarEvent[];
-  visible: { ahaana: boolean; rohana: boolean; travel: boolean };
+  visible: VisibilityFilter;
   onDayClick: (dateISO: string) => void;
   onTripClick: (tripId: string) => void;
   onEventClick: (eventId: string) => void;
@@ -206,7 +213,7 @@ export function TripCalendarGrid({
                   return (
                     <span
                       key={chip.key}
-                      title={chip.event.title}
+                      title={`${chip.event.title}${chip.event.people.length > 0 ? ` — ${chip.event.people.join(", ")}` : ""}`}
                       className={cn(
                         "flex items-center gap-1 rounded px-1 py-[1.5px] font-display text-[9px] font-bold",
                         TAG_STYLES[chip.event.tag],
@@ -214,6 +221,7 @@ export function TripCalendarGrid({
                         isEnd && "rounded-r-full",
                       )}
                     >
+                      <PersonDots names={chip.event.people} />
                       <span className="min-w-0 truncate">{label}</span>
                     </span>
                   );

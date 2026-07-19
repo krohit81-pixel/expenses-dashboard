@@ -17,6 +17,13 @@ function formValue(formData: FormData, key: string): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
+/** people is submitted as one FormData entry per name (same key, repeated) — same convention as travelerNames in the travel feature's actions.ts, see AddEventModal. */
+function eventPeople(formData: FormData): string[] {
+  return formData
+    .getAll("people")
+    .filter((v): v is string => typeof v === "string" && v.length > 0);
+}
+
 export interface CalendarEventFormState {
   error?: string;
   success?: boolean;
@@ -29,6 +36,7 @@ export async function createCalendarEventAction(
   const parsed = createCalendarEventInputSchema.safeParse({
     title: formValue(formData, "title"),
     tag: formValue(formData, "tag"),
+    people: eventPeople(formData),
     startDate: formValue(formData, "startDate"),
     endDate: formValue(formData, "endDate"),
     notes: formValue(formData, "notes") ?? null,
@@ -58,6 +66,7 @@ export async function updateCalendarEventAction(
     id: formValue(formData, "id"),
     title: formValue(formData, "title"),
     tag: formValue(formData, "tag"),
+    people: eventPeople(formData),
     startDate: formValue(formData, "startDate"),
     endDate: formValue(formData, "endDate"),
     notes: formValue(formData, "notes") ?? null,

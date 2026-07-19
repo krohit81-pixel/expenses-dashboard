@@ -1,11 +1,7 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 
-import {
-  APP_VERSION,
-  APP_VERSION_DATE,
-  formatVersionDate,
-} from "@/lib/version";
+import { APP_VERSION, getIndiaDateLabel } from "@/lib/version";
 
 interface HeroProps {
   /** The page name, e.g. "Transactions" — now a real heading (v1.1.1), not a small secondary label. See the note below for why it used to be de-emphasized and isn't anymore. */
@@ -40,6 +36,10 @@ interface HeroProps {
  * still reads as the largest element on pages that have one, so the
  * size hierarchy is: amount > title > label/sub — title just moved from
  * "barely there" to "clearly a heading" rather than overtaking amount.
+ *
+ * v1.1.6: wordmark + brand mark bumped again (22px -> 26px text, 44x52
+ * -> 55x65 mark — same aspect ratio, just ~25% larger) at the user's
+ * request while already touching this file for the date fix below.
  */
 export function Hero({ title, label, amount, sub, children }: HeroProps) {
   return (
@@ -49,12 +49,12 @@ export function Hero({ title, label, amount, sub, children }: HeroProps) {
           <Image
             src="/atlas-mark.png"
             alt=""
-            width={44}
-            height={52}
+            width={55}
+            height={65}
             className="shrink-0"
             priority
           />
-          <span className="font-display text-[22px] font-extrabold tracking-tight">
+          <span className="font-display text-[26px] font-extrabold tracking-tight">
             Atlas
           </span>
           {/* v1.1.3: moved next to the wordmark, at the user's request —
@@ -67,8 +67,14 @@ export function Hero({ title, label, amount, sub, children }: HeroProps) {
             v{APP_VERSION}
           </span>
         </div>
+        {/* v1.1.6: was a hardcoded per-release date string that only
+            got updated by hand alongside APP_VERSION — see the comment
+            on getIndiaDateLabel() for why that's what actually produced
+            the "wrong timezone" report. This is computed fresh on every
+            render, explicitly in India's timezone regardless of where
+            the server itself runs. */}
         <span className="shrink-0 whitespace-nowrap font-display text-[11.5px] font-semibold text-white/50">
-          {formatVersionDate(APP_VERSION_DATE)}
+          {getIndiaDateLabel()}
         </span>
       </div>
       {title && (
