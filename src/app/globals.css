@@ -45,22 +45,56 @@
        and reusing "accent" for travel would make an actual booked trip
        visually indistinguishable from a plain school "event" on the
        merged calendar grid. Same hue family (indigo/purple-adjacent
-       palette), teal reads as clearly different at a glance. */
-    --teal: 191 70% 32%;
-    --teal-soft: 191 55% 93%;
+       palette), teal reads as clearly different at a glance.
+       v1.1.7: brightened in place (70%->80% saturation, 32%->36%
+       lightness) — this token has always been calendar/travel-only, so
+       there was no shared-elsewhere risk in making it punchier. */
+    --teal: 191 80% 36%;
+    --teal-soft: 191 60% 93%;
 
     /* Added for v1.1.0 — one bright, dedicated color per known person
        (Rohit keeps --accent), so Ahaana/Rohana/Aradhana read as clearly
        distinct on the windows strip, filter chips, and traveller
        avatars instead of two of them sharing --positive. Chosen to sit
        far apart on the hue wheel from each other and from the existing
-       accent/positive/negative/teal tokens. */
-    --rose: 340 82% 52%;
-    --rose-soft: 340 75% 95%;
-    --sky: 205 90% 50%;
-    --sky-soft: 205 80% 94%;
+       accent/positive/negative/teal tokens.
+       v1.1.7: rose/sky brightened in place, same reasoning as --teal
+       above — both are calendar-only already. amber is NOT touched
+       here: it's shared with money UI (the "tight" budget badge, card-
+       payment flows) well outside the calendar, so a calendar-specific
+       gold for Aradhana lives in --cal-aradhana below instead of
+       reusing/altering this one. */
+    --rose: 340 90% 54%;
+    --rose-soft: 340 78% 95%;
+    --sky: 205 95% 50%;
+    --sky-soft: 205 82% 94%;
     --amber: 32 92% 50%;
     --amber-soft: 32 85% 94%;
+
+    /* v1.1.7: calendar-only vivid colors for the four EventTag
+       categories (vacation/holiday/exam/event) and for Rohit/Aradhana.
+       These used to reuse the shared --positive/--amber/--negative/
+       --accent tokens, which are also money-UI colors (income/expense
+       amounts, primary buttons, the budget "tight" badge) — bumping
+       those for more vibrancy on the calendar would have changed
+       colors on every other tab too, which wasn't asked for. Each of
+       these six is its own dedicated token instead, free to be as
+       bright as the calendar wants without touching anything else.
+       Hues spread around the wheel deliberately, roughly 15-40° apart
+       from each other and from the still-calendar-only teal/rose/sky
+       above, so nine calendar colors in total stay distinguishable. */
+    --cal-vacation: 150 78% 38%;
+    --cal-vacation-soft: 150 70% 93%;
+    --cal-holiday: 26 95% 50%;
+    --cal-holiday-soft: 26 90% 93%;
+    --cal-exam: 356 88% 55%;
+    --cal-exam-soft: 356 85% 94%;
+    --cal-event: 271 85% 50%;
+    --cal-event-soft: 271 80% 94%;
+    --cal-rohit: 231 82% 55%;
+    --cal-rohit-soft: 231 75% 94%;
+    --cal-aradhana: 46 92% 48%;
+    --cal-aradhana-soft: 46 88% 93%;
 
     /* Kept for shadcn-style component compatibility (focus rings, etc.) */
     --background: var(--bg);
@@ -100,14 +134,28 @@
     --negative: 347 70% 65%;
     --negative-soft: 349 35% 20%;
     --line: 300 12% 22%;
-    --teal: 191 65% 62%;
-    --teal-soft: 191 35% 20%;
-    --rose: 340 80% 68%;
-    --rose-soft: 340 40% 22%;
-    --sky: 205 85% 65%;
-    --sky-soft: 205 45% 20%;
+    --teal: 191 72% 64%;
+    --teal-soft: 191 38% 20%;
+    --rose: 340 85% 70%;
+    --rose-soft: 340 42% 22%;
+    --sky: 205 90% 66%;
+    --sky-soft: 205 48% 20%;
     --amber: 32 88% 62%;
     --amber-soft: 32 50% 20%;
+
+    /* v1.1.7 — dark-mode pairs for the new calendar-only tokens above, same pattern as the rest of this block: saturation eases back a little, lightness lifts a lot, so each stays vivid without glaring against a dark surface. */
+    --cal-vacation: 150 58% 58%;
+    --cal-vacation-soft: 150 32% 18%;
+    --cal-holiday: 26 85% 62%;
+    --cal-holiday-soft: 26 55% 20%;
+    --cal-exam: 356 75% 68%;
+    --cal-exam-soft: 356 38% 20%;
+    --cal-event: 271 78% 70%;
+    --cal-event-soft: 271 40% 22%;
+    --cal-rohit: 231 78% 68%;
+    --cal-rohit-soft: 231 40% 22%;
+    --cal-aradhana: 46 80% 58%;
+    --cal-aradhana-soft: 46 45% 20%;
   }
 
   * {

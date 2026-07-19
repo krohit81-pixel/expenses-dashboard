@@ -63,6 +63,34 @@ const config: Config = {
           DEFAULT: "hsl(var(--amber))",
           soft: "hsl(var(--amber-soft))",
         },
+        // Added for v1.1.7 — calendar-only vivid colors, see globals.css's
+        // comment on --cal-vacation for why these are dedicated tokens
+        // rather than reusing positive/amber/negative/accent (all shared
+        // with money UI elsewhere in the app).
+        "cal-vacation": {
+          DEFAULT: "hsl(var(--cal-vacation))",
+          soft: "hsl(var(--cal-vacation-soft))",
+        },
+        "cal-holiday": {
+          DEFAULT: "hsl(var(--cal-holiday))",
+          soft: "hsl(var(--cal-holiday-soft))",
+        },
+        "cal-exam": {
+          DEFAULT: "hsl(var(--cal-exam))",
+          soft: "hsl(var(--cal-exam-soft))",
+        },
+        "cal-event": {
+          DEFAULT: "hsl(var(--cal-event))",
+          soft: "hsl(var(--cal-event-soft))",
+        },
+        "cal-rohit": {
+          DEFAULT: "hsl(var(--cal-rohit))",
+          soft: "hsl(var(--cal-rohit-soft))",
+        },
+        "cal-aradhana": {
+          DEFAULT: "hsl(var(--cal-aradhana))",
+          soft: "hsl(var(--cal-aradhana-soft))",
+        },
         line: "hsl(var(--line))",
 
         // Compatibility aliases for pages not yet rewritten in this

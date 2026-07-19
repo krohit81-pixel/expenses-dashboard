@@ -52,12 +52,23 @@ export interface TravelWindow {
  * than getting its own 6th color: both mean "away from home," and
  * distinguishing every other category from each other mattered more
  * than distinguishing this one from travel specifically.
+ *
+ * v1.1.7: vacation/holiday/exam/event switched from the shared
+ * --positive/--amber/--negative/--accent tokens to dedicated
+ * --cal-vacation/--cal-holiday/--cal-exam/--cal-event tokens (see
+ * globals.css) — same hue families as before, just noticeably more
+ * saturated. This was specifically requested as a calendar-only
+ * change; the old tokens are shared with money UI elsewhere (income/
+ * expense figures, primary buttons, the budget "tight" badge), so
+ * they couldn't be brightened in place without changing those other
+ * screens too. "trip" keeps sharing --teal, also brightened in place
+ * this release since that token was already calendar-exclusive.
  */
 export const TAG_STYLES: Record<EventTag, string> = {
-  vacation: "bg-positive text-white",
-  holiday: "bg-amber text-white",
-  exam: "bg-negative text-white",
-  event: "bg-accent text-white",
+  vacation: "bg-cal-vacation text-white",
+  holiday: "bg-cal-holiday text-white",
+  exam: "bg-cal-exam text-white",
+  event: "bg-cal-event text-white",
   trip: "bg-teal text-white",
 };
 

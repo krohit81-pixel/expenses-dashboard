@@ -67,14 +67,26 @@ export interface VisibilityFilter {
 }
 
 /**
- * Rohit and Aradhana are the only two people with a dedicated filter
- * chip (see travelers.ts) — a custom name typed into a trip or event's
- * people field has no chip of its own, so it can't be hidden by one.
+ * Every named person who has their own filter chip — Rohit/Aradhana
+ * (v1.1.6) plus Ahaana/Rohana, who already had a chip for school items
+ * and can now also be tagged on a trip or manual event. Returns
+ * undefined (not false) for an unrecognized/custom name, so callers
+ * can tell "this name has no chip, nothing can hide it" apart from
+ * "this name has a chip, and it's currently off."
  */
-function isPersonVisible(name: string, visible: VisibilityFilter): boolean {
+function isKnownPersonVisible(
+  name: string,
+  visible: VisibilityFilter,
+): boolean | undefined {
   if (name === "Rohit") return visible.rohit;
   if (name === "Aradhana") return visible.aradhana;
-  return true;
+  if (name === "Ahaana") return visible.ahaana;
+  if (name === "Rohana") return visible.rohana;
+  return undefined;
+}
+
+function isPersonVisible(name: string, visible: VisibilityFilter): boolean {
+  return isKnownPersonVisible(name, visible) ?? true;
 }
 
 /**
@@ -91,6 +103,25 @@ export function arePeopleVisible(
 ): boolean {
   return (
     people.length === 0 || people.some((name) => isPersonVisible(name, visible))
+  );
+}
+
+/**
+ * v1.1.6 required visible.travel AND arePeopleVisible together, which
+ * meant turning Travel off hid every trip outright — including one
+ * tagged to a person whose own chip was still on, which is exactly
+ * the bug reported: "select Rohit... it only shows travel events when
+ * I select travel, not just Rohit, even though Rohit is travelling
+ * during that event." v1.1.7: Travel and the person filters are now
+ * independent, not both-required — Travel alone still shows every
+ * trip regardless of who's tagged (unchanged default behavior, since
+ * it starts on), but with Travel off, a trip stays visible if any of
+ * its tagged people still has their own chip on.
+ */
+export function isTripVisible(trip: Trip, visible: VisibilityFilter): boolean {
+  if (visible.travel) return true;
+  return trip.travelerNames.some(
+    (name) => isKnownPersonVisible(name, visible) === true,
   );
 }
 
@@ -114,10 +145,7 @@ export function buildDetailedGroups(
         endDate: item.endDate,
       })),
     ...trips
-      .filter(
-        (trip) =>
-          visible.travel && arePeopleVisible(trip.travelerNames, visible),
-      )
+      .filter((trip) => isTripVisible(trip, visible))
       .map((trip): DetailedItem => ({
         kind: "travel",
         key: `travel-${trip.id}`,

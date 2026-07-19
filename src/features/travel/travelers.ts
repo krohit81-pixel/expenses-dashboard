@@ -24,20 +24,44 @@ interface ColorClasses {
   text: string;
 }
 
-/** One dedicated, vibrant color per known person — deliberately not reusing accent/positive/negative/teal, which are already spoken for by the money UI and the school-event category legend (vacation/holiday/exam/travel). */
+/**
+ * One dedicated, vibrant color per known person — deliberately not
+ * reusing accent/positive/negative/amber, which are already spoken for
+ * by the money UI (income/expense figures, primary buttons, the budget
+ * "tight" badge) elsewhere in the app.
+ *
+ * v1.1.7: Rohit and Aradhana moved off --accent/--amber (both shared
+ * with money UI, so they couldn't be brightened for the calendar
+ * without also changing those other screens) onto their own dedicated
+ * --cal-rohit/--cal-aradhana tokens instead — see globals.css. Ahaana/
+ * Rohana keep --rose/--sky, which were already calendar-only and got
+ * brightened in place.
+ */
 const NAMED_COLORS: Record<string, ColorClasses> = {
-  Rohit: { bg: "bg-accent", soft: "bg-accent-soft", text: "text-accent" },
+  Rohit: {
+    bg: "bg-cal-rohit",
+    soft: "bg-cal-rohit-soft",
+    text: "text-cal-rohit",
+  },
   Ahaana: { bg: "bg-rose", soft: "bg-rose-soft", text: "text-rose" },
   Rohana: { bg: "bg-sky", soft: "bg-sky-soft", text: "text-sky" },
-  Aradhana: { bg: "bg-amber", soft: "bg-amber-soft", text: "text-amber" },
+  Aradhana: {
+    bg: "bg-cal-aradhana",
+    soft: "bg-cal-aradhana-soft",
+    text: "text-cal-aradhana",
+  },
 };
 
-/** Cycled through by hash for anyone typed in who isn't one of the four known people above. */
+/** Cycled through by hash for anyone typed in who isn't one of the four known people above. Uses the same vivid calendar-only tokens as the category tags (v1.1.7) rather than the shared money-UI ones, for the same reason as NAMED_COLORS above. */
 const FALLBACK_PALETTE: ColorClasses[] = [
-  { bg: "bg-positive", soft: "bg-positive-soft", text: "text-positive" },
-  { bg: "bg-negative", soft: "bg-negative-soft", text: "text-negative" },
+  {
+    bg: "bg-cal-vacation",
+    soft: "bg-cal-vacation-soft",
+    text: "text-cal-vacation",
+  },
+  { bg: "bg-cal-exam", soft: "bg-cal-exam-soft", text: "text-cal-exam" },
   { bg: "bg-teal", soft: "bg-teal-soft", text: "text-teal" },
-  { bg: "bg-accent", soft: "bg-accent-soft", text: "text-accent" },
+  { bg: "bg-cal-event", soft: "bg-cal-event-soft", text: "text-cal-event" },
 ];
 
 function hashName(name: string): number {

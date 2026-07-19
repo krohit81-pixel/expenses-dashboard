@@ -49,14 +49,20 @@ describe("buildDetailedGroups", () => {
     expect(groups[0].items.map((i) => i.kind)).toEqual(["school", "travel"]);
   });
 
-  it("respects the travel visibility toggle", () => {
+  it("respects the travel visibility toggle when none of the trip's tagged people are visible either", () => {
+    // trips[0] is tagged ["Rohit", "Ahaana"] — since v1.1.7, Travel and
+    // the person filters are independent (a tagged person's own chip
+    // can reveal a trip even with Travel off), so this only hides the
+    // trip if Rohit and Ahaana are also turned off, not from Travel
+    // alone. See isTripVisible's tests below for that behavior.
     const groups = buildDetailedGroups(trips, schoolItems, {
       ...ALL_VISIBLE,
       travel: false,
+      rohit: false,
+      ahaana: false,
     });
     const allItems = groups.flatMap((g) => g.items);
     expect(allItems.some((i) => i.kind === "travel")).toBe(false);
-    expect(allItems).toHaveLength(2);
   });
 
   it("respects the per-person visibility toggles independently", () => {
@@ -109,9 +115,12 @@ describe("buildDetailedGroups", () => {
         notes: null,
       },
     ];
+    // Empty trips/schoolItems here — this test is isolating the manual
+    // event's own independence from every toggle, not re-testing trip
+    // visibility (see the isTripVisible-focused tests below for that).
     const groups = buildDetailedGroups(
-      trips,
-      schoolItems,
+      [],
+      [],
       {
         ahaana: false,
         rohana: false,
@@ -130,29 +139,64 @@ describe("buildDetailedGroups", () => {
     });
   });
 
-  it("hides a trip tagged only to a hidden person", () => {
-    // t1 is tagged ["Rohit", "Ahaana"] — Ahaana isn't a rohit/aradhana
-    // filter target, so it doesn't keep the trip visible on its own;
-    // turning off Rohit hides it.
+  it("shows a trip tagged to a visible person even with Travel off (the reported bug)", () => {
+    // This is the exact case reported: a trip tagged only "Rohit",
+    // Travel turned off, Rohit still on — it used to disappear
+    // entirely because v1.1.6 required Travel AND a visible tagged
+    // person; Travel and the person filters are independent now.
     const rohitOnlyTrip: Trip[] = [{ ...trips[0], travelerNames: ["Rohit"] }];
     const groups = buildDetailedGroups(rohitOnlyTrip, [], {
       ...ALL_VISIBLE,
+      travel: false,
+    });
+    expect(groups.flatMap((g) => g.items)).toHaveLength(1);
+  });
+
+  it("hides a trip when Travel is off and none of its tagged people are visible", () => {
+    const rohitOnlyTrip: Trip[] = [{ ...trips[0], travelerNames: ["Rohit"] }];
+    const groups = buildDetailedGroups(rohitOnlyTrip, [], {
+      ...ALL_VISIBLE,
+      travel: false,
       rohit: false,
     });
     expect(groups.flatMap((g) => g.items)).toHaveLength(0);
   });
 
-  it("keeps a trip visible if at least one tagged person is still visible", () => {
-    // Tagged both Rohit and Aradhana — hiding Rohit alone shouldn't
-    // hide the trip, since Aradhana is still visible.
-    const bothTagged: Trip[] = [
-      { ...trips[0], travelerNames: ["Rohit", "Aradhana"] },
-    ];
-    const groups = buildDetailedGroups(bothTagged, [], {
+  it("Travel on shows every trip regardless of the person filters", () => {
+    // Travel means "show every trip" outright — it's not an AND with
+    // the person filters, so turning off Rohit/Aradhana/Ahaana/Rohana
+    // shouldn't hide a trip while Travel is still on.
+    const rohitOnlyTrip: Trip[] = [{ ...trips[0], travelerNames: ["Rohit"] }];
+    const groups = buildDetailedGroups(rohitOnlyTrip, [], {
       ...ALL_VISIBLE,
+      travel: true,
       rohit: false,
     });
     expect(groups.flatMap((g) => g.items)).toHaveLength(1);
+  });
+
+  it("with Travel off, a trip tagged to Ahaana shows when the Ahaana chip is on", () => {
+    // The person-filter fallback generalizes to Ahaana/Rohana too, not
+    // just Rohit/Aradhana — a trip tagged to Ahaana should surface the
+    // same way when Travel is off and her chip is on.
+    const ahaanaTrip: Trip[] = [{ ...trips[0], travelerNames: ["Ahaana"] }];
+    const groups = buildDetailedGroups(ahaanaTrip, [], {
+      ...ALL_VISIBLE,
+      travel: false,
+      ahaana: true,
+    });
+    expect(groups.flatMap((g) => g.items)).toHaveLength(1);
+  });
+
+  it("with Travel off, a trip tagged only to a custom (untracked) name never shows", () => {
+    // No chip governs a name that isn't Rohit/Aradhana/Ahaana/Rohana,
+    // so there's nothing to reveal it with once Travel is off.
+    const customTrip: Trip[] = [{ ...trips[0], travelerNames: ["Grandma"] }];
+    const groups = buildDetailedGroups(customTrip, [], {
+      ...ALL_VISIBLE,
+      travel: false,
+    });
+    expect(groups.flatMap((g) => g.items)).toHaveLength(0);
   });
 
   it("keeps an untagged manual event visible even when both person filters are off", () => {

@@ -5,6 +5,7 @@ import { ChevronDown, Plane } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { TAG_LABELS, TAG_STYLES } from "@/features/calendar/data";
+import { dayBadge, type DayBadge } from "@/features/travel/day-badge";
 import {
   buildDetailedGroups,
   type VisibilityFilter,
@@ -12,8 +13,6 @@ import {
 import {
   travelerColorClass,
   travelerInitials,
-  travelerSoftColorClass,
-  travelerTextColorClass,
 } from "@/features/travel/travelers";
 import type { SchoolCalendarItem } from "@/features/travel/school-items";
 import type { CalendarEvent } from "@/services/CalendarEventService";
@@ -22,22 +21,48 @@ import type { Trip } from "@/services/TripService";
 const TRAVEL_STYLE = "bg-teal-soft text-teal";
 const PERSON_NAME = { ahaana: "Ahaana", rohana: "Rohana" } as const;
 
-function dayBadge(
-  startDate: string,
-  endDate: string,
-): { big: string; small?: string } {
-  const start = new Date(`${startDate}T00:00:00Z`);
-  if (startDate === endDate) {
-    return {
-      big: String(start.getUTCDate()),
-      small: start.toLocaleDateString("en-US", {
-        weekday: "short",
-        timeZone: "UTC",
-      }),
-    };
+/** The day-number column shared by every row kind — pulled out once (v1.1.7) instead of repeating the same three-way markup at each of the three item-kind render sites below. */
+function DayBadgeCell({ badge }: { badge: DayBadge }) {
+  if (badge.kind === "cross-month") {
+    return (
+      <div className="w-11 shrink-0 pt-px text-center font-display text-[9px] font-extrabold leading-tight text-ink-soft">
+        <div>{badge.startLabel}</div>
+        <div className="text-[8px] font-semibold text-ink-faint">↓</div>
+        <div>{badge.endLabel}</div>
+      </div>
+    );
   }
-  const end = new Date(`${endDate}T00:00:00Z`);
-  return { big: `${start.getUTCDate()}–${end.getUTCDate()}` };
+  return (
+    <div className="w-9 shrink-0 pt-px text-center font-display text-[11px] font-extrabold text-ink-soft">
+      {badge.kind === "single" ? badge.day : badge.label}
+      {badge.kind === "single" && (
+        <div className="text-[9px] font-semibold uppercase text-ink-faint">
+          {badge.weekday}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Same right-side avatar-circle pattern travel/manual items already use — one avatar per tagged person, most-recent-behind. Trips/manual events can have several people; a school item only ever has the one, so this is always a single circle. */
+function PersonAvatars({ names }: { names: string[] }) {
+  if (names.length === 0) return null;
+  return (
+    <div className="flex">
+      {names.map((name, i) => (
+        <span
+          key={name}
+          style={{ marginLeft: i === 0 ? 0 : -6 }}
+          className={cn(
+            "flex size-[19px] items-center justify-center rounded-full border-2 border-surface font-display text-[8px] font-extrabold text-white",
+            travelerColorClass(name),
+          )}
+        >
+          {travelerInitials(name)}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -120,17 +145,10 @@ export function TripDetailedList({
                         key={item.key}
                         className={cn(
                           "flex items-start gap-3 border-b border-line px-[18px] py-3 last:border-b-0",
-                          item.tag === "vacation" && "bg-positive-soft",
+                          item.tag === "vacation" && "bg-cal-vacation-soft",
                         )}
                       >
-                        <div className="w-9 shrink-0 pt-px text-center font-display text-[11px] font-extrabold text-ink-soft">
-                          {badge.big}
-                          {badge.small && (
-                            <div className="text-[9px] font-semibold uppercase text-ink-faint">
-                              {badge.small}
-                            </div>
-                          )}
-                        </div>
+                        <DayBadgeCell badge={badge} />
                         <div className="min-w-0 flex-1">
                           <div className="text-[13px] font-semibold text-ink">
                             {item.title}
@@ -140,26 +158,18 @@ export function TripDetailedList({
                               {item.meta}
                             </div>
                           )}
-                          <div className="mt-1.5">
-                            <span
-                              className={cn(
-                                "rounded-full px-2 py-0.5 font-display text-[10px] font-bold",
-                                travelerSoftColorClass(personName),
-                                travelerTextColorClass(personName),
-                              )}
-                            >
-                              {personName}
-                            </span>
-                          </div>
                         </div>
-                        <span
-                          className={cn(
-                            "shrink-0 whitespace-nowrap rounded-full px-2 py-1 font-display text-[9.5px] font-extrabold uppercase tracking-wide",
-                            TAG_STYLES[item.tag],
-                          )}
-                        >
-                          {TAG_LABELS[item.tag]}
-                        </span>
+                        <div className="flex shrink-0 flex-col items-end gap-1.5">
+                          <span
+                            className={cn(
+                              "whitespace-nowrap rounded-full px-2 py-1 font-display text-[9.5px] font-extrabold uppercase tracking-wide",
+                              TAG_STYLES[item.tag],
+                            )}
+                          >
+                            {TAG_LABELS[item.tag]}
+                          </span>
+                          <PersonAvatars names={[personName]} />
+                        </div>
                       </li>
                     );
                   }
@@ -171,17 +181,10 @@ export function TripDetailedList({
                         onClick={() => onEventClick(item.eventId)}
                         className={cn(
                           "flex cursor-pointer items-start gap-3 border-b border-line px-[18px] py-3 last:border-b-0 hover:bg-bg",
-                          item.tag === "vacation" && "bg-positive-soft",
+                          item.tag === "vacation" && "bg-cal-vacation-soft",
                         )}
                       >
-                        <div className="w-9 shrink-0 pt-px text-center font-display text-[11px] font-extrabold text-ink-soft">
-                          {badge.big}
-                          {badge.small && (
-                            <div className="text-[9px] font-semibold uppercase text-ink-faint">
-                              {badge.small}
-                            </div>
-                          )}
-                        </div>
+                        <DayBadgeCell badge={badge} />
                         <div className="min-w-0 flex-1">
                           <div className="text-[13px] font-semibold text-ink">
                             {item.title}
@@ -201,22 +204,7 @@ export function TripDetailedList({
                           >
                             {TAG_LABELS[item.tag]}
                           </span>
-                          {item.people.length > 0 && (
-                            <div className="flex">
-                              {item.people.map((name, i) => (
-                                <span
-                                  key={name}
-                                  style={{ marginLeft: i === 0 ? 0 : -6 }}
-                                  className={cn(
-                                    "flex size-[19px] items-center justify-center rounded-full border-2 border-surface font-display text-[8px] font-extrabold text-white",
-                                    travelerColorClass(name),
-                                  )}
-                                >
-                                  {travelerInitials(name)}
-                                </span>
-                              ))}
-                            </div>
-                          )}
+                          <PersonAvatars names={item.people} />
                         </div>
                       </li>
                     );
@@ -228,14 +216,7 @@ export function TripDetailedList({
                       onClick={() => onTripClick(item.tripId)}
                       className="flex cursor-pointer items-start gap-3 border-b border-line px-[18px] py-3 last:border-b-0 hover:bg-bg"
                     >
-                      <div className="w-9 shrink-0 pt-px text-center font-display text-[11px] font-extrabold text-ink-soft">
-                        {badge.big}
-                        {badge.small && (
-                          <div className="text-[9px] font-semibold uppercase text-ink-faint">
-                            {badge.small}
-                          </div>
-                        )}
-                      </div>
+                      <DayBadgeCell badge={badge} />
                       <div className="min-w-0 flex-1">
                         <div className="text-[13px] font-semibold text-ink">
                           {item.destination}
@@ -263,20 +244,7 @@ export function TripDetailedList({
                         >
                           Travel
                         </span>
-                        <div className="flex">
-                          {item.travelerNames.map((name, i) => (
-                            <span
-                              key={name}
-                              style={{ marginLeft: i === 0 ? 0 : -6 }}
-                              className={cn(
-                                "flex size-[19px] items-center justify-center rounded-full border-2 border-surface font-display text-[8px] font-extrabold text-white",
-                                travelerColorClass(name),
-                              )}
-                            >
-                              {travelerInitials(name)}
-                            </span>
-                          ))}
-                        </div>
+                        <PersonAvatars names={item.travelerNames} />
                       </div>
                     </li>
                   );

@@ -18,6 +18,7 @@ import {
 import { travelerColorClass } from "@/features/travel/travelers";
 import {
   arePeopleVisible,
+  isTripVisible,
   type VisibilityFilter,
 } from "@/features/travel/detailed-list";
 import type { SchoolCalendarItem } from "@/features/travel/school-items";
@@ -68,12 +69,10 @@ function chipsForDate(
 ): Chip[] {
   const chips: Chip[] = [];
 
-  if (visible.travel) {
-    for (const trip of trips) {
-      if (!arePeopleVisible(trip.travelerNames, visible)) continue;
-      if (dateISO >= trip.startDate && dateISO <= trip.endDate) {
-        chips.push({ kind: "trip", key: `trip-${trip.id}`, trip });
-      }
+  for (const trip of trips) {
+    if (!isTripVisible(trip, visible)) continue;
+    if (dateISO >= trip.startDate && dateISO <= trip.endDate) {
+      chips.push({ kind: "trip", key: `trip-${trip.id}`, trip });
     }
   }
   for (const item of schoolItems) {
