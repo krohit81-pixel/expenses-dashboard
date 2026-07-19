@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 
 import { listTransactions } from "@/services/TransactionService";
@@ -7,9 +6,8 @@ import { listCategories } from "@/services/CategoryService";
 import { getUserSettings } from "@/services/UserSettingsService";
 import { requireUser } from "@/lib/auth/require-user";
 import { monthOptions } from "@/lib/dates/month";
-import { formatMoneyDisplay, sumMoney } from "@/lib/money";
 import { Hero } from "@/components/ui/hero";
-import { CreateTransactionForm } from "@/features/transactions/components/CreateTransactionForm";
+import { AddTransactionSection } from "@/features/transactions/components/AddTransactionSection";
 import { CardPaymentQuickLog } from "@/features/transactions/components/CardPaymentQuickLog";
 import { RecentTransactionsSection } from "@/features/transactions/components/RecentTransactionsSection";
 
@@ -211,32 +209,17 @@ export default async function TransactionsPage({
         <RecentTransactionsSection
           incomeTransactions={incomeTransactions}
           expenseTransactions={expenseTransactions}
-          incomeTotal={`+${formatMoneyDisplay(sumMoney(incomeTransactions.map((t) => t.amount)), defaultCurrency)}`}
-          expenseTotal={`\u2212${formatMoneyDisplay(sumMoney(expenseTransactions.map((t) => t.amount)), defaultCurrency)}`}
           total={total}
           accountName={accountName}
           categoryName={categoryName}
         />
 
-        <div className="rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-          <h2 className="mb-4 font-display text-[15px] font-bold text-ink">
-            Add transaction
-          </h2>
-          {accounts.length === 0 ? (
-            <p className="text-sm text-ink-faint">
-              <Link href="/accounts" className="underline">
-                Add an account
-              </Link>{" "}
-              first before recording transactions.
-            </p>
-          ) : (
-            <CreateTransactionForm
-              accounts={accounts}
-              categories={categories}
-              defaultCurrency={defaultCurrency}
-            />
-          )}
-        </div>
+        <AddTransactionSection
+          accounts={accounts}
+          categories={categories}
+          defaultCurrency={defaultCurrency}
+          hasAccounts={accounts.length > 0}
+        />
       </div>
     </div>
   );

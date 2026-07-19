@@ -19,20 +19,24 @@ import { groupByCycleMonth } from "@/features/transactions/group-by-cycle";
  * flat list, matching how Budgets/Home already organize things by
  * cycle_month. Income stays a flat list — it's usually a handful of
  * rows a month, grouping it added structure without adding scannability.
+ *
+ * v1.2: dropped the running income/expense totals from both column
+ * headers. This list has no date filter by default — it's whatever the
+ * most recent up-to-200 transactions are, which routinely spans several
+ * cycle months at once. Summing "income total" across an arbitrary
+ * multi-month window isn't a number that means anything; it just looked
+ * like one. A correctly-scoped total (by month, or by whatever filter
+ * is actually applied) still exists elsewhere — Home and Budgets.
  */
 export function RecentTransactionsSection({
   incomeTransactions,
   expenseTransactions,
-  incomeTotal,
-  expenseTotal,
   total,
   accountName,
   categoryName,
 }: {
   incomeTransactions: TransactionRowData[];
   expenseTransactions: TransactionRowData[];
-  incomeTotal: string;
-  expenseTotal: string;
   /** The exact count from the DB query, not incomeTransactions.length + expenseTransactions.length — those two arrays only cover the current page (listTransactions caps at 200), so deriving the header count from them would under-report once a filter matches more than that. */
   total: number;
   accountName: Map<string, string>;
@@ -73,7 +77,6 @@ export function RecentTransactionsSection({
             <SplitCard
               title="Income"
               titleColorClass="text-positive"
-              total={incomeTotal}
               isEmpty={incomeTransactions.length === 0}
             >
               {incomeTransactions.map((transaction) => (
@@ -91,9 +94,6 @@ export function RecentTransactionsSection({
                 <h3 className="font-display text-sm font-bold text-negative">
                   Expenses &amp; transfers
                 </h3>
-                <span className="font-display text-xs font-bold text-ink-faint">
-                  {expenseTotal}
-                </span>
               </div>
               {expenseTransactions.length === 0 ? (
                 <p className="px-[18px] pb-4 text-sm text-ink-faint">

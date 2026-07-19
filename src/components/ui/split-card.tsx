@@ -23,7 +23,12 @@ export function SplitCard({
 }: {
   title: string;
   titleColorClass: string;
-  total: string;
+  /** Optional (v1.2) — a running total only makes sense when the list
+   * below is scoped to one period. Transactions' "Recent" list can span
+   * several cycle months at once (no date filter applied), where a
+   * summed total would just be a meaningless number; that caller omits
+   * this prop rather than passing a misleading total. */
+  total?: string;
   isEmpty: boolean;
   emptyText?: string;
   children: ReactNode;
@@ -34,9 +39,11 @@ export function SplitCard({
         <h2 className={`font-display text-sm font-bold ${titleColorClass}`}>
           {title}
         </h2>
-        <span className="font-display text-xs font-bold text-ink-faint">
-          {total}
-        </span>
+        {total && (
+          <span className="font-display text-xs font-bold text-ink-faint">
+            {total}
+          </span>
+        )}
       </div>
       {isEmpty ? (
         <p className="px-[18px] pb-4 text-sm text-ink-faint">{emptyText}</p>

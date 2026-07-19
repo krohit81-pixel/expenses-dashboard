@@ -1,9 +1,9 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { Repeat } from "lucide-react";
 
 import { getMonthlyBudgetSnapshot } from "@/services/BudgetSnapshotService";
 import { listAccounts } from "@/services/AccountService";
-import { listCategories } from "@/services/CategoryService";
 import { getUserSettings } from "@/services/UserSettingsService";
 import { requireUser } from "@/lib/auth/require-user";
 import { formatMoneyDisplay, negateMoney, sumMoney } from "@/lib/money";
@@ -17,7 +17,6 @@ import {
 import { Hero } from "@/components/ui/hero";
 import { SplitCard } from "@/components/ui/split-card";
 import { transactionDisplayTitle } from "@/features/transactions/format";
-import { CreateRecurringTransactionForm } from "@/features/recurring/components/CreateRecurringTransactionForm";
 
 export const metadata: Metadata = {
   title: "Budgets",
@@ -52,10 +51,9 @@ export default async function BudgetsPage({
   const isCurrentMonth = month === currentMonth();
 
   const user = await requireUser();
-  const [snapshot, accounts, categories, settings] = await Promise.all([
+  const [snapshot, accounts, settings] = await Promise.all([
     getMonthlyBudgetSnapshot(month),
     listAccounts(),
-    listCategories(true),
     getUserSettings(user.id),
   ]);
 
@@ -242,20 +240,31 @@ export default async function BudgetsPage({
           .
         </p>
 
-        <div className="rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-          <h2 className="mb-4 font-display text-[15px] font-bold text-ink">
-            Add income or fixed expense
-          </h2>
-          {accounts.length === 0 ? (
-            <p className="text-sm text-ink-faint">Add an account first.</p>
-          ) : (
-            <CreateRecurringTransactionForm
-              accounts={accounts}
-              categories={categories}
-              defaultCurrency={currency}
-            />
-          )}
-        </div>
+        {/* v1.2: this used to be a full copy of CreateRecurringTransactionForm,
+            duplicating the exact same form that already lives on /recurring —
+            the same inline forms in two places. Replaced with a link to
+            the one real place to add a recurring item; the paragraph
+            above already sends you there to edit/tag one anyway. */}
+        <Link
+          href="/recurring"
+          className="flex items-center gap-3 rounded-[20px] bg-surface p-5 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]"
+        >
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-[11px] bg-accent-soft text-accent">
+            <Repeat className="size-4.5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="font-display text-[14.5px] font-extrabold text-ink">
+              Add income or a fixed expense
+            </div>
+            <div className="mt-0.5 text-[11.5px] text-ink-faint">
+              Salary, rent, subscriptions — set up on Recurring, then tag it to
+              a cycle here
+            </div>
+          </div>
+          <span className="shrink-0 font-display text-xs font-bold text-accent">
+            Go &rarr;
+          </span>
+        </Link>
       </div>
     </div>
   );

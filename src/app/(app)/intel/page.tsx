@@ -3,18 +3,20 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth/require-user";
 import {
   getCashFlowSummary,
-  getMonthlyExpenditureTrend,
+  getMonthlyCashFlowTrend,
+  type CashFlowSummary,
 } from "@/services/ReportingService";
 import { listCategories } from "@/services/CategoryService";
 import { getUserSettings } from "@/services/UserSettingsService";
 import { generateInsight } from "@/services/IntelService";
+import { buildDonutGradientStops, buildDonutSlices } from "@/lib/intel/donut";
 import {
-  compareMoney,
   formatMoneyDisplay,
   moneyToDbNumber,
-  sumMoney,
-  ZERO,
+  subtractMoney,
+  type Money,
 } from "@/lib/money";
+import { currentMonth, shiftMonth } from "@/lib/dates/month";
 import { Hero } from "@/components/ui/hero";
 
 export const metadata: Metadata = {
@@ -37,61 +39,120 @@ function monthShortLabel(month: string): string {
   });
 }
 
+function monthStartEnd(month: string): { from: string; to: string } {
+  const [year, m] = month.split("-").map(Number);
+  const start = new Date(Date.UTC(year, m - 1, 1));
+  const end = new Date(Date.UTC(year, m, 0));
+  return {
+    from: start.toISOString().slice(0, 10),
+    to: end.toISOString().slice(0, 10),
+  };
+}
+
+/**
+ * Savings rate as a percentage of income, rounded to the nearest whole
+ * number. null when there was no income at all that month — a % of
+ * zero income isn't a meaningful number (not the same thing as 0% or
+ * -100%), so callers should show a dash instead of a rate in that case.
+ */
+function savingsRatePct(income: Money, expense: Money): number | null {
+  const incomeNum = moneyToDbNumber(income);
+  if (incomeNum <= 0) return null;
+  const net = moneyToDbNumber(subtractMoney(income, expense));
+  return Math.round((net / incomeNum) * 100);
+}
+
 export default async function IntelPage() {
   const user = await requireUser();
   const now = new Date();
+  const thisMonth = currentMonth();
+  const prevMonth = shiftMonth(thisMonth, -1);
+  const nextMonth = shiftMonth(thisMonth, 1);
+
   const monthStart = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
   )
     .toISOString()
     .slice(0, 10);
   const today = now.toISOString().slice(0, 10);
+  const prevRange = monthStartEnd(prevMonth);
+  const nextRange = monthStartEnd(nextMonth);
 
-  const [summary, trend, categories, settings, insight] = await Promise.all([
-    getCashFlowSummary({ from: monthStart, to: today }),
-    getMonthlyExpenditureTrend(6),
+  const [
+    trend,
+    categories,
+    settings,
+    insight,
+    currentSummary,
+    prevSummary,
+    nextSummary,
+  ] = await Promise.all([
+    getMonthlyCashFlowTrend(6),
     listCategories(true),
     getUserSettings(user.id),
     generateInsight(),
+    getCashFlowSummary({ from: monthStart, to: today }),
+    getCashFlowSummary(prevRange),
+    // includePending: true — the whole point of an "upcoming month"
+    // donut is to preview what's already been tagged to next month's
+    // cycle (recurring items, or a one-off added ahead of time), and
+    // that's virtually always sitting as status: "pending" until it
+    // actually happens. Empty/zero here just means nothing's been
+    // tagged to next month yet, not that anything is broken.
+    getCashFlowSummary(nextRange, true),
   ]);
 
   const currency = settings?.baseCurrency ?? "USD";
   const categoryName = new Map(categories.map((c) => [c.id, c.name]));
 
-  // Top 5 categories by amount, rest bucketed into "Other" — keeps the
-  // donut/legend readable regardless of how many categories are in use.
-  const sorted = [...summary.expenseByCategory].sort(
-    (a, b) => moneyToDbNumber(b.total) - moneyToDbNumber(a.total),
-  );
-  const top = sorted.slice(0, 5);
-  const rest = sorted.slice(5);
-  const otherTotal = sumMoney(rest.map((c) => c.total));
-  const slices = [
-    ...top.map((c) => ({
-      name: categoryName.get(c.categoryId) ?? "Uncategorized",
-      total: c.total,
+  function donut(summary: CashFlowSummary) {
+    const slices = buildDonutSlices(summary.expenseByCategory, categoryName);
+    const gradientStops = buildDonutGradientStops(
+      slices,
+      summary.totalExpense,
+      CATEGORY_COLORS,
+    );
+    return { slices, gradientStops };
+  }
+
+  const donuts = [
+    { key: "prev", label: monthShortLabel(prevMonth), summary: prevSummary },
+    { key: "current", label: "This month", summary: currentSummary },
+    {
+      key: "next",
+      label: monthShortLabel(nextMonth),
+      summary: nextSummary,
+      isProjected: true,
+    },
+  ].map((d) => ({ ...d, ...donut(d.summary) }));
+
+  // Month-on-month expenditure: the 6 actual months from the trend,
+  // plus one projected bar for next month — v1.2, per the request to
+  // "expand [the chart] to one month ahead." next month has no real
+  // transactions yet in the common case, so its bar comes from the
+  // same includePending cash-flow query as the "upcoming" donut above,
+  // not from getMonthlyCashFlowTrend (which only ever counts posted
+  // activity, and would just be zero for a future month).
+  const expenditureBars = [
+    ...trend.map((t) => ({
+      month: t.month,
+      total: t.expense,
+      isProjected: false,
     })),
-    ...(compareMoney(otherTotal, ZERO) > 0
-      ? [{ name: "Other", total: otherTotal }]
-      : []),
+    { month: nextMonth, total: nextSummary.totalExpense, isProjected: true },
   ];
+  const trendMax = Math.max(
+    1,
+    ...expenditureBars.map((t) => moneyToDbNumber(t.total)),
+  );
 
-  const totalExpense = moneyToDbNumber(summary.totalExpense);
-  let cumulative = 0;
-  const gradientStops = slices.map((slice, i) => {
-    const pct =
-      totalExpense > 0
-        ? (moneyToDbNumber(slice.total) / totalExpense) * 100
-        : 0;
-    const from = cumulative;
-    cumulative += pct;
-    return `${CATEGORY_COLORS[i % CATEGORY_COLORS.length]} ${from}% ${cumulative}%`;
-  });
-  const donutStyle = {
-    background: `conic-gradient(${gradientStops.join(", ")})`,
-  };
-
-  const trendMax = Math.max(1, ...trend.map((t) => moneyToDbNumber(t.total)));
+  const cashFlowMax = Math.max(
+    1,
+    ...trend.flatMap((t) => [
+      moneyToDbNumber(t.income),
+      moneyToDbNumber(t.expense),
+    ]),
+  );
 
   return (
     <div>
@@ -106,127 +167,282 @@ export default async function IntelPage() {
             <p className="text-sm leading-relaxed text-ink">{insight}</p>
           ) : (
             <p className="text-sm leading-relaxed text-ink-faint">
-              Insight isn&apos;t available right now — either ANTHROPIC_API_KEY
-              isn&apos;t configured, or something went wrong generating it.
-              Charts below still reflect real data.
+              Insight isn&apos;t available right now — either no AI provider is
+              configured (ANTHROPIC_API_KEY or OPENAI_API_KEY), or something
+              went wrong generating it. Charts below still reflect real data.
             </p>
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1fr]">
-          <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-            <div className="flex items-center justify-between px-[18px] py-4">
-              <h2 className="font-display text-sm font-bold text-ink">
-                By category &middot; this month
-              </h2>
-              <span className="font-display text-xs font-bold text-ink-faint">
-                {formatMoneyDisplay(summary.totalExpense, currency)}
-              </span>
-            </div>
-            {slices.length === 0 ? (
-              <p className="px-[18px] pb-5 text-sm text-ink-faint">
-                No expenses recorded yet this month.
-              </p>
-            ) : (
-              <div className="flex flex-wrap items-center gap-5 px-[18px] pb-5">
-                <div
-                  className="relative size-[148px] shrink-0 rounded-full"
-                  style={donutStyle}
-                >
-                  <div className="absolute inset-6 flex flex-col items-center justify-center rounded-full bg-surface">
-                    <span className="font-display text-base font-extrabold text-ink">
-                      {formatMoneyDisplay(summary.totalExpense, currency)}
+        {/* v1.2: three smaller donuts side by side (previous/current/
+            upcoming month) instead of one big one for "this month" —
+            makes it possible to see at a glance whether a category is
+            trending up or down, and to preview what next month already
+            looks like from tagged recurring items, without extra taps. */}
+        <div>
+          <h2 className="mb-3 font-display text-sm font-bold text-ink">
+            By category
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {donuts.map((d) => (
+              <div
+                key={d.key}
+                className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]"
+              >
+                <div className="flex items-center justify-between px-4 py-3.5">
+                  <h3 className="font-display text-[12.5px] font-bold text-ink">
+                    {d.label}
+                  </h3>
+                  {d.isProjected && (
+                    <span className="rounded-full bg-accent-soft px-1.5 py-0.5 font-display text-[9px] font-extrabold uppercase tracking-wide text-accent">
+                      Projected
                     </span>
-                    <span className="text-[9px] uppercase tracking-wide text-ink-faint">
-                      total
-                    </span>
-                  </div>
+                  )}
                 </div>
-                <ul className="min-w-[180px] flex-1">
-                  {slices.map((slice, i) => {
-                    const pct =
-                      totalExpense > 0
-                        ? Math.round(
-                            (moneyToDbNumber(slice.total) / totalExpense) * 100,
-                          )
-                        : 0;
-                    return (
-                      <li
-                        key={slice.name}
-                        className="flex items-center gap-2 py-1.5 text-sm"
-                      >
-                        <span
-                          className="size-2.5 shrink-0 rounded-[3px]"
-                          style={{
-                            background:
-                              CATEGORY_COLORS[i % CATEGORY_COLORS.length],
-                          }}
-                        />
-                        <span className="flex-1 font-medium text-ink">
-                          {slice.name}
-                        </span>
-                        <span className="font-display text-[11px] font-bold text-ink-faint">
-                          {pct}%
-                        </span>
-                        <span className="w-[76px] text-right font-display text-xs font-semibold text-ink-soft">
-                          {formatMoneyDisplay(slice.total, currency)}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-            <div className="flex items-center justify-between px-[18px] py-4">
-              <h2 className="font-display text-sm font-bold text-ink">
-                Month on month
-              </h2>
-              <span className="text-xs text-ink-faint">Total expenditure</span>
-            </div>
-            <div className="px-[18px] pb-2">
-              <div className="flex h-[130px] items-end gap-2.5">
-                {trend.map((t, i) => {
-                  const heightPct = Math.max(
-                    4,
-                    (moneyToDbNumber(t.total) / trendMax) * 100,
-                  );
-                  const isCurrent = i === trend.length - 1;
-                  return (
+                {d.slices.length === 0 ? (
+                  <p className="px-4 pb-5 text-[12px] leading-relaxed text-ink-faint">
+                    {d.isProjected
+                      ? "Nothing tagged to next month's cycle yet."
+                      : "No expenses recorded."}
+                  </p>
+                ) : (
+                  <div className="flex flex-col items-center gap-3 px-4 pb-5">
                     <div
-                      key={t.month}
-                      className="flex h-full flex-1 flex-col items-center justify-end gap-1.5"
+                      className="relative size-[104px] shrink-0 rounded-full"
+                      style={{
+                        background: `conic-gradient(${d.gradientStops.join(", ")})`,
+                      }}
                     >
-                      <span className="font-display text-[10px] font-semibold text-ink-faint">
-                        {formatMoneyDisplay(t.total, currency).replace(
-                          /\.\d+$/,
-                          "",
-                        )}
-                      </span>
-                      <div
-                        className={`w-3/5 rounded-t-lg ${isCurrent ? "bg-accent" : "bg-accent-soft"}`}
-                        style={{ height: `${heightPct}%` }}
-                      />
+                      <div className="absolute inset-4 flex flex-col items-center justify-center rounded-full bg-surface">
+                        <span className="font-display text-[12.5px] font-extrabold text-ink">
+                          {formatMoneyDisplay(
+                            d.summary.totalExpense,
+                            currency,
+                          ).replace(/\.\d+$/, "")}
+                        </span>
+                      </div>
                     </div>
-                  );
-                })}
+                    <ul className="w-full">
+                      {d.slices.map((slice, i) => {
+                        const totalExpenseNum = moneyToDbNumber(
+                          d.summary.totalExpense,
+                        );
+                        const pct =
+                          totalExpenseNum > 0
+                            ? Math.round(
+                                (moneyToDbNumber(slice.total) /
+                                  totalExpenseNum) *
+                                  100,
+                              )
+                            : 0;
+                        return (
+                          <li
+                            key={slice.name}
+                            className="flex items-center gap-1.5 py-0.5 text-[11px]"
+                          >
+                            <span
+                              className="size-2 shrink-0 rounded-[2px]"
+                              style={{
+                                background:
+                                  CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+                              }}
+                            />
+                            <span className="min-w-0 flex-1 truncate font-medium text-ink">
+                              {slice.name}
+                            </span>
+                            <span className="shrink-0 font-display text-[10px] font-bold text-ink-faint">
+                              {pct}%
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
               </div>
-              <div className="mt-2 flex gap-2.5 border-t border-line pt-2">
-                {trend.map((t, i) => (
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+          <div className="flex items-center justify-between px-[18px] py-4">
+            <h2 className="font-display text-sm font-bold text-ink">
+              Month on month
+            </h2>
+            <span className="text-xs text-ink-faint">Total expenditure</span>
+          </div>
+          <div className="px-[18px] pb-2">
+            <div className="flex h-[130px] items-end gap-2.5">
+              {expenditureBars.map((t, i) => {
+                const heightPct = Math.max(
+                  4,
+                  (moneyToDbNumber(t.total) / trendMax) * 100,
+                );
+                const isCurrent =
+                  !t.isProjected && i === expenditureBars.length - 2;
+                return (
+                  <div
+                    key={t.month}
+                    className="flex h-full flex-1 flex-col items-center justify-end gap-1.5"
+                  >
+                    <span className="font-display text-[10px] font-semibold text-ink-faint">
+                      {formatMoneyDisplay(t.total, currency).replace(
+                        /\.\d+$/,
+                        "",
+                      )}
+                    </span>
+                    <div
+                      className={`w-3/5 rounded-t-lg ${
+                        t.isProjected
+                          ? "border-2 border-dashed border-accent bg-accent-soft"
+                          : isCurrent
+                            ? "bg-accent"
+                            : "bg-accent-soft"
+                      }`}
+                      style={{ height: `${heightPct}%` }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-2 flex gap-2.5 border-t border-line pt-2">
+              {expenditureBars.map((t, i) => {
+                const isCurrent =
+                  !t.isProjected && i === expenditureBars.length - 2;
+                return (
                   <span
                     key={t.month}
                     className={`flex-1 text-center font-display text-[10px] font-semibold ${
-                      i === trend.length - 1 ? "text-accent" : "text-ink-faint"
+                      t.isProjected
+                        ? "text-accent"
+                        : isCurrent
+                          ? "text-accent"
+                          : "text-ink-faint"
                     }`}
                   >
                     {monthShortLabel(t.month)}
+                    {t.isProjected && "*"}
                   </span>
-                ))}
-              </div>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-[10px] text-ink-faint">
+              * {monthShortLabel(nextMonth)} is projected from whatever&apos;s
+              already tagged to that cycle — recurring items and any one-off
+              transactions added ahead of time.
+            </p>
+          </div>
+        </div>
+
+        {/* v1.2 — new: income next to expense, not just expense alone.
+            Same six months as the trend above, reusing the same
+            getMonthlyCashFlowTrend call rather than a second query. */}
+        <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+          <div className="flex items-center justify-between px-[18px] py-4">
+            <h2 className="font-display text-sm font-bold text-ink">
+              Income vs expenses
+            </h2>
+            <span className="text-xs text-ink-faint">Last 6 months</span>
+          </div>
+          <div className="px-[18px] pb-4">
+            <div className="flex h-[130px] items-end gap-3">
+              {trend.map((t) => {
+                const incomeHeightPct = Math.max(
+                  4,
+                  (moneyToDbNumber(t.income) / cashFlowMax) * 100,
+                );
+                const expenseHeightPct = Math.max(
+                  4,
+                  (moneyToDbNumber(t.expense) / cashFlowMax) * 100,
+                );
+                return (
+                  <div
+                    key={t.month}
+                    className="flex h-full flex-1 flex-col items-center justify-end gap-1"
+                  >
+                    <div className="flex h-full w-full items-end justify-center gap-[3px]">
+                      <div
+                        className="w-2/5 rounded-t-md bg-positive"
+                        style={{ height: `${incomeHeightPct}%` }}
+                      />
+                      <div
+                        className="w-2/5 rounded-t-md bg-negative"
+                        style={{ height: `${expenseHeightPct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-2 flex gap-3 border-t border-line pt-2">
+              {trend.map((t) => (
+                <span
+                  key={t.month}
+                  className="flex-1 text-center font-display text-[10px] font-semibold text-ink-faint"
+                >
+                  {monthShortLabel(t.month)}
+                </span>
+              ))}
+            </div>
+            <div className="mt-3 flex items-center gap-4">
+              <span className="flex items-center gap-1.5 text-[10.5px] text-ink-soft">
+                <span className="size-2 rounded-[2px] bg-positive" /> Income
+              </span>
+              <span className="flex items-center gap-1.5 text-[10.5px] text-ink-soft">
+                <span className="size-2 rounded-[2px] bg-negative" /> Expenses
+              </span>
             </div>
           </div>
+        </div>
+
+        {/* v1.2 — new: what fraction of each month's income was left
+            over after expenses. Same trend data as the chart above,
+            just read as a rate instead of two absolute figures — the
+            "are we actually saving anything" question the totals alone
+            don't answer directly. */}
+        <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+          <div className="px-[18px] py-4">
+            <h2 className="font-display text-sm font-bold text-ink">
+              Savings rate
+            </h2>
+            <p className="mt-0.5 text-[11px] text-ink-faint">
+              Share of each month&apos;s income left over after expenses
+            </p>
+          </div>
+          <ul className="px-[18px] pb-4">
+            {trend.map((t) => {
+              const rate = savingsRatePct(t.income, t.expense);
+              const barPct = rate === null ? 0 : Math.min(100, Math.abs(rate));
+              const isNegative = rate !== null && rate < 0;
+              return (
+                <li
+                  key={t.month}
+                  className="flex items-center gap-3 border-b border-line py-2 last:border-b-0"
+                >
+                  <span className="w-9 shrink-0 font-display text-[11px] font-bold text-ink-soft">
+                    {monthShortLabel(t.month)}
+                  </span>
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-bg">
+                    <div
+                      className={`h-full rounded-full ${isNegative ? "bg-negative" : "bg-positive"}`}
+                      style={{ width: `${barPct}%` }}
+                    />
+                  </div>
+                  <span
+                    className={`w-12 shrink-0 text-right font-display text-[11.5px] font-bold ${
+                      rate === null
+                        ? "text-ink-faint"
+                        : isNegative
+                          ? "text-negative"
+                          : "text-positive"
+                    }`}
+                  >
+                    {rate === null ? "—" : `${rate}%`}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
         </div>
 
         <div className="rounded-[20px] border-[1.5px] border-dashed border-line bg-surface p-5 text-center text-ink-faint">

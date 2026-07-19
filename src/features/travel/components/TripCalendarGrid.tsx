@@ -171,29 +171,36 @@ export function TripCalendarGrid({
           const overflow = chips.length - shown.length;
           const dayNumber = Number(dateISO.slice(8, 10));
 
+          const isEmpty = chips.length === 0;
+
+          // v1.2: this used to be one <button> around the whole cell,
+          // with a click handler that always resolved to the *first*
+          // trip (or first manual event) via .find() — tapping the
+          // second or third chip on a busy day silently opened the
+          // first one instead, which is exactly what got reported.
+          // A <button> also can't correctly contain other interactive
+          // elements, so the fix is: the cell itself is a <div> (only
+          // clickable, as "add a trip here", when it has no chips at
+          // all), and every trip/manual chip is its own button that
+          // stops the click from reaching the cell. School chips stay
+          // non-interactive spans — they're read-only static data, same
+          // as before.
           return (
-            <button
-              type="button"
+            <div
               key={dateISO}
-              onClick={() => {
-                const tripHere = shown.find(
-                  (c): c is Extract<Chip, { kind: "trip" }> =>
-                    c.kind === "trip",
-                );
-                if (tripHere) {
-                  onTripClick(tripHere.trip.id);
-                  return;
-                }
-                const manualHere = shown.find(
-                  (c): c is Extract<Chip, { kind: "manual" }> =>
-                    c.kind === "manual",
-                );
-                if (manualHere) {
-                  onEventClick(manualHere.event.id);
-                  return;
-                }
-                onDayClick(dateISO);
-              }}
+              role={isEmpty ? "button" : undefined}
+              tabIndex={isEmpty ? 0 : undefined}
+              onClick={isEmpty ? () => onDayClick(dateISO) : undefined}
+              onKeyDown={
+                isEmpty
+                  ? (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onDayClick(dateISO);
+                      }
+                    }
+                  : undefined
+              }
               className={cn(
                 "flex min-h-[84px] flex-col gap-[3px] rounded-[10px] bg-bg p-1 text-left",
                 !isInMonth(dateISO, month) && "opacity-30",
@@ -210,8 +217,13 @@ export function TripCalendarGrid({
                   const isEnd = dateISO === chip.event.endDate;
                   const label = truncate(chip.event.title, 15);
                   return (
-                    <span
+                    <button
+                      type="button"
                       key={chip.key}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEventClick(chip.event.id);
+                      }}
                       title={`${chip.event.title}${chip.event.people.length > 0 ? ` — ${chip.event.people.join(", ")}` : ""}`}
                       className={cn(
                         "flex items-center gap-1 rounded px-1 py-[1.5px] font-display text-[9px] font-bold",
@@ -222,7 +234,7 @@ export function TripCalendarGrid({
                     >
                       <PersonDots names={chip.event.people} />
                       <span className="min-w-0 truncate">{label}</span>
-                    </span>
+                    </button>
                   );
                 }
 
@@ -234,8 +246,13 @@ export function TripCalendarGrid({
                     15,
                   );
                   return (
-                    <span
+                    <button
+                      type="button"
                       key={chip.key}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onTripClick(chip.trip.id);
+                      }}
                       title={`${chip.trip.destination}${chip.trip.flight ? ` · ${chip.trip.flight}` : ""}${chip.trip.travelerNames.length > 0 ? ` — ${chip.trip.travelerNames.join(", ")}` : ""}`}
                       className={cn(
                         "flex items-center gap-1 rounded px-1 py-[1.5px] font-display text-[9px] font-bold",
@@ -246,7 +263,7 @@ export function TripCalendarGrid({
                     >
                       <PersonDots names={chip.trip.travelerNames} />
                       <span className="min-w-0 truncate">{label}</span>
-                    </span>
+                    </button>
                   );
                 }
 
@@ -276,7 +293,7 @@ export function TripCalendarGrid({
                   +{overflow} more
                 </span>
               )}
-            </button>
+            </div>
           );
         })}
       </div>

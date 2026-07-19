@@ -24,6 +24,16 @@ const serverEnvSchema = z.object({
   // a "not configured" message in the insight card instead of crashing
   // the whole app at boot over an enhancement, not a core dependency.
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  // v1.2 — an alternate provider for the same Intel insight, for anyone
+  // who'd rather use an OpenAI key than an Anthropic one (or has one
+  // already and not the other). generateInsight() tries Anthropic
+  // first if both are set — see that function's comment for why.
+  OPENAI_API_KEY: z.string().min(1).optional(),
+  // Optional override — defaults to a current small/cheap OpenAI model
+  // in IntelService.ts if unset. Only relevant when OPENAI_API_KEY is
+  // configured; exists so a model rename/deprecation doesn't require a
+  // code change to recover from, just an env var.
+  OPENAI_MODEL: z.string().min(1).optional(),
   // The access gate: /calendar stays public (shareable without exposing
   // financial data), everything else requires this shared password once
   // per browser. This is NOT Supabase Auth and never calls any Supabase
@@ -56,6 +66,8 @@ function parseServerEnv() {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     APP_OWNER_USER_ID: process.env.APP_OWNER_USER_ID,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    OPENAI_MODEL: process.env.OPENAI_MODEL,
     APP_ACCESS_PASSWORD: process.env.APP_ACCESS_PASSWORD,
     APP_SESSION_SECRET: process.env.APP_SESSION_SECRET,
   });

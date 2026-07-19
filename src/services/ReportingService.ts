@@ -51,18 +51,32 @@ export interface MonthlyExpenditure {
   total: Money;
 }
 
+export interface MonthlyCashFlow {
+  /** "YYYY-MM" */
+  month: string;
+  income: Money;
+  expense: Money;
+}
+
 /**
- * Total expenditure for each of the last `months` calendar months
+ * Income and expense for each of the last `months` calendar months
  * (including the current, partial one), oldest first. Built on top of
  * getCashFlowSummary rather than a separate aggregate query — one call
  * per month is fine at `months` <= ~12; revisit if this ever needs a
  * longer window (see the same "no aggregate RPC/view yet" note above).
+ *
+ * v1.2: this used to only return the expense figure (as
+ * getMonthlyExpenditureTrend, still below, now just a thin wrapper over
+ * this) — pulled the income side out too so Intel's new income-vs-
+ * expense and savings-rate charts could reuse the exact same six
+ * getCashFlowSummary calls instead of running a second, near-identical
+ * loop next to this one.
  */
-export async function getMonthlyExpenditureTrend(
+export async function getMonthlyCashFlowTrend(
   months: number,
-): Promise<MonthlyExpenditure[]> {
+): Promise<MonthlyCashFlow[]> {
   const now = new Date();
-  const results: MonthlyExpenditure[] = [];
+  const results: MonthlyCashFlow[] = [];
 
   for (let i = months - 1; i >= 0; i -= 1) {
     const monthStart = new Date(
@@ -75,14 +89,39 @@ export async function getMonthlyExpenditureTrend(
     const to = monthEnd.toISOString().slice(0, 10);
 
     const summary = await getCashFlowSummary({ from, to });
-    results.push({ month: from.slice(0, 7), total: summary.totalExpense });
+    results.push({
+      month: from.slice(0, 7),
+      income: summary.totalIncome,
+      expense: summary.totalExpense,
+    });
   }
 
   return results;
 }
 
+/** Thin wrapper over getMonthlyCashFlowTrend, kept for the one existing caller that only ever wanted the expense side. */
+export async function getMonthlyExpenditureTrend(
+  months: number,
+): Promise<MonthlyExpenditure[]> {
+  const trend = await getMonthlyCashFlowTrend(months);
+  return trend.map((t) => ({ month: t.month, total: t.expense }));
+}
+
 export async function getCashFlowSummary(
   range: CashFlowRange,
+  /**
+   * v1.2 — false (the original, still-default behavior) counts only
+   * `status: "posted"` transactions, i.e. what actually happened.
+   * true also counts `"pending"` ones, which is what makes this
+   * function usable for a future month at all: a fixed expense or
+   * card payment tagged to next month's cycle exists as a real,
+   * categorized transaction row already (see BudgetSnapshotService),
+   * it just hasn't posted yet. Intel's "upcoming month" donut is the
+   * one caller that passes true; every other caller (the trend chart,
+   * the current-month donut, generateInsight) wants actuals only and
+   * leaves this at its default.
+   */
+  includePending = false,
 ): Promise<CashFlowSummary> {
   const parsed = cashFlowRangeSchema.parse(range);
   const supabase = createServiceClient();
@@ -91,7 +130,7 @@ export async function getCashFlowSummary(
     .from("transactions")
     .select("amount, kind, transaction_splits(category_id, amount)")
     .eq("user_id", OWNER_USER_ID)
-    .eq("status", "posted")
+    .in("status", includePending ? ["posted", "pending"] : ["posted"])
     .in("kind", ["income", "expense"])
     .gte("occurred_on", parsed.from)
     .lte("occurred_on", parsed.to);

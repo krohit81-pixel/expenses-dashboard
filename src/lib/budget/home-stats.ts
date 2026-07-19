@@ -27,14 +27,21 @@ import type { MonthlyBudgetSnapshot } from "@/services/BudgetSnapshotService";
  * lib/accounts/spendable.ts). A transfer between two spendable accounts
  * still contributes nothing, same as v1.1.4 intended.
  */
-export function computeProjectedClosing(
+/**
+ * Fixed recurring expenses plus one-off items that behave like a real
+ * cash outflow this month (real expenses, and transfers that reduce
+ * cash on hand — see BudgetSnapshotService's comment on
+ * transferReducesCashOnHand). This is the "committed" half of
+ * computeProjectedClosing below, split out as its own function (v1.2)
+ * so Intel's month-on-month chart and donut can reuse the exact same
+ * "how much will this month cost" figure for a not-yet-real future
+ * month (a snapshot for a month with no actual transactions yet still
+ * has real fixedExpenses/oneOff data once recurring items are tagged
+ * to that cycle) instead of a third hand-copy of this filter.
+ */
+export function computeCommittedExpenseTotal(
   snapshot: MonthlyBudgetSnapshot,
 ): Money {
-  const oneOffIncome = sumMoney(
-    snapshot.oneOff
-      .filter((line) => line.kind === "income")
-      .map((line) => line.amount),
-  );
   const oneOffCommitted = sumMoney(
     snapshot.oneOff
       .filter(
@@ -44,7 +51,18 @@ export function computeProjectedClosing(
       )
       .map((line) => line.amount),
   );
+  return addMoney(snapshot.fixedExpenseTotal, oneOffCommitted);
+}
+
+export function computeProjectedClosing(
+  snapshot: MonthlyBudgetSnapshot,
+): Money {
+  const oneOffIncome = sumMoney(
+    snapshot.oneOff
+      .filter((line) => line.kind === "income")
+      .map((line) => line.amount),
+  );
   const totalIncome = addMoney(snapshot.incomeTotal, oneOffIncome);
-  const totalCommitted = addMoney(snapshot.fixedExpenseTotal, oneOffCommitted);
+  const totalCommitted = computeCommittedExpenseTotal(snapshot);
   return addMoney(totalIncome, negateMoney(totalCommitted));
 }

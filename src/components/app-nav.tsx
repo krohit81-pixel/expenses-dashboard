@@ -88,6 +88,7 @@ function isActive(pathname: string, href: string): boolean {
 /** Desktop nav, rendered inside the gradient Hero — translucent pill links on the dark background. */
 /** Desktop nav — lives in the shared (app)/layout.tsx, present on every page regardless of whether that page has a Hero. */
 /** v1.1.6: label text bumped 13px -> 14.5px, alongside the same bump on BottomNav below, at the user's request. */
+/** v1.2: gained the same stroke icons BottomNav already had — TopNav never had icons at all (not a regression, just never built with them), which read as missing/broken on iPad and Mac where TopNav is what's visible. */
 export function TopNav() {
   const pathname = usePathname();
 
@@ -101,12 +102,13 @@ export function TopNav() {
             href={item.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "rounded-full px-3.5 py-2 font-display text-[14.5px] font-semibold transition-colors",
+              "flex items-center gap-1.5 rounded-full px-3.5 py-2 font-display text-[14.5px] font-semibold transition-colors",
               active
                 ? "bg-[hsl(var(--accent-soft))] text-[hsl(var(--accent))]"
                 : "text-[hsl(var(--ink-faint))] hover:text-[hsl(var(--ink))]",
             )}
           >
+            <item.icon className="size-[17px] fill-none stroke-current stroke-[1.7] [stroke-linecap:round] [stroke-linejoin:round]" />
             {item.label}
           </Link>
         );

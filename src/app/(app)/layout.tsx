@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { requireUser } from "@/lib/auth/require-user";
+import { AppFooter } from "@/components/app-footer";
 import { BottomNav, TopNav } from "@/components/app-nav";
 
 /**
@@ -39,6 +40,7 @@ export default async function AppLayout({
         <TopNav />
       </div>
       <main id="main-content">{children}</main>
+      <AppFooter />
       <BottomNav />
     </div>
   );

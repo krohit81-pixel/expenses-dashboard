@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { sumMoney } from "@/lib/money";
-import { computeProjectedClosing } from "./home-stats";
+import {
+  computeCommittedExpenseTotal,
+  computeProjectedClosing,
+} from "./home-stats";
 import type { MonthlyBudgetSnapshot } from "@/services/BudgetSnapshotService";
 
 function snapshot(
@@ -241,5 +244,80 @@ describe("computeProjectedClosing", () => {
       }),
     );
     expect(result).toBe("-20000.00");
+  });
+});
+
+describe("computeCommittedExpenseTotal", () => {
+  it("is zero for an empty month", () => {
+    expect(computeCommittedExpenseTotal(snapshot())).toBe("0.00");
+  });
+
+  it("sums fixed expenses and one-off expenses, ignoring income", () => {
+    const result = computeCommittedExpenseTotal(
+      snapshot({
+        income: [
+          {
+            id: "1",
+            name: "Salary",
+            amount: "100000.00" as never,
+            currencyCode: "INR",
+            status: "posted",
+          },
+        ],
+        fixedExpenses: [
+          {
+            id: "2",
+            name: "Rent",
+            amount: "30000.00" as never,
+            currencyCode: "INR",
+            status: "posted",
+          },
+        ],
+        oneOff: [
+          {
+            id: "3",
+            payee: "Groceries",
+            amount: "5000.00" as never,
+            currencyCode: "INR",
+            kind: "expense",
+            transferAccountId: null,
+            status: "pending",
+            transferReducesCashOnHand: false,
+          },
+        ],
+      }),
+    );
+    // 30000 rent + 5000 groceries — the 100000 salary doesn't factor in.
+    expect(result).toBe("35000.00");
+  });
+
+  it("includes a card-paydown transfer but not a spendable-to-spendable one", () => {
+    const result = computeCommittedExpenseTotal(
+      snapshot({
+        oneOff: [
+          {
+            id: "1",
+            payee: "Card statement",
+            amount: "20000.00" as never,
+            currencyCode: "INR",
+            kind: "transfer",
+            transferAccountId: "acct-card",
+            status: "posted",
+            transferReducesCashOnHand: true,
+          },
+          {
+            id: "2",
+            payee: "Self",
+            amount: "10000.00" as never,
+            currencyCode: "INR",
+            kind: "transfer",
+            transferAccountId: "acct-savings",
+            status: "posted",
+            transferReducesCashOnHand: false,
+          },
+        ],
+      }),
+    );
+    expect(result).toBe("20000.00");
   });
 });
