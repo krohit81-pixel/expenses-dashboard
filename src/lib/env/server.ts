@@ -34,6 +34,16 @@ const serverEnvSchema = z.object({
   // configured; exists so a model rename/deprecation doesn't require a
   // code change to recover from, just an env var.
   OPENAI_MODEL: z.string().min(1).optional(),
+  // v1.3.0 — the password on HDFC's Infinia statement PDF (HDFC emails
+  // these encrypted; the usual scheme is some combination of the
+  // cardholder's name/DOB, but this app never assumes a specific
+  // formula — it's just read as an opaque string from this env var).
+  // Optional, same reasoning as the AI keys above: without it, the
+  // /imports page still loads, it just can't decrypt a protected PDF —
+  // it says so rather than crashing. Only one card is supported for
+  // now (Infinia); a second card would get its own env var when that's
+  // actually needed, not a speculative multi-card scheme today.
+  HDFC_INFINIA_STATEMENT_PASSWORD: z.string().min(1).optional(),
   // The access gate: /calendar stays public (shareable without exposing
   // financial data), everything else requires this shared password once
   // per browser. This is NOT Supabase Auth and never calls any Supabase
@@ -68,6 +78,8 @@ function parseServerEnv() {
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     OPENAI_MODEL: process.env.OPENAI_MODEL,
+    HDFC_INFINIA_STATEMENT_PASSWORD:
+      process.env.HDFC_INFINIA_STATEMENT_PASSWORD,
     APP_ACCESS_PASSWORD: process.env.APP_ACCESS_PASSWORD,
     APP_SESSION_SECRET: process.env.APP_SESSION_SECRET,
   });
