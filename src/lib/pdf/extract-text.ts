@@ -1,4 +1,5 @@
 import { installDOMMatrixPolyfill } from "@/lib/pdf/dommatrix-polyfill";
+import { installPdfjsWorker } from "@/lib/pdf/pdfjs-worker-setup";
 
 /**
  * PDF text extraction with optional password decryption.
@@ -135,6 +136,10 @@ async function loadPdfjs() {
   // polyfill instead of pdf.js's own native-dependency answer to the same
   // problem.
   installDOMMatrixPolyfill();
+  // Also must run before pdf.js's own worker setup runs (which happens
+  // when getDocument() is called, not at import time) -- see
+  // pdfjs-worker-setup.ts for why.
+  installPdfjsWorker();
   return import("pdfjs-dist/legacy/build/pdf.mjs");
 }
 
