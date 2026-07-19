@@ -4,27 +4,39 @@ import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { formatMoneyDisplay } from "@/lib/money";
 import {
-  extractStatementAction,
-  type ExtractStatementState,
+  importStatementAction,
+  type ImportStatementState,
 } from "@/features/imports/api/actions";
 import { CARD_STATEMENT_LABELS } from "@/features/imports/cards";
 
 const CARD_OPTIONS = Object.entries(CARD_STATEMENT_LABELS);
 
+const DATE_FORMATTER = new Intl.DateTimeFormat("en-IN", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+function formatIsoDate(iso: string): string {
+  return DATE_FORMATTER.format(new Date(`${iso}T00:00:00Z`));
+}
+
 /**
- * v1.3.0 milestone 1 UI: upload a statement PDF and see the raw
- * extracted text back, per page. This exists to let the file be
- * visually checked against the real statement — nothing here writes
- * anything to the database. Once this is confirmed reliable against a
- * real, password-protected statement, the next milestone parses the
- * extracted text into reviewable transactions.
+ * Phase 2: upload a statement PDF and it's parsed, reconciled, and
+ * saved automatically — no separate review/confirm step. A summary of
+ * what got saved is shown immediately after; the raw extracted text
+ * (Phase 1's whole UI) is still available underneath, collapsed, since
+ * it's the most useful thing to check against if a parse or
+ * reconciliation error comes back.
  */
 export function StatementUploadForm() {
   const [card, setCard] = useState(CARD_OPTIONS[0][0]);
   const [fileName, setFileName] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [state, setState] = useState<ExtractStatementState>({});
+  const [state, setState] = useState<ImportStatementState>({});
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -33,7 +45,7 @@ export function StatementUploadForm() {
     setIsSubmitting(true);
     setState({});
     try {
-      const next = await extractStatementAction(state, formData);
+      const next = await importStatementAction(state, formData);
       setState(next);
     } finally {
       setIsSubmitting(false);
@@ -78,7 +90,7 @@ export function StatementUploadForm() {
         </div>
 
         <Button type="submit" loading={isSubmitting}>
-          {isSubmitting ? "Reading…" : "Extract text"}
+          {isSubmitting ? "Reading & saving…" : "Upload statement"}
         </Button>
       </form>
 
@@ -88,34 +100,69 @@ export function StatementUploadForm() {
         </p>
       )}
 
-      {state.result && !state.result.ok && (
-        <p className="rounded-xl bg-negative-soft px-3 py-2 text-sm text-negative">
-          {state.result.message}
-        </p>
+      {state.summary && (
+        <div className="space-y-2 rounded-xl bg-positive-soft px-4 py-3 text-sm text-ink">
+          <p className="font-display text-xs font-bold text-positive">
+            {state.status === "duplicate"
+              ? "Already imported — no changes made"
+              : `Saved — ${state.summary.transactionCount} transaction${state.summary.transactionCount === 1 ? "" : "s"} imported`}
+          </p>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-ink-soft">
+            <dt className="text-ink-faint">Card</dt>
+            <dd>
+              {state.summary.issuer} {state.summary.cardType} ••••{" "}
+              {state.summary.cardLast4}
+            </dd>
+            <dt className="text-ink-faint">Cardholder</dt>
+            <dd>{state.summary.primaryCardholder}</dd>
+            <dt className="text-ink-faint">Statement date</dt>
+            <dd>{formatIsoDate(state.summary.statementDate)}</dd>
+            <dt className="text-ink-faint">Due date</dt>
+            <dd>{formatIsoDate(state.summary.dueDate)}</dd>
+            <dt className="text-ink-faint">Total amount due</dt>
+            <dd>
+              {formatMoneyDisplay(
+                state.summary.totalAmountDue,
+                state.summary.statementCurrency,
+              )}
+            </dd>
+            <dt className="text-ink-faint">Minimum due</dt>
+            <dd>
+              {formatMoneyDisplay(
+                state.summary.minimumDue,
+                state.summary.statementCurrency,
+              )}
+            </dd>
+          </dl>
+        </div>
       )}
 
-      {state.result?.ok && (
-        <div className="space-y-3">
-          <p className="text-sm text-ink-soft">
-            Opened successfully — {state.result.pageCount}{" "}
-            {state.result.pageCount === 1 ? "page" : "pages"}. Extracted text
-            below, exactly as read (nothing parsed or saved yet).
-          </p>
-          {state.result.pages.map((page) => (
-            <details
-              key={page.pageNumber}
-              className="rounded-xl border-[1.5px] border-line bg-surface"
-              open={page.pageNumber === 1}
-            >
-              <summary className="cursor-pointer px-3 py-2 font-display text-xs font-bold text-ink">
-                Page {page.pageNumber}
-              </summary>
-              <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words px-3 pb-3 font-mono text-[11px] leading-relaxed text-ink-soft">
-                {page.text || "(no text found on this page)"}
-              </pre>
-            </details>
-          ))}
-        </div>
+      {state.pages && (
+        <details className="rounded-xl border-[1.5px] border-line bg-surface">
+          <summary className="cursor-pointer px-3 py-2 font-display text-xs font-bold text-ink">
+            Extracted text ({state.pages.length}{" "}
+            {state.pages.length === 1 ? "page" : "pages"})
+          </summary>
+          <div className="space-y-2 px-3 pb-3">
+            <p className="text-xs text-ink-faint">
+              Exactly what was read from the PDF, for double-checking against
+              the real statement if something above looks wrong.
+            </p>
+            {state.pages.map((page) => (
+              <details
+                key={page.pageNumber}
+                className="rounded-xl border-[1.5px] border-line bg-surface"
+              >
+                <summary className="cursor-pointer px-3 py-2 font-display text-xs font-bold text-ink">
+                  Page {page.pageNumber}
+                </summary>
+                <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words px-3 pb-3 font-mono text-[11px] leading-relaxed text-ink-soft">
+                  {page.text || "(no text found on this page)"}
+                </pre>
+              </details>
+            ))}
+          </div>
+        </details>
       )}
     </div>
   );

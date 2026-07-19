@@ -8,13 +8,12 @@ export const metadata: Metadata = {
 };
 
 /**
- * v1.3.0 milestone 1: confirm a card statement PDF — including a
- * password-protected one — can be reliably opened and its text
- * extracted. Deliberately stops there: nothing is parsed into
- * transactions and nothing is persisted yet. See
- * docs/12-roadmap-and-implementation-order.md's Phase 3 for where this
- * is headed; this page will grow a review queue once text extraction
- * has proven solid against real statements.
+ * Phase 2: upload an HDFC Infinia statement PDF and it's decrypted,
+ * parsed, reconciled against its own printed totals, and saved
+ * automatically -- no manual review step. If the numbers don't
+ * reconcile, or the layout doesn't parse, nothing is saved and the
+ * error explains why. Re-uploading an already-saved statement is safe
+ * and never creates a duplicate.
  */
 export default function ImportsPage() {
   return (
@@ -26,9 +25,9 @@ export default function ImportsPage() {
             Upload a statement
           </h2>
           <p className="mt-1 text-xs text-ink-faint">
-            First milestone: confirm we can open the PDF (decrypting it if
-            it&apos;s password protected) and read its text. Transaction parsing
-            comes in a later update.
+            HDFC Infinia only, for now. The PDF is decrypted, parsed, and saved
+            automatically once its numbers reconcile against the
+            statement&apos;s own totals.
           </p>
           <div className="mt-4">
             <StatementUploadForm />

@@ -1,0 +1,192 @@
+import "server-only";
+
+import { createHash } from "node:crypto";
+
+import { moneyToDbNumber } from "@/lib/money";
+import { OWNER_USER_ID } from "@/lib/owner";
+import { createServiceClient } from "@/lib/supabase/service";
+import {
+  HdfcHeaderParseError,
+  parseHdfcInfiniaHeader,
+} from "@/services/statement-parsers/hdfc-infinia/parse-header";
+import {
+  HdfcTransactionParseError,
+  parseHdfcTransactions,
+} from "@/services/statement-parsers/hdfc-infinia/parse-transactions";
+import {
+  assertHdfcStatementReconciles,
+  HdfcReconciliationError,
+} from "@/services/statement-parsers/hdfc-infinia/reconcile";
+import type { Json } from "@/lib/db/database-types";
+import type { HdfcStatementHeader } from "@/services/statement-parsers/hdfc-infinia/types";
+
+export {
+  HdfcHeaderParseError,
+  HdfcReconciliationError,
+  HdfcTransactionParseError,
+};
+
+export interface SaveHdfcStatementResult {
+  /** "duplicate" means this exact statement was already saved -- see statement_hash below. Nothing new was written. */
+  outcome: "saved" | "duplicate";
+  statementId: string;
+  header: HdfcStatementHeader;
+  transactionCount: number;
+}
+
+/**
+ * sha256 of the extracted statement text (not the original PDF bytes --
+ * see the migration's comment on statement_hash for why: two
+ * byte-different-but-content-identical exports of the same statement
+ * should still be recognized as the same statement).
+ */
+function hashStatementText(pageTexts: string[]): string {
+  return createHash("sha256").update(pageTexts.join("\n")).digest("hex");
+}
+
+/**
+ * Parses, reconciles, and persists an HDFC Infinia statement -- the full
+ * pipeline behind "parse and save automatically" (Atlas has no manual
+ * review/confirm step; reconciliation is what stands in for one). Throws
+ * HdfcHeaderParseError / HdfcTransactionParseError if the text can't be
+ * turned into structured data, or HdfcReconciliationError if it parses
+ * but the numbers don't add up -- in both cases nothing is written to
+ * the database. Never overwrites or duplicates an already-saved
+ * statement (see statement_hash); calling this again with the same PDF
+ * is always safe and returns { outcome: "duplicate" } instead of erroring.
+ */
+export async function saveHdfcInfiniaStatement(
+  pageTexts: string[],
+  pdfFilename: string,
+): Promise<SaveHdfcStatementResult> {
+  const header = parseHdfcInfiniaHeader(pageTexts);
+  const transactions = parseHdfcTransactions(pageTexts);
+  assertHdfcStatementReconciles(header, transactions);
+
+  const statementHash = hashStatementText(pageTexts);
+  const supabase = createServiceClient();
+
+  const { data: existing, error: lookupError } = await supabase
+    .from("credit_card_statements")
+    .select("id")
+    .eq("user_id", OWNER_USER_ID)
+    .eq("statement_hash", statementHash)
+    .eq("statement_date", header.statementDate)
+    .eq("card_last4", header.cardLast4)
+    .maybeSingle();
+
+  if (lookupError) {
+    throw new Error(
+      `Failed to check for a duplicate statement: ${lookupError.message}`,
+    );
+  }
+  if (existing) {
+    return {
+      outcome: "duplicate",
+      statementId: existing.id,
+      header,
+      transactionCount: transactions.length,
+    };
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("credit_card_statements")
+    .insert({
+      user_id: OWNER_USER_ID,
+      issuer: header.issuer,
+      card_type: header.cardType,
+      card_last4: header.cardLast4,
+      primary_cardholder: header.primaryCardholder,
+      statement_date: header.statementDate,
+      billing_period_start: header.billingPeriodStart,
+      billing_period_end: header.billingPeriodEnd,
+      due_date: header.dueDate,
+      total_amount_due: moneyToDbNumber(header.totalAmountDue),
+      minimum_due: moneyToDbNumber(header.minimumDue),
+      previous_statement_due: moneyToDbNumber(header.previousStatementDue),
+      payments_received: moneyToDbNumber(header.paymentsReceived),
+      purchases_debit: moneyToDbNumber(header.purchasesDebit),
+      finance_charges: moneyToDbNumber(header.financeCharges),
+      available_credit_limit: moneyToDbNumber(header.availableCreditLimit),
+      total_credit_limit: moneyToDbNumber(header.totalCreditLimit),
+      available_cash_limit: moneyToDbNumber(header.availableCashLimit),
+      reward_points_balance: header.rewardPointsBalance,
+      reward_points_earned: header.rewardPointsEarned,
+      reward_points_expiring_30_days: header.rewardPointsExpiring30Days,
+      reward_points_expiring_60_days: header.rewardPointsExpiring60Days,
+      cashback_amount: moneyToDbNumber(header.cashbackAmount),
+      // Cast, not re-serialized: these are already plain
+      // string/number/boolean data (see types.ts), just missing an index
+      // signature TypeScript wants for a structural Json match.
+      reward_points_summary: header.rewardPointsSummary as unknown as Json,
+      cashback_summary: header.cashbackSummary as unknown as Json,
+      statement_currency: header.statementCurrency,
+      pdf_filename: pdfFilename,
+      statement_hash: statementHash,
+    })
+    .select("id")
+    .single();
+
+  if (insertError || !inserted) {
+    throw new Error(
+      `Failed to save statement: ${insertError?.message ?? "unknown error"}`,
+    );
+  }
+
+  if (transactions.length > 0) {
+    const { error: transactionsError } = await supabase
+      .from("credit_card_transactions")
+      .insert(
+        transactions.map((t) => ({
+          user_id: OWNER_USER_ID,
+          statement_id: inserted.id,
+          transaction_date: t.transactionDate,
+          transaction_time: t.transactionTime,
+          description: t.description,
+          merchant_raw: t.merchantRaw,
+          merchant_normalized: t.merchantNormalized,
+          amount: moneyToDbNumber(t.amount),
+          currency: t.currency,
+          transaction_type: t.transactionType,
+          is_payment: t.isPayment,
+          is_cashback: t.isCashback,
+          is_refund: t.isRefund,
+          is_emi: t.isEmi,
+          credit_type: t.creditType,
+          payment_reference: t.paymentReference,
+          emi_merchant: t.emiMerchant,
+          emi_amount: t.emiAmount ? moneyToDbNumber(t.emiAmount) : null,
+          reward_points: t.rewardPoints,
+          purchase_indicator_code: t.purchaseIndicatorCode,
+          purchase_indicator_name: t.purchaseIndicatorName,
+          cardholder_type: t.cardholderType,
+          cardholder_name: t.cardholderName,
+          page_number: t.pageNumber,
+          sequence_number: t.sequenceNumber,
+          raw_text: t.rawText,
+        })),
+      );
+
+    if (transactionsError) {
+      // A statement row with no (or partial) transactions is worse than
+      // no statement row at all -- it would permanently block
+      // re-importing the same PDF via the dedup check above, without
+      // ever having usable transaction data. Roll it back rather than
+      // leave a half-saved statement behind.
+      await supabase
+        .from("credit_card_statements")
+        .delete()
+        .eq("id", inserted.id);
+      throw new Error(
+        `Failed to save transactions: ${transactionsError.message}`,
+      );
+    }
+  }
+
+  return {
+    outcome: "saved",
+    statementId: inserted.id,
+    header,
+    transactionCount: transactions.length,
+  };
+}
