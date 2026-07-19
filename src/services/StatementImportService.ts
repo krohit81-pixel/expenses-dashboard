@@ -1,19 +1,5 @@
 import "server-only";
 
-// pdf.js (extract-text.ts) needs this for its Node DOMMatrix/Path2D
-// polyfill on certain PDF content (fonts with embedded glyph paths,
-// shading patterns, etc. -- see extract-text.ts for detail). pdf.js
-// loads it itself, lazily, via a `createRequire()` indirection written
-// to survive bundlers -- but that same indirection is invisible to
-// Vercel's deployment file tracer, which silently left this package's
-// native binary out of the deployed function ("DOMMatrix is not
-// defined" in production, despite working fine locally and in tests).
-// An ordinary static import here is unambiguous for the tracer, and
-// also warms Node's module cache so pdf.js's own later internal
-// require resolves to this same already-loaded instance. See also
-// next.config.ts's serverExternalPackages, which stops webpack from
-// trying to inline this package's native binary into a JS chunk.
-import "@napi-rs/canvas";
 import { serverEnv } from "@/lib/env/server";
 import type { CardStatementSource } from "@/features/imports/cards";
 import {

@@ -1,3 +1,5 @@
+import { installDOMMatrixPolyfill } from "@/lib/pdf/dommatrix-polyfill";
+
 /**
  * PDF text extraction with optional password decryption.
  *
@@ -125,6 +127,14 @@ function reconstructLayout(items: PositionedTextItem[]): string {
 // headless in Node with no worker needed, which is what pdf.js itself
 // recommends for server-side use.
 async function loadPdfjs() {
+  // Must run before pdf.js is imported: a module-level constant inside
+  // pdf.js constructs a `new DOMMatrix()` unconditionally the moment the
+  // module loads, so without a DOMMatrix global, every extraction fails
+  // at import time, not just ones touching unusual PDF content. See
+  // dommatrix-polyfill.ts for the full story on why this is a hand-written
+  // polyfill instead of pdf.js's own native-dependency answer to the same
+  // problem.
+  installDOMMatrixPolyfill();
   return import("pdfjs-dist/legacy/build/pdf.mjs");
 }
 
