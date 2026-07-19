@@ -36,12 +36,29 @@ export interface TravelWindow {
   note?: string;
 }
 
+/**
+ * v1.1.5: holiday/exam/event were previously pale "-soft" tints (exam,
+ * event) or no color at all (holiday was just bg-line, a plain neutral
+ * gray) — easy to tell apart from a solid vacation/travel chip, hard to
+ * tell apart from *each other*, which is exactly what was reported.
+ * Every category is now a solid, bold color with white text, matching
+ * how vacation and booked travel already looked, so all of them read
+ * the same way at a glance instead of some being bold and others
+ * washed-out. Colors chosen to sit apart from each other AND from booked
+ * travel's teal on the hue wheel: green (vacation) / orange (holiday) /
+ * red (exam) / purple (event) / teal (trip, travel). "trip" (a school-
+ * organized trip, from the static calendar data — see the "Educational
+ * Trip, Grades 6–8" entry) intentionally shares travel's teal rather
+ * than getting its own 6th color: both mean "away from home," and
+ * distinguishing every other category from each other mattered more
+ * than distinguishing this one from travel specifically.
+ */
 export const TAG_STYLES: Record<EventTag, string> = {
   vacation: "bg-positive text-white",
-  holiday: "bg-line text-ink-soft",
-  exam: "bg-negative-soft text-negative",
-  event: "bg-accent-soft text-accent",
-  trip: "bg-accent-soft text-accent",
+  holiday: "bg-amber text-white",
+  exam: "bg-negative text-white",
+  event: "bg-accent text-white",
+  trip: "bg-teal text-white",
 };
 
 export const TAG_LABELS: Record<EventTag, string> = {

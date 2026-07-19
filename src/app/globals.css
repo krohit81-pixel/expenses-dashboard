@@ -10,6 +10,20 @@
  */
 @layer base {
   :root {
+    /* v1.1.5: without this, native form controls (type="date" inputs,
+       <select> dropdown popups, etc.) render using the browser/OS's own
+       light-or-dark default, independent of this app's own .dark class
+       toggle below. Concretely, that's what made "Log a card payment"
+       show boxes with white backgrounds while everything else on the
+       page was correctly dark — the date input and selects there just
+       followed the device's own preference instead of Atlas's, and the
+       two are easy to have out of sync (in-app dark mode toggled on
+       while the OS itself is still in light mode, or vice versa).
+       Setting this explicitly makes native control chrome follow
+       whichever theme this class actually is, the same as every custom
+       color on the page already does via the tokens below. */
+    color-scheme: light;
+
     --bg: 320 23% 95%;
     --surface: 0 0% 100%;
     --hero-1: 254 63% 21%;
@@ -70,6 +84,8 @@
    * indigo, so it doesn't need much adjustment either way.
    */
   .dark {
+    color-scheme: dark;
+
     --bg: 260 22% 9%;
     --surface: 260 18% 14%;
     --hero-1: 254 55% 14%;

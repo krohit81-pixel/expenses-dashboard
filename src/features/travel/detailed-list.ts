@@ -12,6 +12,7 @@ import type {
   SchoolCalendarItem,
   SchoolPerson,
 } from "@/features/travel/school-items";
+import type { CalendarEvent } from "@/services/CalendarEventService";
 import type { Trip } from "@/services/TripService";
 
 export type DetailedItem =
@@ -35,6 +36,16 @@ export type DetailedItem =
       notes: string | null;
       startDate: string;
       endDate: string;
+    }
+  | {
+      kind: "manual";
+      key: string;
+      eventId: string;
+      title: string;
+      tag: Exclude<EventTag, "trip">;
+      notes: string | null;
+      startDate: string;
+      endDate: string;
     };
 
 export interface DetailedGroup {
@@ -53,6 +64,7 @@ export function buildDetailedGroups(
   trips: Trip[],
   schoolItems: SchoolCalendarItem[],
   visible: VisibilityFilter,
+  calendarEvents: CalendarEvent[] = [],
 ): DetailedGroup[] {
   const items: DetailedItem[] = [
     ...schoolItems
@@ -80,6 +92,18 @@ export function buildDetailedGroups(
           endDate: trip.endDate,
         }))
       : []),
+    // Manual events always show — they're not tied to Ahaana/Rohana/
+    // Travel, so none of the existing visibility toggles apply to them.
+    ...calendarEvents.map((event): DetailedItem => ({
+      kind: "manual",
+      key: `manual-${event.id}`,
+      eventId: event.id,
+      title: event.title,
+      tag: event.tag,
+      notes: event.notes,
+      startDate: event.startDate,
+      endDate: event.endDate,
+    })),
   ];
 
   items.sort(

@@ -17,6 +17,7 @@ import {
 } from "@/features/calendar/data";
 import { travelerColorClass } from "@/features/travel/travelers";
 import type { SchoolCalendarItem } from "@/features/travel/school-items";
+import type { CalendarEvent } from "@/services/CalendarEventService";
 import type { Trip } from "@/services/TripService";
 
 const TRAVEL_STYLE = "bg-teal text-white";
@@ -51,12 +52,14 @@ function PersonDots({ names }: { names: string[] }) {
 
 type Chip =
   | { kind: "school"; key: string; item: SchoolCalendarItem }
-  | { kind: "trip"; key: string; trip: Trip };
+  | { kind: "trip"; key: string; trip: Trip }
+  | { kind: "manual"; key: string; event: CalendarEvent };
 
 function chipsForDate(
   dateISO: string,
   trips: Trip[],
   schoolItems: SchoolCalendarItem[],
+  calendarEvents: CalendarEvent[],
   visible: { ahaana: boolean; rohana: boolean; travel: boolean },
 ): Chip[] {
   const chips: Chip[] = [];
@@ -78,6 +81,13 @@ function chipsForDate(
       });
     }
   }
+  // Manual events always show — not tied to any of the visibility
+  // toggles above, same reasoning as detailed-list.ts's merge.
+  for (const event of calendarEvents) {
+    if (dateISO >= event.startDate && dateISO <= event.endDate) {
+      chips.push({ kind: "manual", key: `manual-${event.id}`, event });
+    }
+  }
   return chips;
 }
 
@@ -86,17 +96,21 @@ export function TripCalendarGrid({
   onMonthChange,
   trips,
   schoolItems,
+  calendarEvents,
   visible,
   onDayClick,
   onTripClick,
+  onEventClick,
 }: {
   month: string;
   onMonthChange: (month: string) => void;
   trips: Trip[];
   schoolItems: SchoolCalendarItem[];
+  calendarEvents: CalendarEvent[];
   visible: { ahaana: boolean; rohana: boolean; travel: boolean };
   onDayClick: (dateISO: string) => void;
   onTripClick: (tripId: string) => void;
+  onEventClick: (eventId: string) => void;
 }) {
   const dates = getMonthGridDates(month);
   const today = todayISODate();
@@ -140,7 +154,13 @@ export function TripCalendarGrid({
 
       <div className="grid grid-cols-7 gap-[3px]">
         {dates.map((dateISO) => {
-          const chips = chipsForDate(dateISO, trips, schoolItems, visible);
+          const chips = chipsForDate(
+            dateISO,
+            trips,
+            schoolItems,
+            calendarEvents,
+            visible,
+          );
           const shown = chips.slice(0, MAX_CHIPS_PER_DAY);
           const overflow = chips.length - shown.length;
           const dayNumber = Number(dateISO.slice(8, 10));
@@ -154,8 +174,19 @@ export function TripCalendarGrid({
                   (c): c is Extract<Chip, { kind: "trip" }> =>
                     c.kind === "trip",
                 );
-                if (tripHere) onTripClick(tripHere.trip.id);
-                else onDayClick(dateISO);
+                if (tripHere) {
+                  onTripClick(tripHere.trip.id);
+                  return;
+                }
+                const manualHere = shown.find(
+                  (c): c is Extract<Chip, { kind: "manual" }> =>
+                    c.kind === "manual",
+                );
+                if (manualHere) {
+                  onEventClick(manualHere.event.id);
+                  return;
+                }
+                onDayClick(dateISO);
               }}
               className={cn(
                 "flex min-h-[84px] flex-col gap-[3px] rounded-[10px] bg-bg p-1 text-left",
@@ -168,6 +199,26 @@ export function TripCalendarGrid({
               </span>
 
               {shown.map((chip) => {
+                if (chip.kind === "manual") {
+                  const isStart = dateISO === chip.event.startDate;
+                  const isEnd = dateISO === chip.event.endDate;
+                  const label = truncate(chip.event.title, 15);
+                  return (
+                    <span
+                      key={chip.key}
+                      title={chip.event.title}
+                      className={cn(
+                        "flex items-center gap-1 rounded px-1 py-[1.5px] font-display text-[9px] font-bold",
+                        TAG_STYLES[chip.event.tag],
+                        isStart && "rounded-l-full",
+                        isEnd && "rounded-r-full",
+                      )}
+                    >
+                      <span className="min-w-0 truncate">{label}</span>
+                    </span>
+                  );
+                }
+
                 if (chip.kind === "trip") {
                   const isStart = dateISO === chip.trip.startDate;
                   const isEnd = dateISO === chip.trip.endDate;
@@ -234,7 +285,8 @@ export function TripCalendarGrid({
         <LegendItem className={TRAVEL_STYLE} label="Booked travel" icon />
       </div>
       <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
-        Tap a day with a trip to edit it; tap an empty day to add one.
+        Tap a day with a trip or event to edit it; tap an empty day to add a
+        trip. Use &quot;+ Add an event&quot; below for anything else.
       </p>
     </div>
   );

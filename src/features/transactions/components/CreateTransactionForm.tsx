@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { monthOptions } from "@/lib/dates/month";
+import { isSpendableAccountType } from "@/lib/accounts/spendable";
 import {
   createTransactionAction,
   type CreateTransactionFormState,
@@ -60,11 +61,11 @@ export function CreateTransactionForm({
    * endpoints. Only applies to the Transfer tab's two account pickers —
    * the plain "Account" select for expense/income still shows every
    * account, since logging an expense against a credit card is normal.
+   * Shares its definition of "spendable" with BudgetSnapshotService's
+   * v1.1.5 cash-on-hand fix — see lib/accounts/spendable.ts.
    */
   const transferEligibleAccounts = accounts.filter((account) =>
-    (["checking", "savings", "cash"] as const).includes(
-      account.accountType as "checking" | "savings" | "cash",
-    ),
+    isSpendableAccountType(account.accountType),
   );
 
   return (

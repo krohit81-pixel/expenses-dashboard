@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Plane, Upload } from "lucide-react";
+import { CalendarPlus, Plane, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { currentMonth } from "@/lib/dates/month";
+import { AddEventModal } from "@/features/calendar/components/AddEventModal";
 import { GoodTravelWindows } from "@/features/travel/components/GoodTravelWindows";
 import { TripCalendarGrid } from "@/features/travel/components/TripCalendarGrid";
 import { TripDetailedList } from "@/features/travel/components/TripDetailedList";
@@ -12,6 +13,7 @@ import { AddTripModal } from "@/features/travel/components/AddTripModal";
 import { travelerColorClass } from "@/features/travel/travelers";
 import type { PersonTravelWindow } from "@/features/travel/travel-windows";
 import type { SchoolCalendarItem } from "@/features/travel/school-items";
+import type { CalendarEvent } from "@/services/CalendarEventService";
 import type { Trip } from "@/services/TripService";
 
 type Visibility = { ahaana: boolean; rohana: boolean; travel: boolean };
@@ -48,10 +50,12 @@ const FILTER_CHIPS: {
 export function TravelCalendarSection({
   trips,
   schoolItems,
+  calendarEvents,
   travelWindows,
 }: {
   trips: Trip[];
   schoolItems: SchoolCalendarItem[];
+  calendarEvents: CalendarEvent[];
   travelWindows: PersonTravelWindow[];
 }) {
   const [month, setMonth] = useState(currentMonth());
@@ -68,6 +72,17 @@ export function TravelCalendarSection({
   const [modalDefaultTab, setModalDefaultTab] = useState<"upload" | "manual">(
     "upload",
   );
+
+  // Separate open/editing state from the trip modal above — a manual
+  // event and a trip are different shapes (see AddEventModal's comment
+  // on why it's its own modal rather than a mode inside AddTripModal),
+  // so they need their own independent piece of "which one, if any, is
+  // open" state rather than trying to share modalOpen/editingTrip.
+  const [eventModalOpen, setEventModalOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [eventModalInitialDate, setEventModalInitialDate] = useState<
+    string | undefined
+  >();
 
   function toggleFilter(key: keyof Visibility) {
     setVisible((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -86,6 +101,20 @@ export function TravelCalendarSection({
     setEditingTrip(trip);
     setModalInitialDate(undefined);
     setModalOpen(true);
+  }
+
+  function openAddEventModal(initialDate?: string) {
+    setEditingEvent(null);
+    setEventModalInitialDate(initialDate);
+    setEventModalOpen(true);
+  }
+
+  function openEditEventModal(eventId: string) {
+    const event = calendarEvents.find((e) => e.id === eventId);
+    if (!event) return;
+    setEditingEvent(event);
+    setEventModalInitialDate(undefined);
+    setEventModalOpen(true);
   }
 
   return (
@@ -117,16 +146,20 @@ export function TravelCalendarSection({
         onMonthChange={setMonth}
         trips={trips}
         schoolItems={schoolItems}
+        calendarEvents={calendarEvents}
         visible={visible}
         onDayClick={(dateISO) => openAddModal(dateISO)}
         onTripClick={openEditModal}
+        onEventClick={openEditEventModal}
       />
 
       <TripDetailedList
         trips={trips}
         schoolItems={schoolItems}
+        calendarEvents={calendarEvents}
         visible={visible}
         onTripClick={openEditModal}
+        onEventClick={openEditEventModal}
       />
 
       <section className="rounded-[20px] bg-surface p-5 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
@@ -162,12 +195,44 @@ export function TravelCalendarSection({
         </div>
       </section>
 
+      <section className="rounded-[20px] bg-surface p-5 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+        <div className="flex items-center gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-[11px] bg-accent-soft text-accent">
+            <CalendarPlus className="size-4.5" />
+          </div>
+          <div>
+            <div className="font-display text-[14.5px] font-extrabold text-ink">
+              Add an event
+            </div>
+            <div className="mt-0.5 text-[11.5px] text-ink-faint">
+              Anything else — dinner, an appointment, a reminder
+            </div>
+          </div>
+        </div>
+        <p className="my-3.5 text-[11px] leading-relaxed text-ink-faint">
+          For anything that isn&apos;t a trip and isn&apos;t already on Ahaana
+          or Rohana&apos;s school calendar — give it a title, tag it
+          vacation/holiday/exam/event, and it shows up on the calendar above
+          just like everything else.
+        </p>
+        <Button variant="outline" onClick={() => openAddEventModal()}>
+          <CalendarPlus className="size-4" /> + Add an event
+        </Button>
+      </section>
+
       <AddTripModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         editingTrip={editingTrip}
         initialDate={modalInitialDate}
         defaultEntryTab={modalDefaultTab}
+      />
+
+      <AddEventModal
+        open={eventModalOpen}
+        onClose={() => setEventModalOpen(false)}
+        editingEvent={editingEvent}
+        initialDate={eventModalInitialDate}
       />
     </div>
   );

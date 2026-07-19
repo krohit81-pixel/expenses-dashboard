@@ -15,15 +15,17 @@ import type { MonthlyBudgetSnapshot } from "@/services/BudgetSnapshotService";
  * money going out regardless of whether it's recurring or one-off —
  * the narrower reading was over-strict, not the intended behavior.
  *
- * v1.1.4: transfers are excluded from oneOffCommitted entirely, not
- * lumped in with expenses. A transfer moves money between two of your
- * own accounts — it doesn't leave your overall position, so subtracting
- * it here double-counted it as a real cost (moving 10,000 from checking
- * to savings made the projected closing balance look 10,000 worse, when
- * your actual total across both accounts hadn't changed at all). Only
- * `expense` reduces what's "committed to go out" in this net-worth-level
- * projection; `income` still adds, and `transfer` now contributes
- * nothing either way.
+ * v1.1.4 excluded every transfer from oneOffCommitted, reasoning that a
+ * transfer between your own accounts doesn't change your overall
+ * position. True for net worth, but this figure is a cash-on-hand
+ * projection, not a net-worth one — v1.1.4 went too far and stopped
+ * subtracting real credit-card payments too (a transfer TO a card is a
+ * real cash outflow this cycle, even though it doesn't touch net
+ * worth). v1.1.5 narrows it back: a transfer only contributes to
+ * oneOffCommitted when transferReducesCashOnHand is true (destination
+ * isn't a spendable account — see BudgetSnapshotService and
+ * lib/accounts/spendable.ts). A transfer between two spendable accounts
+ * still contributes nothing, same as v1.1.4 intended.
  */
 export function computeProjectedClosing(
   snapshot: MonthlyBudgetSnapshot,
@@ -35,7 +37,11 @@ export function computeProjectedClosing(
   );
   const oneOffCommitted = sumMoney(
     snapshot.oneOff
-      .filter((line) => line.kind === "expense")
+      .filter(
+        (line) =>
+          line.kind === "expense" ||
+          (line.kind === "transfer" && line.transferReducesCashOnHand),
+      )
       .map((line) => line.amount),
   );
   const totalIncome = addMoney(snapshot.incomeTotal, oneOffIncome);

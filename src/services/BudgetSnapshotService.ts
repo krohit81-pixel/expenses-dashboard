@@ -1,6 +1,8 @@
 import "server-only";
 
 import { sumMoney, type Money } from "@/lib/money";
+import { isSpendableAccountType } from "@/lib/accounts/spendable";
+import { listAccounts } from "@/services/AccountService";
 import { listRecurringTransactions } from "@/services/RecurringTransactionService";
 import { listTransactions } from "@/services/TransactionService";
 
@@ -20,6 +22,19 @@ export interface OneOffLine {
   kind: "income" | "expense" | "transfer";
   transferAccountId: string | null;
   status: "pending" | "posted";
+  /**
+   * Only meaningful for kind: "transfer" (always false otherwise). True
+   * when the transfer's destination account is NOT itself a spendable
+   * cash account (checking/savings/cash) — i.e. it's paying down a
+   * credit card or loan. That kind of transfer really does reduce how
+   * much spendable cash you have this cycle, even though it doesn't
+   * touch net worth (see NetWorthService's comment on why a card
+   * payment nets to zero for net worth specifically — this is a
+   * different, cash-flow question, not a net-worth one). A transfer
+   * between two of your own spendable accounts is false here: your
+   * total spendable cash hasn't changed, just which account it's in.
+   */
+  transferReducesCashOnHand: boolean;
 }
 
 export interface MonthlyBudgetSnapshot {
@@ -54,12 +69,19 @@ export interface MonthlyBudgetSnapshot {
 export async function getMonthlyBudgetSnapshot(
   month: string,
 ): Promise<MonthlyBudgetSnapshot> {
-  const [templates, { transactions: tagged }] = await Promise.all([
+  const [templates, accounts, { transactions: tagged }] = await Promise.all([
     listRecurringTransactions(),
+    // includeArchived: true — a transfer tagged to a past cycle can
+    // point at an account that's since been archived; excluding
+    // archived accounts here would make accountType.get(...) return
+    // undefined for that historical transfer and silently stop
+    // counting it as reducing cash-on-hand.
+    listAccounts(true),
     listTransactions({ cycleMonth: month, limit: 300 }),
   ]);
 
   const templateName = new Map(templates.map((t) => [t.id, t.payee]));
+  const accountType = new Map(accounts.map((a) => [a.id, a.accountType]));
 
   const live = tagged.filter((t) => t.status !== "void");
 
@@ -81,6 +103,9 @@ export async function getMonthlyBudgetSnapshot(
       };
       (transaction.kind === "income" ? income : fixedExpenses).push(line);
     } else {
+      const destinationType = transaction.transferAccountId
+        ? accountType.get(transaction.transferAccountId)
+        : undefined;
       oneOff.push({
         id: transaction.id,
         payee: transaction.payee,
@@ -89,6 +114,10 @@ export async function getMonthlyBudgetSnapshot(
         kind: transaction.kind as "income" | "expense" | "transfer",
         transferAccountId: transaction.transferAccountId,
         status: transaction.status === "posted" ? "posted" : "pending",
+        transferReducesCashOnHand:
+          transaction.kind === "transfer" &&
+          destinationType !== undefined &&
+          !isSpendableAccountType(destinationType),
       });
     }
   }

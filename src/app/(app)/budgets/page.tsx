@@ -65,17 +65,18 @@ export default async function BudgetsPage({
   const currency = settings?.baseCurrency ?? "USD";
   const projectedClosing = computeProjectedClosing(snapshot);
 
-  // v1.1.4: transfers used to be lumped in with expenses here (any
-  // non-income line got negated and summed), which meant a transfer
-  // between the person's own accounts dragged this "net" figure down
-  // exactly like a real expense would — the same bug as
-  // computeProjectedClosing had, just duplicated in this page's own
-  // total instead of shared. Transfers are now excluded from the sum
-  // entirely rather than negated, matching the reasoning in
-  // lib/budget/home-stats.ts.
+  // v1.1.4 excluded every transfer from this "net" figure. v1.1.5
+  // narrows that: a transfer only stays excluded when
+  // transferReducesCashOnHand is false (moving money between spendable
+  // accounts, e.g. checking -> savings) — a transfer that pays down a
+  // credit card or loan (transferReducesCashOnHand: true) is a real
+  // cash outflow this cycle and belongs in the total, same reasoning
+  // as computeProjectedClosing in lib/budget/home-stats.ts.
   const oneOffTotal = sumMoney(
     snapshot.oneOff
-      .filter((line) => line.kind !== "transfer")
+      .filter(
+        (line) => line.kind !== "transfer" || line.transferReducesCashOnHand,
+      )
       .map((line) =>
         line.kind === "income" ? line.amount : negateMoney(line.amount),
       ),
@@ -196,14 +197,19 @@ export default async function BudgetsPage({
                   <p className="min-w-0 truncate text-sm font-semibold text-ink">
                     {transactionDisplayTitle(line, accountName)}
                   </p>
-                  {/* v1.1.4: a transfer no longer gets a red minus sign
-                      here — it isn't counted in the "net" total above
-                      anymore (it's neither money in nor money out
-                      overall), so showing it in red like an expense,
-                      right next to a total that no longer includes it,
-                      read as contradictory. Neutral color, no sign,
-                      "Transfer" label instead. */}
-                  {line.kind === "transfer" ? (
+                  {/* v1.1.4 gave every transfer neutral styling, since
+                      none of them counted in the "net" total then.
+                      v1.1.5: a transfer that reduces cash on hand (pays
+                      down a card/loan) IS counted in the total again —
+                      showing that specific one in neutral gray while
+                      the total includes it would read just as
+                      contradictory as the original v1.1.4 problem it
+                      was fixing. Only a transfer between spendable
+                      accounts (excluded from the total) stays neutral;
+                      a card-payment transfer gets the same red minus as
+                      a real expense, since it functions like one here. */}
+                  {line.kind === "transfer" &&
+                  !line.transferReducesCashOnHand ? (
                     <p className="whitespace-nowrap font-display text-sm font-bold text-ink-faint">
                       Transfer &middot;{" "}
                       {formatMoneyDisplay(line.amount, line.currencyCode)}

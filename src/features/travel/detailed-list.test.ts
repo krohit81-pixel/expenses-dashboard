@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildDetailedGroups, type VisibilityFilter } from "./detailed-list";
 import type { SchoolCalendarItem } from "./school-items";
+import type { CalendarEvent } from "@/services/CalendarEventService";
 import type { Trip } from "@/services/TripService";
 
 const ALL_VISIBLE: VisibilityFilter = {
@@ -88,6 +89,32 @@ describe("buildDetailedGroups", () => {
       destination: "Goa, India",
       flight: "6E 5123",
       travelerNames: ["Rohit", "Ahaana"],
+    });
+  });
+
+  it("merges manual calendar events in, unaffected by every other visibility toggle", () => {
+    const calendarEvents: CalendarEvent[] = [
+      {
+        id: "e1",
+        title: "Dinner with the Sharmas",
+        tag: "event",
+        startDate: "2026-07-20",
+        endDate: "2026-07-20",
+        notes: null,
+      },
+    ];
+    const groups = buildDetailedGroups(
+      trips,
+      schoolItems,
+      { ahaana: false, rohana: false, travel: false },
+      calendarEvents,
+    );
+    const allItems = groups.flatMap((g) => g.items);
+    expect(allItems).toHaveLength(1);
+    expect(allItems[0]).toMatchObject({
+      kind: "manual",
+      title: "Dinner with the Sharmas",
+      tag: "event",
     });
   });
 });

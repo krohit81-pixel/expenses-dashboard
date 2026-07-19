@@ -16,6 +16,7 @@ import {
   travelerTextColorClass,
 } from "@/features/travel/travelers";
 import type { SchoolCalendarItem } from "@/features/travel/school-items";
+import type { CalendarEvent } from "@/services/CalendarEventService";
 import type { Trip } from "@/services/TripService";
 
 const TRAVEL_STYLE = "bg-teal-soft text-teal";
@@ -49,16 +50,25 @@ function dayBadge(
 export function TripDetailedList({
   trips,
   schoolItems,
+  calendarEvents,
   visible,
   onTripClick,
+  onEventClick,
 }: {
   trips: Trip[];
   schoolItems: SchoolCalendarItem[];
+  calendarEvents: CalendarEvent[];
   visible: VisibilityFilter;
   onTripClick: (tripId: string) => void;
+  onEventClick: (eventId: string) => void;
 }) {
   const [collapsed, setCollapsed] = useState(true);
-  const groups = buildDetailedGroups(trips, schoolItems, visible);
+  const groups = buildDetailedGroups(
+    trips,
+    schoolItems,
+    visible,
+    calendarEvents,
+  );
   const totalCount = groups.reduce((sum, g) => sum + g.items.length, 0);
 
   return (
@@ -141,6 +151,46 @@ export function TripDetailedList({
                               {personName}
                             </span>
                           </div>
+                        </div>
+                        <span
+                          className={cn(
+                            "shrink-0 whitespace-nowrap rounded-full px-2 py-1 font-display text-[9.5px] font-extrabold uppercase tracking-wide",
+                            TAG_STYLES[item.tag],
+                          )}
+                        >
+                          {TAG_LABELS[item.tag]}
+                        </span>
+                      </li>
+                    );
+                  }
+
+                  if (item.kind === "manual") {
+                    return (
+                      <li
+                        key={item.key}
+                        onClick={() => onEventClick(item.eventId)}
+                        className={cn(
+                          "flex cursor-pointer items-start gap-3 border-b border-line px-[18px] py-3 last:border-b-0 hover:bg-bg",
+                          item.tag === "vacation" && "bg-positive-soft",
+                        )}
+                      >
+                        <div className="w-9 shrink-0 pt-px text-center font-display text-[11px] font-extrabold text-ink-soft">
+                          {badge.big}
+                          {badge.small && (
+                            <div className="text-[9px] font-semibold uppercase text-ink-faint">
+                              {badge.small}
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[13px] font-semibold text-ink">
+                            {item.title}
+                          </div>
+                          {item.notes && (
+                            <div className="mt-0.5 text-[11px] text-ink-faint">
+                              {item.notes}
+                            </div>
+                          )}
                         </div>
                         <span
                           className={cn(

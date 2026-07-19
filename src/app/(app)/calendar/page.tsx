@@ -5,6 +5,7 @@ import { ROHANA_TBC_HOLIDAYS } from "@/features/calendar/data";
 import { TravelCalendarSection } from "@/features/travel/components/TravelCalendarSection";
 import { buildSchoolCalendarItems } from "@/features/travel/school-items";
 import { buildTravelWindows } from "@/features/travel/travel-windows";
+import { listCalendarEvents } from "@/services/CalendarEventService";
 import { listTrips } from "@/services/TripService";
 
 export const metadata: Metadata = {
@@ -30,7 +31,10 @@ export const metadata: Metadata = {
  * the windows strip + grid below it).
  */
 export default async function CalendarPage() {
-  const trips = await listTrips();
+  const [trips, calendarEvents] = await Promise.all([
+    listTrips(),
+    listCalendarEvents(),
+  ]);
   const schoolItems = buildSchoolCalendarItems();
   const travelWindows = buildTravelWindows();
 
@@ -42,6 +46,7 @@ export default async function CalendarPage() {
         <TravelCalendarSection
           trips={trips}
           schoolItems={schoolItems}
+          calendarEvents={calendarEvents}
           travelWindows={travelWindows}
         />
 
@@ -54,8 +59,9 @@ export default async function CalendarPage() {
           instructional week. Not yet dated by NUS:{" "}
           {ROHANA_TBC_HOLIDAYS.join(", ")} &mdash; re-check closer to the date.
           This page is public &mdash; anyone with the link can view it, no
-          password needed, including any trip you add below (destination, dates,
-          and flight name). Everything else in this app requires one.
+          password needed, including any trip or event you add below
+          (destination/dates/flight for a trip; title/dates/notes for an event).
+          Everything else in this app requires one.
         </p>
       </div>
     </div>

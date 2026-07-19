@@ -119,8 +119,15 @@ function OutlookCard({
 }) {
   const closing = computeProjectedClosing(snapshot);
   const healthy = !isNegativeMoney(closing);
+  // v1.1.5: this used to sum every non-income one-off line — real
+  // expenses AND every transfer, including a plain checking-to-savings
+  // move — into a box literally labeled "Card payments due," which
+  // never actually matched what it said. Narrowed to what the label
+  // means: one-off transfers that reduce cash on hand (pay down a card
+  // or loan). A logged expense isn't a "card payment due" either; it's
+  // already reflected in the projected closing balance below.
   const cardPaymentsTotal = snapshot.oneOff
-    .filter((l) => l.kind !== "income")
+    .filter((l) => l.kind === "transfer" && l.transferReducesCashOnHand)
     .reduce((sum, l) => sum + Number(l.amount), 0);
 
   return (
