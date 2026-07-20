@@ -4,16 +4,18 @@ import type { HdfcStatementHeader, HdfcTransaction } from "./types";
 
 /**
  * Absolute-value tolerance for every comparison below, in rupees. Not
- * zero: the one real statement this was built against has a genuine
- * 0.09 rounding gap in HDFC's OWN printed totals (previousStatementDue
- * - paymentsReceived + purchasesDebit + financeCharges lands at
- * 1,51,387.91 against a printed total of 1,51,388.00) -- a statement
- * quirk, not a parsing bug. A tolerance this small still catches any
- * real reconciliation failure (a missed or double-counted row moves the
- * delta by whole rupees, not paise) while not raising false alarms on
- * HDFC's own printed rounding.
+ * zero: real statements have a genuine, small rounding gap in HDFC's OWN
+ * printed totals (previousStatementDue - paymentsReceived + purchasesDebit
+ * + financeCharges vs. the printed totalAmountDue) -- a statement quirk,
+ * not a parsing bug. Observed gaps so far: 0.09 on the original statement
+ * this was built against, and 0.37 / 0.26 on two statements with heavy
+ * International Transactions activity (many small per-row IGST tax lines
+ * apparently compound more paise-level rounding than a domestic-only
+ * statement). 1.00 comfortably covers all three with margin while still
+ * catching any real reconciliation failure (a missed or double-counted
+ * row moves the delta by whole rupees, not paise).
  */
-const TOLERANCE = 0.1;
+const TOLERANCE = 1.0;
 
 export interface ReconciliationCheck {
   label: string;

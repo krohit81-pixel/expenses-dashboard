@@ -63,6 +63,36 @@ const SMALL_WORDS = new Set([
   "at",
 ]);
 
+// International Transactions rows embed the foreign-currency amount
+// directly in the description text, with no delimiter from the merchant
+// name (e.g. "EURO DISNEY ASSOCIESCHESSY  EUR 180.00", "GRUPO
+// IBEROSTARSantanyi -  EUR 1176.78"). Left in place, this would make
+// merchantNormalized differ per transaction for the same merchant --
+// every distinct forex amount would look like a different merchant to
+// the Merchant Dictionary's matching. Stripped here, same fixed-list
+// spirit as KNOWN_CITY_SUFFIXES: extend as new statements surface more
+// currencies. A trailing "-" sometimes separates the name from the
+// amount column too (e.g. the Iberostar example above) and is stripped
+// along with it.
+const FOREIGN_CURRENCY_CODES = [
+  "USD",
+  "EUR",
+  "GBP",
+  "AED",
+  "SGD",
+  "AUD",
+  "CAD",
+  "CHF",
+  "JPY",
+];
+const TRAILING_FOREIGN_AMOUNT = new RegExp(
+  `\\s*-?\\s*\\b(?:${FOREIGN_CURRENCY_CODES.join("|")})\\s+\\d+(?:\\.\\d{2})?\\s*$`,
+);
+
+function stripTrailingForeignAmount(text: string): string {
+  return text.replace(TRAILING_FOREIGN_AMOUNT, "");
+}
+
 function titleCase(text: string): string {
   return text
     .toLowerCase()
@@ -101,7 +131,7 @@ export function normalizeMerchant(raw: string): string | null {
     if (upper.startsWith(prefix)) return name;
   }
 
-  let working = trimmed;
+  let working = stripTrailingForeignAmount(trimmed).trim();
   for (const pattern of PROCESSOR_PREFIXES) {
     working = working.replace(pattern, "");
   }

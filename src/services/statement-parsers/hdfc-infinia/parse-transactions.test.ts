@@ -207,6 +207,66 @@ describe("parseHdfcTransactions", () => {
     expect(parseHdfcTransactions(["nothing relevant here"])).toEqual([]);
   });
 
+  it("parses an International Transactions row despite the space before the date/time pipe", () => {
+    // Real International Transactions rows use "DD/MM/YYYY | HH:MM" (space
+    // before the pipe) vs. Domestic's "DD/MM/YYYY| HH:MM", and embed a
+    // foreign-currency amount in the description before the reward
+    // points/amount tail.
+    const pageText = page(
+      "International Transactions",
+      TABLE_HEADER,
+      "TEST USER    [CKYC ID : 1234567890 ]",
+      "15/05/2026 | 01:54              EMI     SOME OVERSEAS MERCHANTCITY                                                      EUR 180.00                    + 675                              C  20,252.20      l",
+    );
+    const [txn] = parseHdfcTransactions([pageText]);
+    expect(txn).toMatchObject({
+      transactionDate: "2026-05-15",
+      transactionTime: "01:54",
+      transactionType: "debit",
+      isEmi: true,
+      rewardPoints: 675,
+      amount: "20252.20",
+    });
+    expect(txn?.merchantRaw).toContain("SOME OVERSEAS MERCHANTCITY");
+    expect(txn?.merchantNormalized).toBe("Some Overseas Merchantcity");
+  });
+
+  it("stitches an International Transactions IGST wrap row (space-before-pipe date format)", () => {
+    const pageText = page(
+      "International Transactions",
+      TABLE_HEADER,
+      "TEST USER    [CKYC ID : 1234567890 ]",
+      "IGST-VPS0000000000000-RATE 18.0 -27 (Ref#",
+      "17/05/2026 | 00:00                                                             C  57.40      l",
+      "VT261380075024430000101)",
+    );
+    const [txn] = parseHdfcTransactions([pageText]);
+    expect(txn).toMatchObject({
+      transactionDate: "2026-05-17",
+      transactionTime: "00:00",
+      transactionType: "debit",
+      amount: "57.40",
+    });
+    expect(txn?.description).toBe(
+      "IGST-VPS0000000000000-RATE 18.0 -27 (Ref# VT261380075024430000101)",
+    );
+  });
+
+  it("parses a CONSOLIDATED FCY MARKUP FEE row using the international date format", () => {
+    const pageText = page(
+      "International Transactions",
+      TABLE_HEADER,
+      "TEST USER    [CKYC ID : 1234567890 ]",
+      "13/06/2026 | 10:52                       CONSOLIDATED FCY MARKUP FEE                                                             C  16.90      l",
+    );
+    const [txn] = parseHdfcTransactions([pageText]);
+    expect(txn).toMatchObject({
+      transactionDate: "2026-06-13",
+      transactionType: "debit",
+      amount: "16.90",
+    });
+  });
+
   it("assigns null merchant fields only for a recognized credit type", () => {
     const pageText = page(
       TABLE_HEADER,

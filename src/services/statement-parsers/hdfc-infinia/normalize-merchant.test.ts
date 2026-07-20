@@ -66,4 +66,30 @@ describe("normalizeMerchant", () => {
       "Double Space Merchant",
     );
   });
+
+  it("strips a trailing foreign-currency amount from an International Transactions row", () => {
+    expect(
+      normalizeMerchant(
+        "SOME OVERSEAS MERCHANTCITY                                                      EUR 180.00",
+      ),
+    ).toBe("Some Overseas Merchantcity");
+    expect(normalizeMerchant("ANTHROPICANTHROPIC.    USD 5.90")).toBe(
+      "Anthropicanthropic.",
+    );
+  });
+
+  it("strips a trailing dash left dangling between the name and a foreign amount", () => {
+    expect(normalizeMerchant("GRUPO IBEROSTARSantanyi -   EUR 1176.78")).toBe(
+      "Grupo Iberostarsantanyi",
+    );
+  });
+
+  it("gives the same normalized name for the same merchant across different forex amounts", () => {
+    // The whole point of stripping the trailing amount: two rows for the
+    // same real-world merchant with different EUR amounts must resolve to
+    // the same merchant identity, not two different ones.
+    expect(normalizeMerchant("EURO DISNEY ASSOCIESCHESSY   EUR 180.00")).toBe(
+      normalizeMerchant("EURO DISNEY ASSOCIESCHESSY   EUR 4.00"),
+    );
+  });
 });

@@ -25,9 +25,20 @@ import type { CardholderType, HdfcTransaction } from "./types";
  * literal lowercase "l" in the text layer. It's consumed here only to
  * anchor the end of the row; see purchaseIndicatorCode/Name below for
  * why it's never treated as real data.
+ *
+ * Domestic Transactions rows have no space before the date/time pipe
+ * ("18/06/2026| 00:00"). An International Transactions section (foreign
+ * spend, plus its associated per-row IGST tax and "CONSOLIDATED FCY
+ * MARKUP FEE" charges) uses the same table shape but WITH a space before
+ * the pipe ("15/05/2026 | 01:54") -- hence the "\s*" rather than a bare
+ * literal pipe. International rows also carry a foreign-currency amount
+ * (e.g. "EUR 180.00") embedded in the description before the reward
+ * points/amount tail; the non-greedy description group absorbs it
+ * without needing special handling here (see normalize-merchant.ts for
+ * where it's stripped back out for merchant-identity purposes).
  */
 const ROW_REGEX =
-  /^(\d{2})\/(\d{2})\/(\d{4})\|\s*(\d{2}:\d{2})\s+(?:(EMI)\s+)?(.*?)\s*(?:\+\s*(\d{1,7})\s+)?(\+\s*)?C\s*([\d,]+\.\d{2})\s+l\s*$/;
+  /^(\d{2})\/(\d{2})\/(\d{4})\s*\|\s*(\d{2}:\d{2})\s+(?:(EMI)\s+)?(.*?)\s*(?:\+\s*(\d{1,7})\s+)?(\+\s*)?C\s*([\d,]+\.\d{2})\s+l\s*$/;
 
 /**
  * A "cardholder section" header: an add-on/primary cardholder's name,

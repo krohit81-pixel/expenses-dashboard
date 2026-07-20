@@ -110,6 +110,24 @@ describe("reconcileHdfcStatement", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("passes for a larger rounding gap seen on statements with heavy International Transactions activity", () => {
+    // Real May/June statements with large international sections showed
+    // 0.37 and 0.26 rupee gaps in HDFC's own printed header arithmetic --
+    // still just rounding noise, not a missed row.
+    const h = header({ totalAmountDue: m("600.37") });
+    const txns = [
+      transaction({ amount: m("100.00"), transactionType: "debit" }),
+      transaction({
+        amount: m("500.00"),
+        transactionType: "credit",
+        isPayment: true,
+        creditType: "payment",
+      }),
+    ];
+    const result = reconcileHdfcStatement(h, txns);
+    expect(result.ok).toBe(true);
+  });
+
   it("fails when a transaction is missing from the debit sum", () => {
     const h = header();
     const txns = [
