@@ -90,6 +90,22 @@ describe("parseHdfcInfiniaHeader", () => {
     expect(header.cashbackSummary[0]?.transaction).not.toMatch(/[A-Z]$/);
   });
 
+  it("doesn't mistake a leading percentage for the cashback amount", () => {
+    // Real statements have rows like "5% CashBack on SmartPay ... C 150.00"
+    // -- the "5" in "5%" is a bare, decimal-less number that a looser
+    // amount-matcher would grab first instead of the real 150.00 figure.
+    const pageWithPercentCashback = PAGE_2.replace(
+      "1 Test Cashback Reward C 110.00",
+      "1 5% CashBack on SmartPay C 150.00",
+    );
+    const header = parseHdfcInfiniaHeader([PAGE_1, pageWithPercentCashback]);
+    expect(header.cashbackSummary[0]).toEqual({
+      srNo: 1,
+      transaction: "5% CashBack on SmartPay",
+      amount: "150.00",
+    });
+  });
+
   it("defaults to an empty cashback summary and zero cashback amount when the section is absent", () => {
     const pageWithoutCashback = PAGE_1;
     const header = parseHdfcInfiniaHeader([pageWithoutCashback]);

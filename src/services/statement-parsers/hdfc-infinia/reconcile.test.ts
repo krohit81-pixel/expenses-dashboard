@@ -128,6 +128,64 @@ describe("reconcileHdfcStatement", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("passes for a proportionally larger residual on a statement with heavy international activity", () => {
+    // Mirrors a real June statement: purchases/debits statementValue
+    // 900,842.10 vs. a computed sum short by 177.15 (~0.02%). Confirmed
+    // (by cross-checking every parsed row against the raw statement text)
+    // that this residual isn't a missed row -- it's simply not itemized
+    // anywhere in the statement's own text. The tolerance scales with the
+    // statement's size specifically to accommodate this.
+    const h = header({
+      purchasesDebit: m("900842.10"),
+      paymentsReceived: m("500.00"),
+      previousStatementDue: m("0.00"),
+      financeCharges: m("0.00"),
+      totalAmountDue: m("900342.10"),
+    });
+    const txns = [
+      transaction({ amount: m("900664.95"), transactionType: "debit" }),
+      transaction({
+        amount: m("500.00"),
+        transactionType: "credit",
+        isPayment: true,
+        creditType: "payment",
+      }),
+    ];
+    const result = reconcileHdfcStatement(h, txns);
+    expect(
+      result.checks.find((c) => c.label === "purchases/debits")
+        ?.withinTolerance,
+    ).toBe(true);
+  });
+
+  it("still fails a real missing-transaction gap even on a large statement", () => {
+    // A missed row historically moves the delta by a large fraction of
+    // the total (the original International Transactions bug caused a
+    // ~70% gap) -- nowhere near the ~0.02-0.05% this tolerance allows for.
+    const h = header({
+      purchasesDebit: m("900842.10"),
+      paymentsReceived: m("500.00"),
+      previousStatementDue: m("0.00"),
+      financeCharges: m("0.00"),
+      totalAmountDue: m("900342.10"),
+    });
+    const txns = [
+      // Short by ~30,000, far beyond the 0.05% relative tolerance.
+      transaction({ amount: m("870664.95"), transactionType: "debit" }),
+      transaction({
+        amount: m("500.00"),
+        transactionType: "credit",
+        isPayment: true,
+        creditType: "payment",
+      }),
+    ];
+    const result = reconcileHdfcStatement(h, txns);
+    expect(
+      result.checks.find((c) => c.label === "purchases/debits")
+        ?.withinTolerance,
+    ).toBe(false);
+  });
+
   it("fails when a transaction is missing from the debit sum", () => {
     const h = header();
     const txns = [

@@ -1,6 +1,11 @@
 import { addMoney, ZERO, type Money } from "@/lib/money";
 
-import { findAllAmounts, findAmount, findInteger } from "./amounts";
+import {
+  findAllAmounts,
+  findAmount,
+  findDecimalAmount,
+  findInteger,
+} from "./amounts";
 import type {
   CashbackSummaryLine,
   HdfcStatementHeader,
@@ -201,7 +206,11 @@ function parseCashbackSummary(fullText: string): CashbackSummaryLine[] {
     const match = line.match(/^(\d+)\s+(.+)$/);
     if (!match) continue;
     const rest = match[2];
-    const amount = findAmount(rest);
+    // findDecimalAmount, not findAmount -- the transaction label often
+    // starts with a bare, decimal-less number that isn't the currency
+    // figure at all (e.g. "5% CashBack on SmartPay"), which findAmount's
+    // looser pattern would match first and misread as the amount.
+    const amount = findDecimalAmount(rest);
     if (!amount) continue;
     // Everything before wherever the amount's own digits start, with any
     // trailing currency-symbol noise (e.g. this statement's "C" — see

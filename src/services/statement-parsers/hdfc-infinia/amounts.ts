@@ -19,6 +19,24 @@ export function findAmount(text: string): Money | null {
   return result.success ? result.data : null;
 }
 
+/**
+ * Like findAmount, but only matches a token that actually has the 2-decimal
+ * suffix HDFC always prints for a real currency figure. Use this instead of
+ * findAmount whenever the surrounding text might also contain a bare,
+ * decimal-less integer that isn't a currency amount at all (a percentage
+ * like "5%", a count, a reference number) and could otherwise be matched
+ * first -- see parseCashbackSummary in parse-header.ts for the bug this
+ * was added to fix.
+ */
+const DECIMAL_AMOUNT_TOKEN = /(\d{1,3}(?:,\d{2,3})*\.\d{2})/;
+
+export function findDecimalAmount(text: string): Money | null {
+  const match = text.match(DECIMAL_AMOUNT_TOKEN);
+  if (!match) return null;
+  const result = zMoney.safeParse(match[1]);
+  return result.success ? result.data : null;
+}
+
 /** All amount-shaped tokens in a string, in reading order. */
 export function findAllAmounts(text: string): Money[] {
   const matches = text.match(new RegExp(AMOUNT_TOKEN, "g")) ?? [];
