@@ -8,6 +8,7 @@
  */
 
 import {
+  addMoney,
   compareMoney,
   moneyToDbNumber,
   sumMoney,
@@ -42,6 +43,50 @@ export function buildDonutSlices(
       ? [{ name: "Other", total: otherTotal }]
       : []),
   ];
+}
+
+export interface NamedAmount {
+  name: string;
+  total: Money;
+}
+
+/**
+ * Merges category breakdowns that come from DIFFERENT id namespaces --
+ * e.g. the ledger's finance.categories (via ReportingService) and the
+ * Merchant Dictionary's atlas_categories (via credit card spend) --
+ * into one, by matching on resolved display NAME rather than id, since
+ * name is the only sensible join key across two unrelated id spaces. A
+ * category that exists in only one of the two groups just becomes its
+ * own entry with whatever total it already had; a name present in both
+ * gets its amounts added together. categoryId null in any group's
+ * breakdown (a transaction with no category yet) is treated the same
+ * as an id with no matching name -- both fall into "Uncategorized",
+ * merged across groups too rather than kept as separate buckets.
+ *
+ * Feed the result into buildDonutSlices by using each returned name as
+ * its own "id" together with an identity name map (Map(name -> name))
+ * -- reuses that function's existing top-5-plus-Other bucketing as-is,
+ * rather than duplicating it for a name-keyed variant.
+ */
+export function mergeCategoryTotalsByName(
+  groups: {
+    breakdown: { categoryId: string | null; total: Money }[];
+    categoryName: Map<string, string>;
+  }[],
+): NamedAmount[] {
+  const combined = new Map<string, Money>();
+  for (const group of groups) {
+    for (const item of group.breakdown) {
+      const name = item.categoryId
+        ? (group.categoryName.get(item.categoryId) ?? "Uncategorized")
+        : "Uncategorized";
+      combined.set(name, addMoney(combined.get(name) ?? ZERO, item.total));
+    }
+  }
+  return Array.from(combined.entries()).map(([name, total]) => ({
+    name,
+    total,
+  }));
 }
 
 /** One conic-gradient stop per slice, in order — feed straight into a `background: conic-gradient(...)` style. */

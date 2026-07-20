@@ -12,8 +12,8 @@ import { getUserSettings } from "@/services/UserSettingsService";
 import { OWNER_USER_ID } from "@/lib/owner";
 
 const ANTHROPIC_MODEL = "claude-sonnet-5";
-/** Only used when OPENAI_API_KEY is configured and OPENAI_MODEL isn't set — a current, small/cheap chat model, not GPT-4-class, since this is a 2-3 sentence summary, not a task that needs a frontier model. Override via OPENAI_MODEL if this ever starts returning a model-not-found error (model names/versions do change over time — verify against https://platform.openai.com/docs/models). */
-const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
+/** Only used when GEMINI_API_KEY is configured and GEMINI_MODEL isn't set — a current, small/cheap chat model, not Gemini's largest, since this is a 2-3 sentence summary, not a task that needs a frontier model. Override via GEMINI_MODEL if this ever starts returning a model-not-found error (model names/versions do change over time — verify against https://ai.google.dev/gemini-api/docs/models). */
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
 /**
  * Builds the same prompt regardless of which provider ends up answering
@@ -80,36 +80,36 @@ async function callAnthropic(
   return text?.trim() || null;
 }
 
-/** OpenAI's Chat Completions API — the older, more universally-supported endpoint (vs. the newer Responses API), which is enough for a single plain-text completion like this. */
-async function callOpenAI(
+/** Google's Generative Language API — generateContent, the standard single-turn text-completion endpoint. The API key goes in the query string (Google's documented approach for this API), not a header. */
+async function callGemini(
   apiKey: string,
   prompt: string,
 ): Promise<string | null> {
-  const model = serverEnv.OPENAI_MODEL ?? DEFAULT_OPENAI_MODEL;
+  const model = serverEnv.GEMINI_MODEL ?? DEFAULT_GEMINI_MODEL;
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 300 },
+      }),
     },
-    body: JSON.stringify({
-      model,
-      max_tokens: 300,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
+  );
 
   if (!response.ok) {
     const body = await response.text();
     throw new Error(
-      `OpenAI API returned ${response.status}: ${body.slice(0, 300)}`,
+      `Gemini API returned ${response.status}: ${body.slice(0, 300)}`,
     );
   }
 
-  const data: { choices: { message?: { content?: string } }[] } =
-    await response.json();
-  const text = data.choices[0]?.message?.content;
+  const data: {
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+  } = await response.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
   return text?.trim() || null;
 }
 
@@ -117,17 +117,19 @@ async function callOpenAI(
  * Generates a short (2-3 sentence) natural-language insight from the
  * current month's cash flow, category breakdown, and upcoming
  * commitments. Returns null (not an error) if neither ANTHROPIC_API_KEY
- * nor OPENAI_API_KEY is configured — see the comments on those env vars
+ * nor GEMINI_API_KEY is configured — see the comments on those env vars
  * in src/lib/env/server.ts.
  *
- * v1.2: added OPENAI_API_KEY as an alternate provider, at the user's
+ * v1.2 added OPENAI_API_KEY as an alternate provider, at the user's
  * request (someone else in the household may only have an OpenAI key,
- * or prefer it). Anthropic is tried first when both are configured —
- * arbitrary as a technical matter (either would work), but keeps
- * behavior unchanged by default for the household that's already been
- * running on Anthropic since this feature shipped, rather than silently
- * switching providers out from under them the moment a second key
- * happens to be present.
+ * or prefer it). v1.6.0 replaced it with GEMINI_API_KEY instead, again
+ * at the user's request — not kept as a third option, so there are
+ * still only ever two providers to reason about. Anthropic is tried
+ * first when both are configured — arbitrary as a technical matter
+ * (either would work), but keeps behavior unchanged by default for the
+ * household that's already been running on Anthropic since this
+ * feature shipped, rather than silently switching providers out from
+ * under them the moment a second key happens to be present.
  *
  * Runs fresh on every Intel page load (no caching) — simplest correct
  * behavior for a first version. Worth revisiting if this gets slow or
@@ -137,8 +139,8 @@ async function callOpenAI(
  */
 export async function generateInsight(): Promise<string | null> {
   const anthropicKey = serverEnv.ANTHROPIC_API_KEY;
-  const openaiKey = serverEnv.OPENAI_API_KEY;
-  if (!anthropicKey && !openaiKey) {
+  const geminiKey = serverEnv.GEMINI_API_KEY;
+  if (!anthropicKey && !geminiKey) {
     return null;
   }
 
@@ -203,7 +205,7 @@ export async function generateInsight(): Promise<string | null> {
     if (anthropicKey) {
       return await callAnthropic(anthropicKey, prompt);
     }
-    return await callOpenAI(openaiKey as string, prompt);
+    return await callGemini(geminiKey as string, prompt);
   } catch (error) {
     console.error("Failed to generate Intel insight:", error);
     return null;

@@ -43,17 +43,18 @@ Authentication → Users and copy their ID from there instead.
 
 ## 2. Environment variables
 
-| Variable                        | Where to find it                                        | Notes                                                                                                                                                     |
-| ------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase → Project Settings → API → Project URL         | Safe to expose to the browser                                                                                                                             |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → `anon` `public` key | Safe to expose to the browser                                                                                                                             |
-| `SUPABASE_SERVICE_ROLE_KEY`     | Supabase → Project Settings → API → `service_role` key  | **Secret.** This is now the ONLY way the app talks to the database — there's no session-based access anymore. Never expose to the browser.                |
-| `APP_OWNER_USER_ID`             | Printed by `npm run bootstrap:owner` (step 1)           | The fixed account every row in the database belongs to.                                                                                                   |
-| `ANTHROPIC_API_KEY`             | console.anthropic.com → API Keys                        | **Optional**, added in v0.3. Powers Intel's AI insight only. If unset, Intel's charts still work — the insight card just shows a "not available" message. |
+| Variable                        | Where to find it                                        | Notes                                                                                                                                                                                                            |
+| ------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase → Project Settings → API → Project URL         | Safe to expose to the browser                                                                                                                                                                                    |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → `anon` `public` key | Safe to expose to the browser                                                                                                                                                                                    |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Supabase → Project Settings → API → `service_role` key  | **Secret.** This is now the ONLY way the app talks to the database — there's no session-based access anymore. Never expose to the browser.                                                                       |
+| `APP_OWNER_USER_ID`             | Printed by `npm run bootstrap:owner` (step 1)           | The fixed account every row in the database belongs to.                                                                                                                                                          |
+| `ANTHROPIC_API_KEY`             | console.anthropic.com → API Keys                        | **Optional**, added in v0.3. Powers Intel's AI insight only. If unset, Intel's charts still work — the insight card just shows a "not available" message.                                                        |
+| `GEMINI_API_KEY`                | aistudio.google.com → Get API Key                       | **Optional**, added in v1.6.0 (replaces the old `OPENAI_API_KEY`). An alternate provider for the same Intel insight — set this OR `ANTHROPIC_API_KEY`, not necessarily both; if both are set, Anthropic is used. |
 
-Every var except `ANTHROPIC_API_KEY` is required — the app fails fast
-(loudly, on startup) if any are missing or malformed, rather than
-running with a gap.
+Every var except `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` is required —
+the app fails fast (loudly, on startup) if any are missing or
+malformed, rather than running with a gap.
 
 **Common mistake when pasting into Vercel's env var UI:** a trailing
 space or newline gets included in the value, which silently breaks
@@ -91,9 +92,9 @@ Visit `http://localhost:3000`. First visit takes you through onboarding
 1. Push your code to GitHub if you haven't already.
 2. In Vercel: **Add New → Project**, import the GitHub repo.
 3. Add all four required env vars from the table above (plus
-   `ANTHROPIC_API_KEY` if you want AI insights) in **Project → Settings →
-   Environment Variables** — check all three environment boxes
-   (Production, Preview, Development) for each.
+   `ANTHROPIC_API_KEY` or `GEMINI_API_KEY` if you want AI insights) in
+   **Project → Settings → Environment Variables** — check all three
+   environment boxes (Production, Preview, Development) for each.
 4. Deploy (or **Redeploy** if an earlier attempt ran before the env vars
    were set).
 5. Open the deployment URL and confirm it loads.

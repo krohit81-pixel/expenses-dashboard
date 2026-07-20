@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import Link from "next/link";
+
 import { requireUser } from "@/lib/auth/require-user";
 import {
   getCashFlowSummary,
@@ -9,14 +11,31 @@ import {
 import { listCategories } from "@/services/CategoryService";
 import { getUserSettings } from "@/services/UserSettingsService";
 import { generateInsight } from "@/services/IntelService";
-import { buildDonutGradientStops, buildDonutSlices } from "@/lib/intel/donut";
 import {
+  getCardCategoryBreakdown,
+  getCardExpenseForMonths,
+  hasAnyCreditCardStatement,
+  type CardCategoryAmount,
+} from "@/services/CreditCardIntelService";
+import { listAtlasCategories } from "@/services/MerchantService";
+import {
+  buildDonutGradientStops,
+  buildDonutSlices,
+  mergeCategoryTotalsByName,
+} from "@/lib/intel/donut";
+import {
+  addMoney,
   formatMoneyDisplay,
   moneyToDbNumber,
   subtractMoney,
   type Money,
 } from "@/lib/money";
-import { currentMonth, shiftMonth } from "@/lib/dates/month";
+import {
+  currentMonth,
+  isValidMonth,
+  shiftMonth,
+  shortMonthLabel,
+} from "@/lib/dates/month";
 import { Hero } from "@/components/ui/hero";
 
 export const metadata: Metadata = {
@@ -62,7 +81,17 @@ function savingsRatePct(income: Money, expense: Money): number | null {
   return Math.round((net / incomeNum) * 100);
 }
 
-export default async function IntelPage() {
+export default async function IntelPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ cardMonth?: string }>;
+}) {
+  const { cardMonth: cardMonthParam } = await searchParams;
+  const cardMonth = isValidMonth(cardMonthParam)
+    ? cardMonthParam
+    : currentMonth();
+  const isCurrentCardMonth = cardMonth === currentMonth();
+
   const user = await requireUser();
   const now = new Date();
   const thisMonth = currentMonth();
@@ -102,29 +131,204 @@ export default async function IntelPage() {
     getCashFlowSummary(nextRange, true),
   ]);
 
-  const currency = settings?.baseCurrency ?? "USD";
-  const categoryName = new Map(categories.map((c) => [c.id, c.name]));
+  // Card-level breakdown: a separate Merchant Dictionary category system
+  // (atlas_categories) from the ledger's own finance.categories above,
+  // by design (see the v1.5.0 migration's comment on why) -- hence its
+  // own categories lookup and its own month, independently navigable
+  // from the cash-flow charts above.
+  const [cardBreakdown, atlasCategories, anyCardStatements] = await Promise.all(
+    [
+      getCardCategoryBreakdown(cardMonth),
+      listAtlasCategories(),
+      hasAnyCreditCardStatement(),
+    ],
+  );
+  const atlasCategoryName = new Map(
+    atlasCategories.map((c) => [c.id, c.categoryName]),
+  );
 
-  function donut(summary: CashFlowSummary) {
-    const slices = buildDonutSlices(summary.expenseByCategory, categoryName);
+  // Fold credit card spend into the ledger-only cash-flow charts below
+  // (by-category donuts, month-on-month, income vs. expenses, savings
+  // rate) -- every month those charts touch, in one query rather than
+  // one per month. Safe to add directly (not double-counted against
+  // the ledger): paying off a card is logged in the ledger as a
+  // transfer into a credit_card-type account (see
+  // lib/accounts/spendable.ts's own comment on why "Log a card
+  // payment" exists separately from the general transfer form), which
+  // getCashFlowSummary already excludes (income/expense kinds only) --
+  // the ledger never itemizes individual card purchases, that's what
+  // credit_card_transactions is for. So ledger expense and card debit
+  // spend are two complementary, non-overlapping slices of the same
+  // month, not two views of the same money.
+  const cardMonths = [...trend.map((t) => t.month), nextMonth];
+  const cardMonthlyTotals = await getCardExpenseForMonths(cardMonths);
+
+  function combinedExpense(month: string, ledgerExpense: Money): Money {
+    const cardTotal = cardMonthlyTotals.get(month);
+    return cardTotal
+      ? addMoney(ledgerExpense, cardTotal.totalSpend)
+      : ledgerExpense;
+  }
+
+  // Same six-plus-one months as expenditureBars below, with card spend
+  // already folded into .expense -- .income is untouched (credit cards
+  // have no income concept here, only debit spend).
+  const combinedTrend = trend.map((t) => ({
+    ...t,
+    expense: combinedExpense(t.month, t.expense),
+  }));
+
+  function cardDonut(breakdown: {
+    totalSpend: Money;
+    byCategory: CardCategoryAmount[];
+  }) {
+    // buildDonutSlices expects a non-nullable categoryId; "" is never a
+    // real atlas_categories id, so mapping null -> "" here reuses its
+    // existing "no name found -> Uncategorized" fallback as-is, instead
+    // of duplicating the top-5-plus-Other bucketing logic for a
+    // nullable-id variant.
+    const slices = buildDonutSlices(
+      breakdown.byCategory.map((c) => ({
+        categoryId: c.categoryId ?? "",
+        total: c.total,
+      })),
+      atlasCategoryName,
+    );
     const gradientStops = buildDonutGradientStops(
       slices,
-      summary.totalExpense,
+      breakdown.totalSpend,
       CATEGORY_COLORS,
     );
     return { slices, gradientStops };
   }
 
+  function renderCardDonut(
+    key: string,
+    label: string,
+    breakdown: { totalSpend: Money; byCategory: CardCategoryAmount[] },
+  ) {
+    const { slices, gradientStops } = cardDonut(breakdown);
+    return (
+      <div
+        key={key}
+        className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]"
+      >
+        <div className="px-4 py-3.5">
+          <h3 className="truncate font-display text-[12.5px] font-bold text-ink">
+            {label}
+          </h3>
+        </div>
+        {slices.length === 0 ? (
+          <p className="px-4 pb-5 text-[12px] leading-relaxed text-ink-faint">
+            No spend recorded.
+          </p>
+        ) : (
+          <div className="flex flex-col items-center gap-3 px-4 pb-5">
+            <div
+              className="relative size-[104px] shrink-0 rounded-full"
+              style={{
+                background: `conic-gradient(${gradientStops.join(", ")})`,
+              }}
+            >
+              <div className="absolute inset-4 flex flex-col items-center justify-center rounded-full bg-surface">
+                <span className="font-display text-[12.5px] font-extrabold text-ink">
+                  {formatMoneyDisplay(breakdown.totalSpend, currency).replace(
+                    /\.\d+$/,
+                    "",
+                  )}
+                </span>
+              </div>
+            </div>
+            <ul className="w-full">
+              {slices.map((slice, i) => {
+                const totalNum = moneyToDbNumber(breakdown.totalSpend);
+                const pct =
+                  totalNum > 0
+                    ? Math.round(
+                        (moneyToDbNumber(slice.total) / totalNum) * 100,
+                      )
+                    : 0;
+                return (
+                  <li
+                    key={slice.name}
+                    className="flex items-center gap-1.5 py-0.5 text-[11px]"
+                  >
+                    <span
+                      className="size-2 shrink-0 rounded-[2px]"
+                      style={{
+                        background: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+                      }}
+                    />
+                    <span className="min-w-0 flex-1 truncate font-medium text-ink">
+                      {slice.name}
+                    </span>
+                    <span className="shrink-0 font-display text-[10px] font-bold text-ink-faint">
+                      {pct}%
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const currency = settings?.baseCurrency ?? "USD";
+  const categoryName = new Map(categories.map((c) => [c.id, c.name]));
+
+  // month is optional only for callers with no natural card month at all
+  // (none currently -- every one of prev/current/next has one) --
+  // required in spirit, just written this way so the signature doesn't
+  // have to change if a future caller genuinely has no card data to fold in.
+  function donut(summary: CashFlowSummary, month: string) {
+    const cardTotal = cardMonthlyTotals.get(month);
+    const totalExpense = combinedExpense(month, summary.totalExpense);
+    const merged = mergeCategoryTotalsByName([
+      { breakdown: summary.expenseByCategory, categoryName },
+      {
+        breakdown: cardTotal?.byCategory ?? [],
+        categoryName: atlasCategoryName,
+      },
+    ]);
+    // Reuse buildDonutSlices' existing top-5-plus-Other bucketing by
+    // treating each merged name as its own "id", via an identity map --
+    // see mergeCategoryTotalsByName's own comment for why this is safer
+    // than duplicating that bucketing logic for a name-keyed variant.
+    const slices = buildDonutSlices(
+      merged.map((m) => ({ categoryId: m.name, total: m.total })),
+      new Map(merged.map((m) => [m.name, m.name])),
+    );
+    const gradientStops = buildDonutGradientStops(
+      slices,
+      totalExpense,
+      CATEGORY_COLORS,
+    );
+    return { slices, gradientStops, totalExpense };
+  }
+
   const donuts = [
-    { key: "prev", label: monthShortLabel(prevMonth), summary: prevSummary },
-    { key: "current", label: "This month", summary: currentSummary },
+    {
+      key: "prev",
+      label: monthShortLabel(prevMonth),
+      summary: prevSummary,
+      month: prevMonth,
+    },
+    {
+      key: "current",
+      label: "This month",
+      summary: currentSummary,
+      month: thisMonth,
+    },
     {
       key: "next",
       label: monthShortLabel(nextMonth),
       summary: nextSummary,
+      month: nextMonth,
       isProjected: true,
     },
-  ].map((d) => ({ ...d, ...donut(d.summary) }));
+  ].map((d) => ({ ...d, ...donut(d.summary, d.month) }));
 
   // Month-on-month expenditure: the 6 actual months from the trend,
   // plus one projected bar for next month — v1.2, per the request to
@@ -132,14 +336,19 @@ export default async function IntelPage() {
   // transactions yet in the common case, so its bar comes from the
   // same includePending cash-flow query as the "upcoming" donut above,
   // not from getMonthlyCashFlowTrend (which only ever counts posted
-  // activity, and would just be zero for a future month).
+  // activity, and would just be zero for a future month). Card spend
+  // folded in throughout, same as the donuts above.
   const expenditureBars = [
-    ...trend.map((t) => ({
+    ...combinedTrend.map((t) => ({
       month: t.month,
       total: t.expense,
       isProjected: false,
     })),
-    { month: nextMonth, total: nextSummary.totalExpense, isProjected: true },
+    {
+      month: nextMonth,
+      total: combinedExpense(nextMonth, nextSummary.totalExpense),
+      isProjected: true,
+    },
   ];
   const trendMax = Math.max(
     1,
@@ -148,7 +357,7 @@ export default async function IntelPage() {
 
   const cashFlowMax = Math.max(
     1,
-    ...trend.flatMap((t) => [
+    ...combinedTrend.flatMap((t) => [
       moneyToDbNumber(t.income),
       moneyToDbNumber(t.expense),
     ]),
@@ -168,7 +377,7 @@ export default async function IntelPage() {
           ) : (
             <p className="text-sm leading-relaxed text-ink-faint">
               Insight isn&apos;t available right now — either no AI provider is
-              configured (ANTHROPIC_API_KEY or OPENAI_API_KEY), or something
+              configured (ANTHROPIC_API_KEY or GEMINI_API_KEY), or something
               went wrong generating it. Charts below still reflect real data.
             </p>
           )}
@@ -215,18 +424,16 @@ export default async function IntelPage() {
                     >
                       <div className="absolute inset-4 flex flex-col items-center justify-center rounded-full bg-surface">
                         <span className="font-display text-[12.5px] font-extrabold text-ink">
-                          {formatMoneyDisplay(
-                            d.summary.totalExpense,
-                            currency,
-                          ).replace(/\.\d+$/, "")}
+                          {formatMoneyDisplay(d.totalExpense, currency).replace(
+                            /\.\d+$/,
+                            "",
+                          )}
                         </span>
                       </div>
                     </div>
                     <ul className="w-full">
                       {d.slices.map((slice, i) => {
-                        const totalExpenseNum = moneyToDbNumber(
-                          d.summary.totalExpense,
-                        );
+                        const totalExpenseNum = moneyToDbNumber(d.totalExpense);
                         const pct =
                           totalExpenseNum > 0
                             ? Math.round(
@@ -336,7 +543,8 @@ export default async function IntelPage() {
 
         {/* v1.2 — new: income next to expense, not just expense alone.
             Same six months as the trend above, reusing the same
-            getMonthlyCashFlowTrend call rather than a second query. */}
+            getMonthlyCashFlowTrend call rather than a second query.
+            expense here is combinedTrend's (ledger + card spend). */}
         <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
           <div className="flex items-center justify-between px-[18px] py-4">
             <h2 className="font-display text-sm font-bold text-ink">
@@ -346,7 +554,7 @@ export default async function IntelPage() {
           </div>
           <div className="px-[18px] pb-4">
             <div className="flex h-[130px] items-end gap-3">
-              {trend.map((t) => {
+              {combinedTrend.map((t) => {
                 const incomeHeightPct = Math.max(
                   4,
                   (moneyToDbNumber(t.income) / cashFlowMax) * 100,
@@ -375,7 +583,7 @@ export default async function IntelPage() {
               })}
             </div>
             <div className="mt-2 flex gap-3 border-t border-line pt-2">
-              {trend.map((t) => (
+              {combinedTrend.map((t) => (
                 <span
                   key={t.month}
                   className="flex-1 text-center font-display text-[10px] font-semibold text-ink-faint"
@@ -399,7 +607,8 @@ export default async function IntelPage() {
             over after expenses. Same trend data as the chart above,
             just read as a rate instead of two absolute figures — the
             "are we actually saving anything" question the totals alone
-            don't answer directly. */}
+            don't answer directly. expense here is combinedTrend's
+            (ledger + card spend), so the rate reflects real spend. */}
         <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
           <div className="px-[18px] py-4">
             <h2 className="font-display text-sm font-bold text-ink">
@@ -410,7 +619,7 @@ export default async function IntelPage() {
             </p>
           </div>
           <ul className="px-[18px] pb-4">
-            {trend.map((t) => {
+            {combinedTrend.map((t) => {
               const rate = savingsRatePct(t.income, t.expense);
               const barPct = rate === null ? 0 : Math.min(100, Math.abs(rate));
               const isNegative = rate !== null && rate < 0;
@@ -445,15 +654,72 @@ export default async function IntelPage() {
           </ul>
         </div>
 
-        <div className="rounded-[20px] border-[1.5px] border-dashed border-line bg-surface p-5 text-center text-ink-faint">
-          <div className="mb-1.5 font-display text-[13px] font-bold text-ink-soft">
-            Card-level breakdown &middot; needs statement imports
+        <div>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="font-display text-sm font-bold text-ink">
+              Card-level breakdown
+            </h2>
+            <div className="flex items-center gap-1.5">
+              <Link
+                href={`/intel?cardMonth=${shiftMonth(cardMonth, -1)}`}
+                className="flex size-7 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent"
+                aria-label="Previous month"
+              >
+                &#8249;
+              </Link>
+              <span className="min-w-[86px] text-center font-display text-xs font-bold text-ink-soft">
+                {shortMonthLabel(cardMonth)}
+              </span>
+              <Link
+                href={`/intel?cardMonth=${shiftMonth(cardMonth, 1)}`}
+                className="flex size-7 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent"
+                aria-label="Next month"
+              >
+                &#8250;
+              </Link>
+              {!isCurrentCardMonth && (
+                <Link
+                  href="/intel"
+                  className="ml-1 rounded-full bg-accent px-2.5 py-1 font-display text-[10px] font-bold text-white"
+                >
+                  Today
+                </Link>
+              )}
+            </div>
           </div>
-          <p className="mx-auto max-w-[440px] text-sm leading-relaxed">
-            Once you can upload credit card PDFs, Intel will break each
-            card&apos;s spend into categories, flag what&apos;s creeping up, and
-            compare card-by-card.
-          </p>
+
+          {!anyCardStatements ? (
+            <div className="rounded-[20px] border-[1.5px] border-dashed border-line bg-surface p-5 text-center text-ink-faint">
+              <div className="mb-1.5 font-display text-[13px] font-bold text-ink-soft">
+                Needs statement imports
+              </div>
+              <p className="mx-auto max-w-[440px] text-sm leading-relaxed">
+                Once you upload a credit card statement PDF on the Imports page,
+                this section will break each card&apos;s spend into categories
+                and compare card-by-card.
+              </p>
+            </div>
+          ) : cardBreakdown.cards.length === 0 ? (
+            <div className="rounded-[20px] border-[1.5px] border-dashed border-line bg-surface p-5 text-center text-ink-faint">
+              <p className="text-sm">
+                No card spend recorded for {shortMonthLabel(cardMonth)}.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {cardBreakdown.cards.length > 1 &&
+                renderCardDonut(
+                  "all-cards",
+                  "All cards",
+                  cardBreakdown.aggregate,
+                )}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {cardBreakdown.cards.map((card) =>
+                  renderCardDonut(card.cardKey, card.cardLabel, card),
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
