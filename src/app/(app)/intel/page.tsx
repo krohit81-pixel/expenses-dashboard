@@ -13,10 +13,10 @@ import { getUserSettings } from "@/services/UserSettingsService";
 import { getStoredInsight } from "@/services/IntelService";
 import {
   getCardCategoryBreakdown,
-  getCardExpenseForMonths,
   hasAnyCreditCardStatement,
   type CardCategoryAmount,
 } from "@/services/CreditCardIntelService";
+import { getPlannedCardDuesForMonths } from "@/services/BudgetSnapshotService";
 import { listAtlasCategories } from "@/services/MerchantService";
 import { buildDonutGradientStops, buildDonutSlices } from "@/lib/intel/donut";
 import {
@@ -52,13 +52,18 @@ const CATEGORY_COLORS = [
 ];
 
 /**
- * Sentinel "category id" for credit card spend in the ledger-only
+ * Sentinel "category id" for credit card dues in the ledger-only
  * charts below (by-category donuts) — v1.6.1, at the household's
- * request: card spend shows there as one lumped "Credit Card Dues"
- * line, not broken out by its own Merchant Dictionary category, since
- * that per-category detail already has its own dedicated section
- * further down the page. Never collides with a real finance.categories
- * id (those are uuids).
+ * request: card dues show there as one lumped "Credit Card Dues" line,
+ * not broken out by its own Merchant Dictionary category, since that
+ * per-category detail already has its own dedicated section further
+ * down the page. Never collides with a real finance.categories id
+ * (those are uuids).
+ *
+ * v1.6.3: the amount behind this line is the household's own
+ * planned/logged card payment for the cycle (see
+ * getPlannedCardDuesForMonths), not real per-statement spend -- see
+ * that function's own comment for why.
  */
 const CARD_DUES_CATEGORY_ID = "__credit_card_dues__";
 const CARD_DUES_LABEL = "Credit Card Dues";
@@ -158,30 +163,41 @@ function renderCardDonut(
             </div>
           </div>
           <ul className="min-w-0 flex-1">
-            {slices.map((slice, i) => (
-              <li
-                key={slice.name}
-                className="flex items-center gap-1.5 py-0.5 text-[11px]"
-              >
-                <span
-                  className="size-2 shrink-0 rounded-[2px]"
-                  style={{
-                    background: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
-                  }}
-                />
-                <span className="min-w-0 flex-1 truncate font-medium text-ink">
-                  {slice.name}
-                </span>
-                {/* v1.6.2: actual amount instead of a percentage, at
-                    the household's request. */}
-                <span className="shrink-0 font-display text-[10px] font-bold text-ink-faint">
-                  {formatMoneyDisplay(slice.total, currency).replace(
-                    /\.\d+$/,
-                    "",
-                  )}
-                </span>
-              </li>
-            ))}
+            {slices.map((slice, i) => {
+              const totalNum = moneyToDbNumber(breakdown.totalSpend);
+              const pct =
+                totalNum > 0
+                  ? Math.round((moneyToDbNumber(slice.total) / totalNum) * 100)
+                  : 0;
+              return (
+                <li
+                  key={slice.name}
+                  className="flex items-center gap-1.5 py-0.5 text-[11px]"
+                >
+                  <span
+                    className="size-2 shrink-0 rounded-[2px]"
+                    style={{
+                      background: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+                    }}
+                  />
+                  <span className="min-w-0 flex-1 truncate font-medium text-ink">
+                    {slice.name}
+                  </span>
+                  {/* v1.6.3: both the amount and the percentage --
+                      v1.6.2 swapped percentage for amount instead of
+                      showing both, which wasn't what was asked for. */}
+                  <span className="shrink-0 font-display text-[10px] font-bold text-ink-faint">
+                    {formatMoneyDisplay(slice.total, currency).replace(
+                      /\.\d+$/,
+                      "",
+                    )}
+                  </span>
+                  <span className="w-8 shrink-0 text-right font-display text-[10px] font-bold text-ink-faint">
+                    {pct}%
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -326,39 +342,41 @@ export default async function IntelPage({
     getCashFlowSummary(nextRange, true),
   ]);
 
-  // Fold credit card spend into the ledger-only cash-flow charts below
-  // (by-category donuts, month-on-month, income vs. expenses) -- every
-  // month those charts touch, in one query rather than one per month.
-  // Safe to add directly (not double-counted against the ledger):
-  // paying off a card is logged in the ledger as a transfer into a
-  // credit_card-type account (see lib/accounts/spendable.ts's own
-  // comment on why "Log a card payment" exists separately from the
-  // general transfer form), which getCashFlowSummary already excludes
-  // (income/expense kinds only) -- the ledger never itemizes individual
-  // card purchases, that's what credit_card_transactions is for. So
-  // ledger expense and card debit spend are two complementary,
-  // non-overlapping slices of the same month, not two views of the
-  // same money.
+  // Fold credit card cycle dues into the ledger-only cash-flow charts
+  // below (by-category donuts, month-on-month) -- every month those
+  // charts touch, in one query rather than one per month.
   //
-  // v1.6.1: grouped by each statement's cycle_month, not by individual
-  // transaction dates -- see src/lib/statement-cycle.ts. This is what
-  // makes "July" here mean the same thing on both sides: the ledger's
-  // own July income/expenses, plus whichever statement(s) get paid
-  // from July's income, regardless of the calendar dates the actual
-  // card purchases happened on.
-  const cardMonths = [...trend.map((t) => t.month), nextMonth];
-  const cardMonthlyTotals = await getCardExpenseForMonths(cardMonths);
+  // v1.6.3: this now comes from the household's own planned/logged
+  // credit card payment for that cycle (a one-off transfer tagged to
+  // cycle_month, the same thing Home's "Card payments due" shows --
+  // see getPlannedCardDuesForMonths / computeCardDuesTotal), not from
+  // real per-statement data (CreditCardIntelService). v1.6.1/v1.6.2
+  // used real statement data for settled months and the planned figure
+  // only for the projected month, but that was still wrong for
+  // June/July: only one of the household's cards has a statement
+  // parser today, so real per-statement data for ANY month undercounts
+  // their true multi-card obligation, not just a future one. The
+  // planned/logged figure is what the household actually tracks as
+  // their full card cycle payment regardless of parser coverage, so it
+  // now applies uniformly to every month here. Safe to add directly on
+  // top of the ledger's own expense total (not double-counted): this
+  // transfer is excluded from getCashFlowSummary by design (see that
+  // module's own comment on why), and computeCardDuesTotal deliberately
+  // excludes one-off *expenses* (which getCashFlowSummary already
+  // counts) -- see that function's own comment. The dedicated
+  // Card-level breakdown section below is unaffected by any of this;
+  // it's still real per-statement data on purpose, since showing what
+  // statement data actually exists is its whole point.
+  const cardDuesMonths = [...trend.map((t) => t.month), nextMonth];
+  const plannedCardDues = await getPlannedCardDuesForMonths(cardDuesMonths);
 
   function combinedExpense(month: string, ledgerExpense: Money): Money {
-    const cardTotal = cardMonthlyTotals.get(month);
-    return cardTotal
-      ? addMoney(ledgerExpense, cardTotal.totalSpend)
-      : ledgerExpense;
+    const dues = plannedCardDues.get(month);
+    return dues ? addMoney(ledgerExpense, dues) : ledgerExpense;
   }
 
-  // Same six-plus-one months as expenditureBars below, with card spend
-  // already folded into .expense -- .income is untouched (credit cards
-  // have no income concept here, only debit spend).
+  // Same six-plus-one months as expenditureBars below, with card dues
+  // already folded into .expense -- .income is untouched.
   const combinedTrend = trend.map((t) => ({
     ...t,
     expense: combinedExpense(t.month, t.expense),
@@ -367,41 +385,21 @@ export default async function IntelPage({
   const currency = settings?.baseCurrency ?? "USD";
   const categoryName = new Map(categories.map((c) => [c.id, c.name]));
 
-  // v1.6.1: card spend shows in these charts as one lumped "Credit Card
-  // Dues" entry (see CARD_DUES_CATEGORY_ID above), not broken out by
-  // its own category -- that detail lives in the dedicated Card-level
+  // Card dues show in these charts as one lumped "Credit Card Dues"
+  // entry (see CARD_DUES_CATEGORY_ID above), not broken out by
+  // category -- that detail lives in the dedicated Card-level
   // breakdown section instead. The lumped entry competes for a top-5
   // slot in buildDonutSlices' bucketing like any other category, so a
-  // month with heavy card spend shows it prominently rather than always
+  // month with heavy card dues shows it prominently rather than always
   // pinning it to a fixed position.
-  //
-  // v1.6.2: includeCardSpend is false for a projected (future) month --
-  // only Infinia has a statement parser today, so real card-cycle data
-  // for a cycle that hasn't happened yet is at best partial (missing
-  // every other card) and undercounts the household's real obligation.
-  // A projected month instead shows the ledger's own total as-is,
-  // trusting whatever's already tagged to that cycle (the same
-  // recurring/planned-ahead mechanism that already back
-  // finance.categories lines like "Housing & loans" here) -- including
-  // however the household already plans for an upcoming card payment
-  // during Atlas's own Planning phase. Once more card parsers exist,
-  // this can likely go back to always including real card-cycle data.
-  function donut(
-    summary: CashFlowSummary,
-    month: string,
-    includeCardSpend: boolean,
-  ) {
-    const cardTotal = includeCardSpend
-      ? cardMonthlyTotals.get(month)
-      : undefined;
-    const totalExpense = includeCardSpend
-      ? combinedExpense(month, summary.totalExpense)
-      : summary.totalExpense;
+  function donut(summary: CashFlowSummary, month: string) {
+    const dues = plannedCardDues.get(month);
+    const totalExpense = combinedExpense(month, summary.totalExpense);
 
     const categoriesWithCardDues = [
       ...summary.expenseByCategory,
-      ...(cardTotal && compareMoney(cardTotal.totalSpend, ZERO) > 0
-        ? [{ categoryId: CARD_DUES_CATEGORY_ID, total: cardTotal.totalSpend }]
+      ...(dues && compareMoney(dues, ZERO) > 0
+        ? [{ categoryId: CARD_DUES_CATEGORY_ID, total: dues }]
         : []),
     ];
     const namesWithCardDues = new Map(categoryName);
@@ -422,14 +420,12 @@ export default async function IntelPage({
       label: monthShortLabel(prevMonth),
       summary: prevSummary,
       month: prevMonth,
-      includeCardSpend: true,
     },
     {
       key: "current",
       label: "This month",
       summary: currentSummary,
       month: thisMonth,
-      includeCardSpend: true,
     },
     {
       key: "next",
@@ -437,9 +433,8 @@ export default async function IntelPage({
       summary: nextSummary,
       month: nextMonth,
       isProjected: true,
-      includeCardSpend: false,
     },
-  ].map((d) => ({ ...d, ...donut(d.summary, d.month, d.includeCardSpend) }));
+  ].map((d) => ({ ...d, ...donut(d.summary, d.month) }));
 
   // Month-on-month expenditure: the 6 actual months from the trend,
   // plus one projected bar for next month — v1.2, per the request to
@@ -447,9 +442,8 @@ export default async function IntelPage({
   // transactions yet in the common case, so its bar comes from the
   // same includePending cash-flow query as the "upcoming" donut above,
   // not from getMonthlyCashFlowTrend (which only ever counts posted
-  // activity, and would just be zero for a future month). The 6 real
-  // months fold in card spend same as the donuts above; the projected
-  // 7th bar deliberately doesn't -- see includeCardSpend's comment above.
+  // activity, and would just be zero for a future month). Card dues
+  // folded in throughout, same as the donuts above.
   const expenditureBars = [
     ...combinedTrend.map((t) => ({
       month: t.month,
@@ -458,7 +452,7 @@ export default async function IntelPage({
     })),
     {
       month: nextMonth,
-      total: nextSummary.totalExpense,
+      total: combinedExpense(nextMonth, nextSummary.totalExpense),
       isProjected: true,
     },
   ];

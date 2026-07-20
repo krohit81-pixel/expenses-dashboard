@@ -2,6 +2,7 @@ import "server-only";
 
 import { sumMoney, type Money } from "@/lib/money";
 import { isSpendableAccountType } from "@/lib/accounts/spendable";
+import { computeCardDuesTotal } from "@/lib/budget/home-stats";
 import { listAccounts } from "@/services/AccountService";
 import { listRecurringTransactions } from "@/services/RecurringTransactionService";
 import { listTransactions } from "@/services/TransactionService";
@@ -133,4 +134,31 @@ export async function getMonthlyBudgetSnapshot(
     incomeTotal,
     fixedExpenseTotal,
   };
+}
+
+/**
+ * Planned/logged credit card (or loan) payments for a set of cycle
+ * months, keyed by "YYYY-MM" -- v1.6.3, built for Intel's By-category
+ * donuts and month-on-month chart, which need this same figure for
+ * several specific months at once (prev/current/next, plus the trend
+ * months). One getMonthlyBudgetSnapshot call per month, run in
+ * parallel -- each is already a small, fixed number of queries (see
+ * that function's own reasoning), and this is the same access pattern
+ * HomePhaseView already uses one month at a time from the client.
+ * A month with no such transfer simply has no entry in the returned
+ * Map (not a zeroed-out one) -- same "absence means zero" convention
+ * as every other summary query in this codebase.
+ */
+export async function getPlannedCardDuesForMonths(
+  months: string[],
+): Promise<Map<string, Money>> {
+  const snapshots = await Promise.all(
+    months.map((month) => getMonthlyBudgetSnapshot(month)),
+  );
+  return new Map(
+    snapshots.map((snapshot) => [
+      snapshot.month,
+      computeCardDuesTotal(snapshot),
+    ]),
+  );
 }

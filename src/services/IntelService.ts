@@ -1,6 +1,13 @@
 import "server-only";
 
-import { formatMoneyDisplay } from "@/lib/money";
+import {
+  addMoney,
+  compareMoney,
+  formatMoneyDisplay,
+  subtractMoney,
+  ZERO,
+  type Money,
+} from "@/lib/money";
 import { serverEnv } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import {
@@ -10,6 +17,7 @@ import {
 import { listTransactions } from "@/services/TransactionService";
 import { listCategories } from "@/services/CategoryService";
 import { getUserSettings } from "@/services/UserSettingsService";
+import { getPlannedCardDuesForMonths } from "@/services/BudgetSnapshotService";
 import { OWNER_USER_ID } from "@/lib/owner";
 import { currentMonth, monthLabel, shiftMonth } from "@/lib/dates/month";
 
@@ -205,18 +213,58 @@ async function generateInsightText(): Promise<string | null> {
       getCashFlowSummary({ from: forecastFrom, to: forecastTo }, true),
     ]);
 
+  // v1.6.3: fold in the household's planned/logged credit card cycle
+  // payment (same figure the Intel page's own donuts and month-on-
+  // month chart now use -- see getPlannedCardDuesForMonths's own
+  // comment) so the model reasons about the same numbers the page
+  // actually shows. Before this, the model only ever saw the ledger's
+  // own expense figures with no card dues at all, which is why an
+  // earlier version called a category "predominant" that was really
+  // just the largest LEDGER category, not the largest category on the
+  // page the household was looking at.
+  const thisMonthStr = currentMonth();
+  const cardDuesMonths = [...trend.map((t) => t.month), forecastMonth];
+  const plannedCardDues = await getPlannedCardDuesForMonths(cardDuesMonths);
+
+  function combinedExpense(month: string, ledgerExpense: Money): Money {
+    const dues = plannedCardDues.get(month);
+    return dues && compareMoney(dues, ZERO) > 0
+      ? addMoney(ledgerExpense, dues)
+      : ledgerExpense;
+  }
+
   const currency = settings?.baseCurrency ?? "USD";
   const categoryName = new Map(categories.map((c) => [c.id, c.name]));
 
-  const categoryLines = summary.expenseByCategory
-    .map(
+  const currentCardDues = plannedCardDues.get(thisMonthStr);
+  const combinedCurrentExpense = combinedExpense(
+    thisMonthStr,
+    summary.totalExpense,
+  );
+  const combinedForecastExpense = combinedExpense(
+    forecastMonth,
+    forecast.totalExpense,
+  );
+  const combinedNet = subtractMoney(
+    summary.totalIncome,
+    combinedCurrentExpense,
+  );
+
+  const categoryLines = [
+    ...summary.expenseByCategory.map(
       (c) =>
         `- ${categoryName.get(c.categoryId) ?? "Uncategorized"}: ${formatMoneyDisplay(c.total, currency)}`,
-    )
-    .join("\n");
+    ),
+    ...(currentCardDues && compareMoney(currentCardDues, ZERO) > 0
+      ? [`- Credit Card Dues: ${formatMoneyDisplay(currentCardDues, currency)}`]
+      : []),
+  ].join("\n");
 
   const trendLines = trend
-    .map((t) => `- ${t.month}: ${formatMoneyDisplay(t.total, currency)}`)
+    .map(
+      (t) =>
+        `- ${t.month}: ${formatMoneyDisplay(combinedExpense(t.month, t.total), currency)}`,
+    )
     .join("\n");
 
   const upcomingLines = upcoming.transactions
@@ -234,10 +282,10 @@ async function generateInsightText(): Promise<string | null> {
     trendLines,
     upcomingLines,
     totalIncome: formatMoneyDisplay(summary.totalIncome, currency),
-    totalExpense: formatMoneyDisplay(summary.totalExpense, currency),
-    net: formatMoneyDisplay(summary.net, currency),
+    totalExpense: formatMoneyDisplay(combinedCurrentExpense, currency),
+    net: formatMoneyDisplay(combinedNet, currency),
     forecastMonthLabel: monthLabel(forecastMonth),
-    forecastTotalExpense: formatMoneyDisplay(forecast.totalExpense, currency),
+    forecastTotalExpense: formatMoneyDisplay(combinedForecastExpense, currency),
   });
 
   try {

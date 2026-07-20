@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { sumMoney } from "@/lib/money";
 import {
+  computeCardDuesTotal,
   computeCommittedExpenseTotal,
   computeProjectedClosing,
 } from "./home-stats";
@@ -319,5 +320,96 @@ describe("computeCommittedExpenseTotal", () => {
       }),
     );
     expect(result).toBe("20000.00");
+  });
+});
+
+describe("computeCardDuesTotal", () => {
+  it("is zero for an empty month", () => {
+    expect(computeCardDuesTotal(snapshot())).toBe("0.00");
+  });
+
+  it("sums a card-paydown transfer but not a spendable-to-spendable one", () => {
+    const result = computeCardDuesTotal(
+      snapshot({
+        oneOff: [
+          {
+            id: "1",
+            payee: "Card statement",
+            amount: "20000.00" as never,
+            currencyCode: "INR",
+            kind: "transfer",
+            transferAccountId: "acct-card",
+            status: "posted",
+            transferReducesCashOnHand: true,
+          },
+          {
+            id: "2",
+            payee: "Self",
+            amount: "10000.00" as never,
+            currencyCode: "INR",
+            kind: "transfer",
+            transferAccountId: "acct-savings",
+            status: "posted",
+            transferReducesCashOnHand: false,
+          },
+        ],
+      }),
+    );
+    expect(result).toBe("20000.00");
+  });
+
+  it("ignores one-off expenses -- only the transfer portion counts", () => {
+    // Unlike computeCommittedExpenseTotal, this must NOT include
+    // one-off expenses -- those are already counted by
+    // ReportingService.getCashFlowSummary for the same calendar month,
+    // so including them here too would double-count when Intel adds
+    // this total on top of a getCashFlowSummary total.
+    const result = computeCardDuesTotal(
+      snapshot({
+        oneOff: [
+          {
+            id: "1",
+            payee: "Groceries",
+            amount: "5000.00" as never,
+            currencyCode: "INR",
+            kind: "expense",
+            transferAccountId: null,
+            status: "pending",
+            transferReducesCashOnHand: false,
+          },
+        ],
+      }),
+    );
+    expect(result).toBe("0.00");
+  });
+
+  it("sums multiple card-paydown transfers together", () => {
+    const result = computeCardDuesTotal(
+      snapshot({
+        oneOff: [
+          {
+            id: "1",
+            payee: "Infinia statement",
+            amount: "150000.00" as never,
+            currencyCode: "INR",
+            kind: "transfer",
+            transferAccountId: "acct-infinia",
+            status: "posted",
+            transferReducesCashOnHand: true,
+          },
+          {
+            id: "2",
+            payee: "Amazon Pay statement",
+            amount: "20714.00" as never,
+            currencyCode: "INR",
+            kind: "transfer",
+            transferAccountId: "acct-amazon-pay",
+            status: "pending",
+            transferReducesCashOnHand: true,
+          },
+        ],
+      }),
+    );
+    expect(result).toBe("170714.00");
   });
 });
