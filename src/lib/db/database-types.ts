@@ -1188,6 +1188,8 @@ export type Database = {
           page_number: number;
           sequence_number: number;
           raw_text: string;
+          merchant_id: string | null;
+          needs_review: boolean;
           created_at: string;
         };
         Insert: {
@@ -1218,6 +1220,8 @@ export type Database = {
           page_number: number;
           sequence_number: number;
           raw_text: string;
+          merchant_id?: string | null;
+          needs_review?: boolean;
           created_at?: string;
         };
         Update: {
@@ -1248,6 +1252,8 @@ export type Database = {
           page_number?: number;
           sequence_number?: number;
           raw_text?: string;
+          merchant_id?: string | null;
+          needs_review?: boolean;
           created_at?: string;
         };
         Relationships: [
@@ -1256,6 +1262,176 @@ export type Database = {
             columns: ["statement_id"];
             isOneToOne: false;
             referencedRelation: "credit_card_statements";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "credit_card_transactions_merchant_id_fkey";
+            columns: ["merchant_id"];
+            isOneToOne: false;
+            referencedRelation: "merchants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      atlas_categories: {
+        Row: {
+          id: string;
+          user_id: string;
+          category_name: string;
+          parent_category_id: string | null;
+          icon: string | null;
+          display_order: number;
+          active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          category_name: string;
+          parent_category_id?: string | null;
+          icon?: string | null;
+          display_order?: number;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          category_name?: string;
+          parent_category_id?: string | null;
+          icon?: string | null;
+          display_order?: number;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "atlas_categories_parent_category_id_fkey";
+            columns: ["parent_category_id"];
+            isOneToOne: false;
+            referencedRelation: "atlas_categories";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      merchants: {
+        Row: {
+          id: string;
+          user_id: string;
+          merchant_name: string;
+          display_name: string;
+          atlas_category_id: string | null;
+          atlas_subcategory_id: string | null;
+          merchant_type: string | null;
+          is_recurring: boolean;
+          is_subscription: boolean;
+          is_transfer: boolean;
+          is_income: boolean;
+          default_currency: string;
+          website: string | null;
+          logo_url: string | null;
+          notes: string | null;
+          confidence: number | null;
+          active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          merchant_name: string;
+          display_name: string;
+          atlas_category_id?: string | null;
+          atlas_subcategory_id?: string | null;
+          merchant_type?: string | null;
+          is_recurring?: boolean;
+          is_subscription?: boolean;
+          is_transfer?: boolean;
+          is_income?: boolean;
+          default_currency?: string;
+          website?: string | null;
+          logo_url?: string | null;
+          notes?: string | null;
+          confidence?: number | null;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          merchant_name?: string;
+          display_name?: string;
+          atlas_category_id?: string | null;
+          atlas_subcategory_id?: string | null;
+          merchant_type?: string | null;
+          is_recurring?: boolean;
+          is_subscription?: boolean;
+          is_transfer?: boolean;
+          is_income?: boolean;
+          default_currency?: string;
+          website?: string | null;
+          logo_url?: string | null;
+          notes?: string | null;
+          confidence?: number | null;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "merchants_atlas_category_id_fkey";
+            columns: ["atlas_category_id"];
+            isOneToOne: false;
+            referencedRelation: "atlas_categories";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "merchants_atlas_subcategory_id_fkey";
+            columns: ["atlas_subcategory_id"];
+            isOneToOne: false;
+            referencedRelation: "atlas_categories";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      merchant_aliases: {
+        Row: {
+          id: string;
+          user_id: string;
+          merchant_id: string;
+          alias: string;
+          source_bank: string | null;
+          confidence: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          merchant_id: string;
+          alias: string;
+          source_bank?: string | null;
+          confidence?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          merchant_id?: string;
+          alias?: string;
+          source_bank?: string | null;
+          confidence?: number | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "merchant_aliases_merchant_id_fkey";
+            columns: ["merchant_id"];
+            isOneToOne: false;
+            referencedRelation: "merchants";
             referencedColumns: ["id"];
           },
         ];

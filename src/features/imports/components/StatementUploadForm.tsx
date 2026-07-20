@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -107,6 +108,20 @@ export function StatementUploadForm() {
               ? "Already imported — no changes made"
               : `Saved — ${state.summary.transactionCount} transaction${state.summary.transactionCount === 1 ? "" : "s"} imported`}
           </p>
+          {state.status === "saved" && state.summary.needsReviewCount > 0 && (
+            <p className="text-xs text-ink-soft">
+              {state.summary.needsReviewCount} new merchant
+              {state.summary.needsReviewCount === 1 ? "" : "s"} need a category
+              —{" "}
+              <Link
+                href="/merchants?filter=uncategorized"
+                className="font-semibold underline"
+              >
+                review now
+              </Link>
+              .
+            </p>
+          )}
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-ink-soft">
             <dt className="text-ink-faint">Card</dt>
             <dd>

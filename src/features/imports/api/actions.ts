@@ -27,6 +27,7 @@ export interface StatementSummary {
   minimumDue: Money;
   statementCurrency: string;
   transactionCount: number;
+  needsReviewCount: number;
 }
 
 export interface ImportStatementState {
@@ -100,6 +101,7 @@ export async function importStatementAction(
         minimumDue: saved.header.minimumDue,
         statementCurrency: saved.header.statementCurrency,
         transactionCount: saved.transactionCount,
+        needsReviewCount: saved.needsReviewCount,
       },
       pages: extraction.pages,
     };

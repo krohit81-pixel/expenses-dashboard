@@ -4,6 +4,7 @@ import {
   LogOut,
   Repeat,
   Settings,
+  Store,
   TrendingUp,
   Upload,
   Wallet,
@@ -47,8 +48,15 @@ const ITEMS = [
   {
     href: "/imports",
     label: "Imports",
-    description: "Bring in bank statements. Not built yet.",
+    description:
+      "Upload a credit card statement PDF — parsed and saved automatically.",
     icon: Upload,
+  },
+  {
+    href: "/merchants",
+    label: "Merchants",
+    description: "Every merchant Atlas has seen, with categories and spend.",
+    icon: Store,
   },
   {
     href: "/settings",

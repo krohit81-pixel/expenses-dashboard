@@ -78,6 +78,7 @@ function isActive(pathname: string, href: string): boolean {
         "/recurring",
         "/net-worth",
         "/imports",
+        "/merchants",
         "/budgets",
         "/settings",
         "/more",

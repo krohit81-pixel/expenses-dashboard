@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { moneyToDbNumber } from "@/lib/money";
 import { OWNER_USER_ID } from "@/lib/owner";
 import { createServiceClient } from "@/lib/supabase/service";
+import { resolveMerchantsForImport } from "@/services/MerchantDictionaryService";
 import {
   HdfcHeaderParseError,
   parseHdfcInfiniaHeader,
@@ -32,6 +33,8 @@ export interface SaveHdfcStatementResult {
   statementId: string;
   header: HdfcStatementHeader;
   transactionCount: number;
+  /** How many of this statement's transactions reference a merchant with no category yet -- see needs_review. Always 0 for a "duplicate" outcome. */
+  needsReviewCount: number;
 }
 
 /**
@@ -86,6 +89,7 @@ export async function saveHdfcInfiniaStatement(
       statementId: existing.id,
       header,
       transactionCount: transactions.length,
+      needsReviewCount: 0,
     };
   }
 
@@ -133,38 +137,67 @@ export async function saveHdfcInfiniaStatement(
     );
   }
 
+  let needsReviewCount = 0;
+
   if (transactions.length > 0) {
+    // Merchant Dictionary resolution happens here, not inside the HDFC
+    // parser -- the parser's only job is producing merchantRaw/
+    // merchantNormalized from the statement text; deciding what merchant
+    // (and eventually what category) that resolves to is shared,
+    // dictionary-driven logic every future card parser reuses as-is. A
+    // credit row with no merchant (a payment, cashback, refund -- see
+    // isNonMerchantCredit in parse-transactions.ts) has merchantRaw null
+    // and is never sent to the dictionary; merchant_id and needs_review
+    // both stay at their defaults (null / false) for those rows.
+    const merchantInputs = transactions
+      .filter((t) => t.merchantRaw !== null)
+      .map((t) => ({
+        rawText: t.merchantRaw!,
+        normalizedText: t.merchantNormalized ?? t.merchantRaw!,
+        sourceBank: "hdfc-infinia",
+        currency: t.currency,
+      }));
+    const merchantResolutions = await resolveMerchantsForImport(merchantInputs);
+
     const { error: transactionsError } = await supabase
       .from("credit_card_transactions")
       .insert(
-        transactions.map((t) => ({
-          user_id: OWNER_USER_ID,
-          statement_id: inserted.id,
-          transaction_date: t.transactionDate,
-          transaction_time: t.transactionTime,
-          description: t.description,
-          merchant_raw: t.merchantRaw,
-          merchant_normalized: t.merchantNormalized,
-          amount: moneyToDbNumber(t.amount),
-          currency: t.currency,
-          transaction_type: t.transactionType,
-          is_payment: t.isPayment,
-          is_cashback: t.isCashback,
-          is_refund: t.isRefund,
-          is_emi: t.isEmi,
-          credit_type: t.creditType,
-          payment_reference: t.paymentReference,
-          emi_merchant: t.emiMerchant,
-          emi_amount: t.emiAmount ? moneyToDbNumber(t.emiAmount) : null,
-          reward_points: t.rewardPoints,
-          purchase_indicator_code: t.purchaseIndicatorCode,
-          purchase_indicator_name: t.purchaseIndicatorName,
-          cardholder_type: t.cardholderType,
-          cardholder_name: t.cardholderName,
-          page_number: t.pageNumber,
-          sequence_number: t.sequenceNumber,
-          raw_text: t.rawText,
-        })),
+        transactions.map((t) => {
+          const resolution =
+            t.merchantRaw !== null
+              ? merchantResolutions.get(t.merchantRaw)
+              : undefined;
+          return {
+            user_id: OWNER_USER_ID,
+            statement_id: inserted.id,
+            transaction_date: t.transactionDate,
+            transaction_time: t.transactionTime,
+            description: t.description,
+            merchant_raw: t.merchantRaw,
+            merchant_normalized: t.merchantNormalized,
+            amount: moneyToDbNumber(t.amount),
+            currency: t.currency,
+            transaction_type: t.transactionType,
+            is_payment: t.isPayment,
+            is_cashback: t.isCashback,
+            is_refund: t.isRefund,
+            is_emi: t.isEmi,
+            credit_type: t.creditType,
+            payment_reference: t.paymentReference,
+            emi_merchant: t.emiMerchant,
+            emi_amount: t.emiAmount ? moneyToDbNumber(t.emiAmount) : null,
+            reward_points: t.rewardPoints,
+            purchase_indicator_code: t.purchaseIndicatorCode,
+            purchase_indicator_name: t.purchaseIndicatorName,
+            cardholder_type: t.cardholderType,
+            cardholder_name: t.cardholderName,
+            page_number: t.pageNumber,
+            sequence_number: t.sequenceNumber,
+            raw_text: t.rawText,
+            merchant_id: resolution?.merchantId ?? null,
+            needs_review: resolution?.needsReview ?? false,
+          };
+        }),
       );
 
     if (transactionsError) {
@@ -181,6 +214,14 @@ export async function saveHdfcInfiniaStatement(
         `Failed to save transactions: ${transactionsError.message}`,
       );
     }
+
+    needsReviewCount = transactions.filter((t) => {
+      const resolution =
+        t.merchantRaw !== null
+          ? merchantResolutions.get(t.merchantRaw)
+          : undefined;
+      return resolution?.needsReview ?? false;
+    }).length;
   }
 
   return {
@@ -188,5 +229,6 @@ export async function saveHdfcInfiniaStatement(
     statementId: inserted.id,
     header,
     transactionCount: transactions.length,
+    needsReviewCount,
   };
 }
