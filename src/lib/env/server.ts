@@ -2,6 +2,8 @@ import "server-only";
 
 import { z } from "zod";
 
+import { optionalEnvString } from "@/lib/env/optional-string";
+
 /**
  * Environment variables that must never reach a client bundle.
  * The `server-only` import above makes Next.js fail the build if any
@@ -24,19 +26,19 @@ const serverEnvSchema = z.object({
   // configured" when the "Generate commentary" button is pressed,
   // instead of crashing the whole app at boot over an enhancement, not
   // a core dependency.
-  ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  ANTHROPIC_API_KEY: optionalEnvString(),
   // v1.6.0 — an alternate provider for the same Intel insight, for anyone
   // who'd rather use a Gemini key than an Anthropic one (or has one
   // already and not the other). Replaces the earlier OPENAI_API_KEY
   // option (v1.2), removed at the user's request rather than kept as a
   // third option. regenerateInsight() tries Anthropic first if both are
   // set — see that function's comment for why.
-  GEMINI_API_KEY: z.string().min(1).optional(),
+  GEMINI_API_KEY: optionalEnvString(),
   // Optional override — defaults to a current small/cheap Gemini model
   // in IntelService.ts if unset. Only relevant when GEMINI_API_KEY is
   // configured; exists so a model rename/deprecation doesn't require a
   // code change to recover from, just an env var.
-  GEMINI_MODEL: z.string().min(1).optional(),
+  GEMINI_MODEL: optionalEnvString(),
   // v1.3.0 — the password on HDFC's Infinia statement PDF (HDFC emails
   // these encrypted; the usual scheme is some combination of the
   // cardholder's name/DOB, but this app never assumes a specific
@@ -46,7 +48,7 @@ const serverEnvSchema = z.object({
   // it says so rather than crashing. Only one card is supported for
   // now (Infinia); a second card would get its own env var when that's
   // actually needed, not a speculative multi-card scheme today.
-  HDFC_INFINIA_STATEMENT_PASSWORD: z.string().min(1).optional(),
+  HDFC_INFINIA_STATEMENT_PASSWORD: optionalEnvString(),
   // The access gate: /calendar stays public (shareable without exposing
   // financial data), everything else requires this shared password once
   // per browser. This is NOT Supabase Auth and never calls any Supabase

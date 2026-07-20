@@ -11,6 +11,7 @@ import { listTransactions } from "@/services/TransactionService";
 import { listCategories } from "@/services/CategoryService";
 import { getUserSettings } from "@/services/UserSettingsService";
 import { OWNER_USER_ID } from "@/lib/owner";
+import { currentMonth, monthLabel, shiftMonth } from "@/lib/dates/month";
 
 const ANTHROPIC_MODEL = "claude-sonnet-5";
 /** Only used when GEMINI_API_KEY is configured and GEMINI_MODEL isn't set — a current, small/cheap chat model, not Gemini's largest, since this is a 2-3 sentence summary, not a task that needs a frontier model. Override via GEMINI_MODEL if this ever starts returning a model-not-found error (model names/versions do change over time — verify against https://ai.google.dev/gemini-api/docs/models). */
@@ -21,6 +22,18 @@ const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
  * it — the two providers are an implementation detail of *how* the
  * insight gets generated, not a reason for the household's data or the
  * instructions given about it to differ.
+ *
+ * v1.6.2: two changes made after real feedback on the first version's
+ * output. (1) It picked "Entertainment" as the notable pattern when
+ * Entertainment was only ~1% of spend — technically the largest
+ * category-over-category delta doesn't mean much if every category is
+ * small; the prompt now explicitly asks for a *sizeable* pattern, not
+ * just whichever one happens to stand out proportionally. (2) It never
+ * mentioned next month at all, despite Intel's own charts showing a
+ * forecast — the household asked "does it cover forecast as well?" —
+ * so the forecast total is now part of what's handed to the model, and
+ * the instructions explicitly ask it to weigh both the current month
+ * and next month's forecast, not just the current month in isolation.
  */
 function buildInsightPrompt(params: {
   monthStart: string;
@@ -32,8 +45,10 @@ function buildInsightPrompt(params: {
   totalIncome: string;
   totalExpense: string;
   net: string;
+  forecastMonthLabel: string;
+  forecastTotalExpense: string;
 }): string {
-  return `You are a calm, factual personal finance assistant. Given this household's data for the current month, write a short insight: 2-3 sentences, no more. Point out one genuinely notable pattern (spending trend, category standing out, or an upcoming commitment worth being aware of) and be specific with numbers. Do not give generic advice like "consider budgeting." Do not use markdown formatting.
+  return `You are a calm, factual personal finance assistant. Given this household's data for the current month AND the forecast for next month, write a short insight: 2-3 sentences, no more. Point out one genuinely notable pattern -- prefer a clear, sizeable trend or comparison over a marginal one (don't lead with a category that's only a percent or two of total spend just because it happens to be present); consider both what's already happened this month and what's forecast for next month, and be specific with numbers. Do not give generic advice like "consider budgeting." Do not use markdown formatting.
 
 Current month so far (${params.monthStart} to ${params.today}):
 - Income: ${params.totalIncome}
@@ -45,6 +60,9 @@ ${params.categoryLines || "(none yet this month)"}
 
 Expenditure trend, last 6 months:
 ${params.trendLines}
+
+Forecast for ${params.forecastMonthLabel}, from recurring items and anything already tagged ahead of time:
+- Expected expenses: ${params.forecastTotalExpense}
 
 Upcoming one-time commitments, next 90 days:
 ${params.upcomingLines || "(none scheduled)"}`;
@@ -157,18 +175,35 @@ async function generateInsightText(): Promise<string | null> {
     .toISOString()
     .slice(0, 10);
 
-  const [settings, summary, trend, categories, upcoming] = await Promise.all([
-    getUserSettings(OWNER_USER_ID),
-    getCashFlowSummary({ from: monthStart, to: today }),
-    getMonthlyExpenditureTrend(6),
-    listCategories(true),
-    listTransactions({
-      status: "pending",
-      occurredFrom: today,
-      occurredTo: in90Days,
-      limit: 20,
-    }),
-  ]);
+  // v1.6.2: the forecast the household asked about -- same next-month
+  // range and includePending:true semantics as the Intel page's own
+  // "projected" donut/bar (see intel/page.tsx's own comment on why
+  // includePending is right for a month that hasn't happened yet:
+  // recurring items and anything tagged ahead of time are effectively
+  // the only data a future month can have).
+  const forecastMonth = shiftMonth(currentMonth(), 1);
+  const [forecastYear, forecastMonthNum] = forecastMonth.split("-").map(Number);
+  const forecastFrom = new Date(Date.UTC(forecastYear, forecastMonthNum - 1, 1))
+    .toISOString()
+    .slice(0, 10);
+  const forecastTo = new Date(Date.UTC(forecastYear, forecastMonthNum, 0))
+    .toISOString()
+    .slice(0, 10);
+
+  const [settings, summary, trend, categories, upcoming, forecast] =
+    await Promise.all([
+      getUserSettings(OWNER_USER_ID),
+      getCashFlowSummary({ from: monthStart, to: today }),
+      getMonthlyExpenditureTrend(6),
+      listCategories(true),
+      listTransactions({
+        status: "pending",
+        occurredFrom: today,
+        occurredTo: in90Days,
+        limit: 20,
+      }),
+      getCashFlowSummary({ from: forecastFrom, to: forecastTo }, true),
+    ]);
 
   const currency = settings?.baseCurrency ?? "USD";
   const categoryName = new Map(categories.map((c) => [c.id, c.name]));
@@ -201,6 +236,8 @@ async function generateInsightText(): Promise<string | null> {
     totalIncome: formatMoneyDisplay(summary.totalIncome, currency),
     totalExpense: formatMoneyDisplay(summary.totalExpense, currency),
     net: formatMoneyDisplay(summary.net, currency),
+    forecastMonthLabel: monthLabel(forecastMonth),
+    forecastTotalExpense: formatMoneyDisplay(forecast.totalExpense, currency),
   });
 
   try {

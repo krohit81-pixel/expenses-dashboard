@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 
 import { Suspense } from "react";
 
-import Link from "next/link";
-
 import { requireUser } from "@/lib/auth/require-user";
 import {
   getCashFlowSummary,
@@ -38,6 +36,7 @@ import {
 import { Hero } from "@/components/ui/hero";
 import { Spinner } from "@/components/ui/spinner";
 import { GenerateInsightButton } from "@/features/intel/components/GenerateInsightButton";
+import { CardMonthNav } from "@/features/intel/components/CardMonthNav";
 
 export const metadata: Metadata = {
   title: "Intel",
@@ -126,27 +125,31 @@ function renderCardDonut(
   return (
     <div
       key={key}
-      className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]"
+      className="rounded-2xl bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]"
     >
-      <div className="px-4 py-3.5">
-        <h3 className="truncate font-display text-[12.5px] font-bold text-ink">
+      <div className="px-3.5 pb-1 pt-3">
+        <h3 className="truncate font-display text-[11.5px] font-bold text-ink">
           {label}
         </h3>
       </div>
       {slices.length === 0 ? (
-        <p className="px-4 pb-5 text-[12px] leading-relaxed text-ink-faint">
+        <p className="px-3.5 pb-3.5 text-[12px] leading-relaxed text-ink-faint">
           No spend recorded.
         </p>
       ) : (
-        <div className="flex flex-col items-center gap-3 px-4 pb-5">
+        // v1.6.2: donut + legend side by side (was stacked, donut on
+        // top) -- a stacked layout left a lot of unused width in each
+        // card; a household-flagged issue ("lot of empty spaces...if
+        // required shrink it").
+        <div className="flex items-center gap-3 px-3.5 pb-3.5">
           <div
-            className="relative size-[104px] shrink-0 rounded-full"
+            className="relative size-[76px] shrink-0 rounded-full"
             style={{
               background: `conic-gradient(${gradientStops.join(", ")})`,
             }}
           >
-            <div className="absolute inset-4 flex flex-col items-center justify-center rounded-full bg-surface">
-              <span className="font-display text-[12.5px] font-extrabold text-ink">
+            <div className="absolute inset-[10px] flex flex-col items-center justify-center rounded-full bg-surface text-center">
+              <span className="font-display text-[9.5px] font-extrabold leading-tight text-ink">
                 {formatMoneyDisplay(breakdown.totalSpend, currency).replace(
                   /\.\d+$/,
                   "",
@@ -154,33 +157,31 @@ function renderCardDonut(
               </span>
             </div>
           </div>
-          <ul className="w-full">
-            {slices.map((slice, i) => {
-              const totalNum = moneyToDbNumber(breakdown.totalSpend);
-              const pct =
-                totalNum > 0
-                  ? Math.round((moneyToDbNumber(slice.total) / totalNum) * 100)
-                  : 0;
-              return (
-                <li
-                  key={slice.name}
-                  className="flex items-center gap-1.5 py-0.5 text-[11px]"
-                >
-                  <span
-                    className="size-2 shrink-0 rounded-[2px]"
-                    style={{
-                      background: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
-                    }}
-                  />
-                  <span className="min-w-0 flex-1 truncate font-medium text-ink">
-                    {slice.name}
-                  </span>
-                  <span className="shrink-0 font-display text-[10px] font-bold text-ink-faint">
-                    {pct}%
-                  </span>
-                </li>
-              );
-            })}
+          <ul className="min-w-0 flex-1">
+            {slices.map((slice, i) => (
+              <li
+                key={slice.name}
+                className="flex items-center gap-1.5 py-0.5 text-[11px]"
+              >
+                <span
+                  className="size-2 shrink-0 rounded-[2px]"
+                  style={{
+                    background: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+                  }}
+                />
+                <span className="min-w-0 flex-1 truncate font-medium text-ink">
+                  {slice.name}
+                </span>
+                {/* v1.6.2: actual amount instead of a percentage, at
+                    the household's request. */}
+                <span className="shrink-0 font-display text-[10px] font-bold text-ink-faint">
+                  {formatMoneyDisplay(slice.total, currency).replace(
+                    /\.\d+$/,
+                    "",
+                  )}
+                </span>
+              </li>
+            ))}
           </ul>
         </div>
       )}
@@ -373,9 +374,29 @@ export default async function IntelPage({
   // slot in buildDonutSlices' bucketing like any other category, so a
   // month with heavy card spend shows it prominently rather than always
   // pinning it to a fixed position.
-  function donut(summary: CashFlowSummary, month: string) {
-    const cardTotal = cardMonthlyTotals.get(month);
-    const totalExpense = combinedExpense(month, summary.totalExpense);
+  //
+  // v1.6.2: includeCardSpend is false for a projected (future) month --
+  // only Infinia has a statement parser today, so real card-cycle data
+  // for a cycle that hasn't happened yet is at best partial (missing
+  // every other card) and undercounts the household's real obligation.
+  // A projected month instead shows the ledger's own total as-is,
+  // trusting whatever's already tagged to that cycle (the same
+  // recurring/planned-ahead mechanism that already back
+  // finance.categories lines like "Housing & loans" here) -- including
+  // however the household already plans for an upcoming card payment
+  // during Atlas's own Planning phase. Once more card parsers exist,
+  // this can likely go back to always including real card-cycle data.
+  function donut(
+    summary: CashFlowSummary,
+    month: string,
+    includeCardSpend: boolean,
+  ) {
+    const cardTotal = includeCardSpend
+      ? cardMonthlyTotals.get(month)
+      : undefined;
+    const totalExpense = includeCardSpend
+      ? combinedExpense(month, summary.totalExpense)
+      : summary.totalExpense;
 
     const categoriesWithCardDues = [
       ...summary.expenseByCategory,
@@ -401,12 +422,14 @@ export default async function IntelPage({
       label: monthShortLabel(prevMonth),
       summary: prevSummary,
       month: prevMonth,
+      includeCardSpend: true,
     },
     {
       key: "current",
       label: "This month",
       summary: currentSummary,
       month: thisMonth,
+      includeCardSpend: true,
     },
     {
       key: "next",
@@ -414,8 +437,9 @@ export default async function IntelPage({
       summary: nextSummary,
       month: nextMonth,
       isProjected: true,
+      includeCardSpend: false,
     },
-  ].map((d) => ({ ...d, ...donut(d.summary, d.month) }));
+  ].map((d) => ({ ...d, ...donut(d.summary, d.month, d.includeCardSpend) }));
 
   // Month-on-month expenditure: the 6 actual months from the trend,
   // plus one projected bar for next month — v1.2, per the request to
@@ -423,8 +447,9 @@ export default async function IntelPage({
   // transactions yet in the common case, so its bar comes from the
   // same includePending cash-flow query as the "upcoming" donut above,
   // not from getMonthlyCashFlowTrend (which only ever counts posted
-  // activity, and would just be zero for a future month). Card spend
-  // folded in throughout, same as the donuts above.
+  // activity, and would just be zero for a future month). The 6 real
+  // months fold in card spend same as the donuts above; the projected
+  // 7th bar deliberately doesn't -- see includeCardSpend's comment above.
   const expenditureBars = [
     ...combinedTrend.map((t) => ({
       month: t.month,
@@ -433,21 +458,13 @@ export default async function IntelPage({
     })),
     {
       month: nextMonth,
-      total: combinedExpense(nextMonth, nextSummary.totalExpense),
+      total: nextSummary.totalExpense,
       isProjected: true,
     },
   ];
   const trendMax = Math.max(
     1,
     ...expenditureBars.map((t) => moneyToDbNumber(t.total)),
-  );
-
-  const cashFlowMax = Math.max(
-    1,
-    ...combinedTrend.flatMap((t) => [
-      moneyToDbNumber(t.income),
-      moneyToDbNumber(t.expense),
-    ]),
   );
 
   return (
@@ -637,99 +654,14 @@ export default async function IntelPage({
           </div>
         </div>
 
-        {/* v1.2 — new: income next to expense, not just expense alone.
-            Same six months as the trend above, reusing the same
-            getMonthlyCashFlowTrend call rather than a second query.
-            expense here is combinedTrend's (ledger + card spend). */}
-        <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-          <div className="flex items-center justify-between px-[18px] py-4">
-            <h2 className="font-display text-sm font-bold text-ink">
-              Income vs expenses
-            </h2>
-            <span className="text-xs text-ink-faint">Last 6 months</span>
-          </div>
-          <div className="px-[18px] pb-4">
-            <div className="flex h-[130px] items-end gap-3">
-              {combinedTrend.map((t) => {
-                const incomeHeightPct = Math.max(
-                  4,
-                  (moneyToDbNumber(t.income) / cashFlowMax) * 100,
-                );
-                const expenseHeightPct = Math.max(
-                  4,
-                  (moneyToDbNumber(t.expense) / cashFlowMax) * 100,
-                );
-                return (
-                  <div
-                    key={t.month}
-                    className="flex h-full flex-1 flex-col items-center justify-end gap-1"
-                  >
-                    <div className="flex h-full w-full items-end justify-center gap-[3px]">
-                      <div
-                        className="w-2/5 rounded-t-md bg-positive"
-                        style={{ height: `${incomeHeightPct}%` }}
-                      />
-                      <div
-                        className="w-2/5 rounded-t-md bg-negative"
-                        style={{ height: `${expenseHeightPct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="mt-2 flex gap-3 border-t border-line pt-2">
-              {combinedTrend.map((t) => (
-                <span
-                  key={t.month}
-                  className="flex-1 text-center font-display text-[10px] font-semibold text-ink-faint"
-                >
-                  {monthShortLabel(t.month)}
-                </span>
-              ))}
-            </div>
-            <div className="mt-3 flex items-center gap-4">
-              <span className="flex items-center gap-1.5 text-[10.5px] text-ink-soft">
-                <span className="size-2 rounded-[2px] bg-positive" /> Income
-              </span>
-              <span className="flex items-center gap-1.5 text-[10.5px] text-ink-soft">
-                <span className="size-2 rounded-[2px] bg-negative" /> Expenses
-              </span>
-            </div>
-          </div>
-        </div>
-
         <div>
           <h2 className="mb-3 font-display text-sm font-bold text-ink">
             Card-level breakdown
           </h2>
-          <div className="mb-3 flex items-center gap-1.5">
-            <Link
-              href={`/intel?cardMonth=${shiftMonth(cardMonth, -1)}`}
-              className="flex size-7 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent"
-              aria-label="Previous month"
-            >
-              &#8249;
-            </Link>
-            <span className="min-w-[86px] text-center font-display text-xs font-bold text-ink-soft">
-              {shortMonthLabel(cardMonth)}
-            </span>
-            <Link
-              href={`/intel?cardMonth=${shiftMonth(cardMonth, 1)}`}
-              className="flex size-7 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent"
-              aria-label="Next month"
-            >
-              &#8250;
-            </Link>
-            {!isCurrentCardMonth && (
-              <Link
-                href="/intel"
-                className="ml-1 rounded-full bg-accent px-2.5 py-1 font-display text-[10px] font-bold text-white"
-              >
-                Today
-              </Link>
-            )}
-          </div>
+          <CardMonthNav
+            cardMonth={cardMonth}
+            isCurrentCardMonth={isCurrentCardMonth}
+          />
 
           <Suspense key={cardMonth} fallback={<CardBreakdownSkeleton />}>
             <CardLevelBreakdownSection
