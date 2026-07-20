@@ -1,5 +1,5 @@
 import { findAmount } from "./amounts";
-import { classifyTransaction } from "./classify-transaction";
+import { classifyTransaction, isBankFeeOrTax } from "./classify-transaction";
 import { normalizeMerchant } from "./normalize-merchant";
 import type { CardholderType, HdfcTransaction } from "./types";
 
@@ -188,18 +188,22 @@ export function parseHdfcTransactions(pageTexts: string[]): HdfcTransaction[] {
     // Credits with a recognized type (payment/cashback/refund/reversal)
     // aren't merchant purchases -- an unrecognized credit (rare; no
     // matching pattern in classify-transaction.ts) is left as a
-    // merchant, since we don't actually know it isn't one.
-    const isNonMerchantCredit = classification.creditType !== null;
+    // merchant, since we don't actually know it isn't one. Bank-generated
+    // fee/tax lines (IGST, FCY markup fee, DCC surcharge -- see
+    // isBankFeeOrTax) aren't merchants either, and critically each one
+    // carries its own unique reference number, so treating them as
+    // merchants would create a brand new Merchant Dictionary entry for
+    // every single occurrence instead of matching an existing one.
+    const isNonMerchant =
+      classification.creditType !== null || isBankFeeOrTax(description);
 
     sequenceNumber += 1;
     transactions.push({
       transactionDate: toIsoDate(day!, month!, year!),
       transactionTime: time ?? null,
       description,
-      merchantRaw: isNonMerchantCredit ? null : description,
-      merchantNormalized: isNonMerchantCredit
-        ? null
-        : normalizeMerchant(description),
+      merchantRaw: isNonMerchant ? null : description,
+      merchantNormalized: isNonMerchant ? null : normalizeMerchant(description),
       amount,
       currency: "INR",
       transactionType,

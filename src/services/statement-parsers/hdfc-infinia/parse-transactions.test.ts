@@ -267,6 +267,45 @@ describe("parseHdfcTransactions", () => {
     });
   });
 
+  it("nulls out merchant fields for an IGST tax line, still counting it as a debit", () => {
+    const pageText = page(
+      "International Transactions",
+      TABLE_HEADER,
+      "TEST USER    [CKYC ID : 1234567890 ]",
+      "IGST-VPS0000000000000-RATE 18.0 -27 (Ref#",
+      "17/05/2026 | 00:00                                                             C  57.40      l",
+      "VT261380075024430000101)",
+    );
+    const [txn] = parseHdfcTransactions([pageText]);
+    expect(txn?.transactionType).toBe("debit");
+    expect(txn?.amount).toBe("57.40");
+    expect(txn?.merchantRaw).toBeNull();
+    expect(txn?.merchantNormalized).toBeNull();
+  });
+
+  it("nulls out merchant fields for a CONSOLIDATED FCY MARKUP FEE line", () => {
+    const pageText = page(
+      "International Transactions",
+      TABLE_HEADER,
+      "TEST USER    [CKYC ID : 1234567890 ]",
+      "13/06/2026 | 10:52                       CONSOLIDATED FCY MARKUP FEE                                                             C  16.90      l",
+    );
+    const [txn] = parseHdfcTransactions([pageText]);
+    expect(txn?.merchantRaw).toBeNull();
+    expect(txn?.merchantNormalized).toBeNull();
+  });
+
+  it("nulls out merchant fields for a DCC transaction surcharge line", () => {
+    const pageText = page(
+      TABLE_HEADER,
+      "TEST USER    [CKYC ID : 1234567890 ]",
+      "23/05/2026| 00:00            1.75% on all DCC Transaction (Ref# ST261440080000011618910)                                                             C  62.59     l",
+    );
+    const [txn] = parseHdfcTransactions([pageText]);
+    expect(txn?.merchantRaw).toBeNull();
+    expect(txn?.merchantNormalized).toBeNull();
+  });
+
   it("assigns null merchant fields only for a recognized credit type", () => {
     const pageText = page(
       TABLE_HEADER,

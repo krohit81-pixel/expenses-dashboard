@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { classifyTransaction } from "./classify-transaction";
+import { classifyTransaction, isBankFeeOrTax } from "./classify-transaction";
 
 describe("classifyTransaction", () => {
   it("returns all-false/null for a debit, regardless of description", () => {
@@ -84,5 +84,36 @@ describe("classifyTransaction", () => {
       "credit",
     );
     expect(result.paymentReference).toBeNull();
+  });
+});
+
+describe("isBankFeeOrTax", () => {
+  it("recognizes an IGST tax line", () => {
+    expect(
+      isBankFeeOrTax(
+        "IGST-VPS2713836341577-RATE 18.0 -27 (Ref# VT261380075024430000101)",
+      ),
+    ).toBe(true);
+  });
+
+  it("recognizes the consolidated FCY markup fee line", () => {
+    expect(
+      isBankFeeOrTax(
+        "CONSOLIDATED FCY MARKUP FEE (Ref# VT261660075037290000045)",
+      ),
+    ).toBe(true);
+  });
+
+  it("recognizes a DCC transaction surcharge line", () => {
+    expect(
+      isBankFeeOrTax(
+        "1.75% on all DCC Transaction (Ref# ST261440080000011618910)",
+      ),
+    ).toBe(true);
+  });
+
+  it("does not flag an ordinary merchant description", () => {
+    expect(isBankFeeOrTax("EURO DISNEY ASSOCIESCHESSY")).toBe(false);
+    expect(isBankFeeOrTax("SOME MERCHANTCITY")).toBe(false);
   });
 });

@@ -52,3 +52,26 @@ export function classifyTransaction(
     paymentReference: isPayment ? paymentReference : null,
   };
 }
+
+/**
+ * Bank-generated fee/tax line items -- IGST charged per international
+ * transaction, HDFC's consolidated foreign-currency markup fee, and the
+ * DCC (Dynamic Currency Conversion) surcharge -- rather than a real
+ * merchant purchase. Each of these carries its own unique reference
+ * number (see parse-transactions.ts's wrap-stitch handling for the IGST/
+ * markup-fee three-line shape), which would otherwise make every single
+ * occurrence look like a brand new, never-seen-before "merchant" to the
+ * Merchant Dictionary: a heavy-international statement can have well
+ * over a hundred of these, each triggering its own sequential
+ * create-a-merchant round trip and permanently polluting the merchant
+ * list with unreviewable junk entries. Checked independently of
+ * transactionType (these are always debits in practice, but nothing
+ * about the pattern itself implies a direction).
+ */
+export function isBankFeeOrTax(description: string): boolean {
+  return (
+    /^IGST-/i.test(description) ||
+    /^CONSOLIDATED FCY MARKUP FEE/i.test(description) ||
+    /\bDCC Transaction\b/i.test(description)
+  );
+}
