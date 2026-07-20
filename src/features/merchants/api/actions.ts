@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { mergeMerchants, updateMerchant } from "@/services/MerchantService";
 
@@ -96,14 +97,23 @@ export async function mergeMerchantsAction(
 
   try {
     await mergeMerchants({ sourceMerchantId, targetMerchantId });
-    revalidatePath("/merchants");
-    revalidatePath(`/merchants/${sourceMerchantId}`);
-    revalidatePath(`/merchants/${targetMerchantId}`);
-    return { success: true };
   } catch (error) {
     return {
       error:
         error instanceof Error ? error.message : "Failed to merge merchants.",
     };
   }
+
+  // Deliberately outside the try/catch: redirect() works by throwing a
+  // special Next.js-internal signal, which the catch block above would
+  // otherwise swallow and misreport as a failed merge. Redirecting (not
+  // just returning success) matters because the page the user submitted
+  // this form from IS the source merchant's own detail page -- that
+  // merchant no longer exists after a successful merge, so revalidating
+  // and re-rendering that same URL (which Next does automatically after
+  // a Server Action completes) would otherwise 404 immediately, even
+  // though the merge itself succeeded.
+  revalidatePath("/merchants");
+  revalidatePath(`/merchants/${targetMerchantId}`);
+  redirect(`/merchants/${targetMerchantId}`);
 }
