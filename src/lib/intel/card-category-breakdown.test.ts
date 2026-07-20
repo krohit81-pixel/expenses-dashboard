@@ -146,7 +146,7 @@ function monthlyRow(
 ): MonthlyCardTransactionRow {
   return {
     amount: 100,
-    transactionDate: "2026-06-15",
+    cycleMonth: "2026-06",
     atlasCategoryId: "cat-food",
     ...overrides,
   };
@@ -157,16 +157,30 @@ describe("buildMonthlyCardTotals", () => {
     expect(buildMonthlyCardTotals([])).toEqual([]);
   });
 
-  it("groups every card's spend together by month, ignoring which card", () => {
+  it("groups every card's spend together by cycle month, ignoring which card", () => {
     const result = buildMonthlyCardTotals([
-      monthlyRow({ transactionDate: "2026-06-01", amount: 100 }),
-      monthlyRow({ transactionDate: "2026-06-28", amount: 50 }),
-      monthlyRow({ transactionDate: "2026-07-05", amount: 200 }),
+      monthlyRow({ cycleMonth: "2026-06", amount: 100 }),
+      monthlyRow({ cycleMonth: "2026-06", amount: 50 }),
+      monthlyRow({ cycleMonth: "2026-07", amount: 200 }),
     ]);
     const june = result.find((r) => r.month === "2026-06");
     const july = result.find((r) => r.month === "2026-07");
     expect(june?.totalSpend).toBe("150.00");
     expect(july?.totalSpend).toBe("200.00");
+  });
+
+  it("groups by the statement's cycle month, not the transaction's own date", () => {
+    // The whole point of cycle tagging: two transactions dated in
+    // different calendar months (because the billing period spans a
+    // boundary) still land in the same bucket if they came off the
+    // same statement, i.e. share the same cycleMonth.
+    const result = buildMonthlyCardTotals([
+      monthlyRow({ cycleMonth: "2026-07", amount: 100 }),
+      monthlyRow({ cycleMonth: "2026-07", amount: 50 }),
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.month).toBe("2026-07");
+    expect(result[0]?.totalSpend).toBe("150.00");
   });
 
   it("groups within a month by category, keeping null as uncategorized", () => {

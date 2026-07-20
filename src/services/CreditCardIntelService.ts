@@ -42,33 +42,38 @@ export async function hasAnyCreditCardStatement(): Promise<boolean> {
 }
 
 /**
- * Card-level category breakdown for one calendar month, both per-card
- * and aggregated across every card -- the Intel page's "Card-level
- * breakdown" section. Debit transactions only (same reasoning as
- * MerchantService's totalSpend: a credit under a merchant, rare, was
- * never "spend"). Sums in application code via
+ * Card-level category breakdown for one cash-flow cycle month, both
+ * per-card and aggregated across every card -- the Intel page's
+ * "Card-level breakdown" section. Debit transactions only (same
+ * reasoning as MerchantService's totalSpend: a credit under a
+ * merchant, rare, was never "spend"). Sums in application code via
  * buildCardCategoryBreakdown, not a SQL aggregate -- same reasoning as
  * every other reporting query in this codebase (see ReportingService's
  * own note): no aggregate RPC/view exists yet, and this app's data
  * volume doesn't need one.
+ *
+ * v1.6.1: filters by the owning statement's cycle_month, not by
+ * transaction_date -- see src/lib/statement-cycle.ts for why a
+ * statement's cycle can differ from the calendar month its individual
+ * transaction dates fall in. `!inner` on credit_card_statements turns
+ * the embed into an inner join so the cycle_month filter actually
+ * restricts the outer credit_card_transactions rows returned, rather
+ * than just filtering the embedded object per PostgREST's default
+ * left-join embedding behavior.
  */
 export async function getCardCategoryBreakdown(
   month: string,
 ): Promise<CardCategoryBreakdownResult> {
   const supabase = createServiceClient();
-  const [year, m] = month.split("-").map(Number);
-  const from = new Date(Date.UTC(year, m - 1, 1)).toISOString().slice(0, 10);
-  const to = new Date(Date.UTC(year, m, 0)).toISOString().slice(0, 10);
 
   const { data, error } = await supabase
     .from("credit_card_transactions")
     .select(
-      "amount, credit_card_statements(issuer, card_type, card_last4), merchants(atlas_category_id)",
+      "amount, credit_card_statements!inner(issuer, card_type, card_last4, cycle_month), merchants(atlas_category_id)",
     )
     .eq("user_id", OWNER_USER_ID)
     .eq("transaction_type", "debit")
-    .gte("transaction_date", from)
-    .lte("transaction_date", to);
+    .eq("credit_card_statements.cycle_month", month);
 
   if (error) {
     throw new Error(`Failed to load card category breakdown: ${error.message}`);
@@ -91,54 +96,47 @@ export async function getCardCategoryBreakdown(
 }
 
 /**
- * Card debit spend (every card combined) for a set of calendar months,
- * keyed by "YYYY-MM" -- built for folding credit card spend into
- * Intel's existing ledger-only cash-flow charts (month-on-month
- * expenditure, income vs. expenses, savings rate, the by-category
- * donuts), which all work in terms of a handful of specific months at
- * once rather than one at a time. One query covering the full min-to-
- * max range of the requested months, not one query per month -- the
- * months Intel actually asks for are always a contiguous window around
- * "now" in practice, so this never fetches meaningfully more than
- * getCardCategoryBreakdown's single-month query would per month anyway.
- * A month with no card activity simply has no entry in the returned Map
- * (not a zeroed-out one) -- same "absence means zero" convention as
- * every other summary query in this codebase.
+ * Card debit spend (every card combined) for a set of cash-flow cycle
+ * months, keyed by "YYYY-MM" -- built for folding credit card spend
+ * into Intel's existing ledger-only cash-flow charts (month-on-month
+ * expenditure, income vs. expenses, the by-category donuts), which all
+ * work in terms of a handful of specific months at once rather than
+ * one at a time. One query covering every requested month via `.in()`,
+ * not one query per month.
+ *
+ * v1.6.1: grouped by the owning statement's cycle_month, not
+ * transaction_date -- see src/lib/statement-cycle.ts. A month with no
+ * card activity simply has no entry in the returned Map (not a
+ * zeroed-out one) -- same "absence means zero" convention as every
+ * other summary query in this codebase.
  */
 export async function getCardExpenseForMonths(
   months: string[],
 ): Promise<Map<string, MonthlyCardTotal>> {
   if (months.length === 0) return new Map();
 
-  const sorted = [...months].sort();
-  const [firstYear, firstMonth] = sorted[0]!.split("-").map(Number);
-  const [lastYear, lastMonth] =
-    sorted[sorted.length - 1]!.split("-").map(Number);
-  const from = new Date(Date.UTC(firstYear, firstMonth - 1, 1))
-    .toISOString()
-    .slice(0, 10);
-  const to = new Date(Date.UTC(lastYear, lastMonth, 0))
-    .toISOString()
-    .slice(0, 10);
-
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("credit_card_transactions")
-    .select("amount, transaction_date, merchants(atlas_category_id)")
+    .select(
+      "amount, credit_card_statements!inner(cycle_month), merchants(atlas_category_id)",
+    )
     .eq("user_id", OWNER_USER_ID)
     .eq("transaction_type", "debit")
-    .gte("transaction_date", from)
-    .lte("transaction_date", to);
+    .in("credit_card_statements.cycle_month", months);
 
   if (error) {
     throw new Error(`Failed to load monthly card expense: ${error.message}`);
   }
 
-  const rows = data.map((row) => ({
-    amount: row.amount,
-    transactionDate: row.transaction_date,
-    atlasCategoryId: row.merchants?.atlas_category_id ?? null,
-  }));
+  const rows = data
+    // Same "always has a statement" narrowing as getCardCategoryBreakdown.
+    .filter((row) => row.credit_card_statements !== null)
+    .map((row) => ({
+      amount: row.amount,
+      cycleMonth: row.credit_card_statements!.cycle_month,
+      atlasCategoryId: row.merchants?.atlas_category_id ?? null,
+    }));
 
   return new Map(buildMonthlyCardTotals(rows).map((t) => [t.month, t]));
 }

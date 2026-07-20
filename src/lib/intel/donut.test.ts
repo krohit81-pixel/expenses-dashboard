@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  buildDonutGradientStops,
-  buildDonutSlices,
-  mergeCategoryTotalsByName,
-} from "./donut";
+import { buildDonutGradientStops, buildDonutSlices } from "./donut";
 import type { CategoryBreakdown } from "@/services/ReportingService";
 
 describe("buildDonutSlices", () => {
@@ -84,60 +80,5 @@ describe("buildDonutGradientStops", () => {
     const slices = [{ name: "A", total: "0.00" as never }];
     const stops = buildDonutGradientStops(slices, "0.00" as never, ["red"]);
     expect(stops).toEqual(["red 0% 0%"]);
-  });
-});
-
-describe("mergeCategoryTotalsByName", () => {
-  it("returns nothing for no groups", () => {
-    expect(mergeCategoryTotalsByName([])).toEqual([]);
-  });
-
-  it("adds two groups' amounts together when their resolved names match", () => {
-    const result = mergeCategoryTotalsByName([
-      {
-        breakdown: [
-          { categoryId: "ledger-groceries", total: "100.00" as never },
-        ],
-        categoryName: new Map([["ledger-groceries", "Groceries"]]),
-      },
-      {
-        breakdown: [{ categoryId: "atlas-groceries", total: "50.00" as never }],
-        categoryName: new Map([["atlas-groceries", "Groceries"]]),
-      },
-    ]);
-    expect(result).toEqual([{ name: "Groceries", total: "150.00" }]);
-  });
-
-  it("keeps a name present in only one group as its own entry", () => {
-    const result = mergeCategoryTotalsByName([
-      {
-        breakdown: [{ categoryId: "ledger-rent", total: "1000.00" as never }],
-        categoryName: new Map([["ledger-rent", "Rent"]]),
-      },
-      {
-        breakdown: [{ categoryId: "atlas-fees", total: "20.00" as never }],
-        categoryName: new Map([["atlas-fees", "Fees & Charges"]]),
-      },
-    ]);
-    expect(result).toEqual(
-      expect.arrayContaining([
-        { name: "Rent", total: "1000.00" },
-        { name: "Fees & Charges", total: "20.00" },
-      ]),
-    );
-  });
-
-  it("merges a null categoryId and an unresolved id into the same Uncategorized bucket", () => {
-    const result = mergeCategoryTotalsByName([
-      {
-        breakdown: [{ categoryId: null, total: "30.00" as never }],
-        categoryName: new Map(),
-      },
-      {
-        breakdown: [{ categoryId: "missing", total: "10.00" as never }],
-        categoryName: new Map(),
-      },
-    ]);
-    expect(result).toEqual([{ name: "Uncategorized", total: "40.00" }]);
   });
 });

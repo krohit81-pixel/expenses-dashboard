@@ -2,6 +2,7 @@ import "server-only";
 
 import { formatMoneyDisplay } from "@/lib/money";
 import { serverEnv } from "@/lib/env/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import {
   getCashFlowSummary,
   getMonthlyExpenditureTrend,
@@ -117,8 +118,8 @@ async function callGemini(
  * Generates a short (2-3 sentence) natural-language insight from the
  * current month's cash flow, category breakdown, and upcoming
  * commitments. Returns null (not an error) if neither ANTHROPIC_API_KEY
- * nor GEMINI_API_KEY is configured — see the comments on those env vars
- * in src/lib/env/server.ts.
+ * nor GEMINI_API_KEY is configured, or if the call itself fails — see
+ * the comments on those env vars in src/lib/env/server.ts.
  *
  * v1.2 added OPENAI_API_KEY as an alternate provider, at the user's
  * request (someone else in the household may only have an OpenAI key,
@@ -131,13 +132,14 @@ async function callGemini(
  * feature shipped, rather than silently switching providers out from
  * under them the moment a second key happens to be present.
  *
- * Runs fresh on every Intel page load (no caching) — simplest correct
- * behavior for a first version. Worth revisiting if this gets slow or
- * expensive at real usage volume: cache for a day and regenerate on a
- * schedule instead, trading a bit of staleness for speed/cost. Not
- * decided one way or the other yet, just flagged as the known tradeoff.
+ * v1.6.1: this no longer runs on every Intel page load. Calling an LLM
+ * API on every visit was slow (the page waited on it) and needlessly
+ * repeated for a summary that doesn't need to change that often. It's
+ * now only invoked by regenerateInsight(), itself only called from the
+ * Intel page's "Generate commentary" button — see getStoredInsight()
+ * for what's shown the rest of the time.
  */
-export async function generateInsight(): Promise<string | null> {
+async function generateInsightText(): Promise<string | null> {
   const anthropicKey = serverEnv.ANTHROPIC_API_KEY;
   const geminiKey = serverEnv.GEMINI_API_KEY;
   if (!anthropicKey && !geminiKey) {
@@ -210,4 +212,83 @@ export async function generateInsight(): Promise<string | null> {
     console.error("Failed to generate Intel insight:", error);
     return null;
   }
+}
+
+export interface StoredInsight {
+  text: string;
+  /** ISO timestamp of when this was generated. */
+  generatedAt: string;
+}
+
+/**
+ * The most recently generated Intel insight, if one has ever been
+ * generated — v1.6.1, backing the Intel page's default (no-click)
+ * view. null means "Generate commentary" has never been pressed yet
+ * (a brand-new install, or one predating this feature); the page shows
+ * a "pending generation" message in that case rather than an error.
+ */
+export async function getStoredInsight(): Promise<StoredInsight | null> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("intel_insights")
+    .select("insight_text, generated_at")
+    .eq("user_id", OWNER_USER_ID)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Failed to load the stored Intel insight: ${error.message}`,
+    );
+  }
+  if (!data) return null;
+
+  return { text: data.insight_text, generatedAt: data.generated_at };
+}
+
+export type RegenerateInsightResult =
+  { ok: true; insight: StoredInsight } | { ok: false; reason: string };
+
+/**
+ * Generates a fresh insight and persists it as the new "most recent"
+ * one (finance.intel_insights) — the only thing that calls
+ * generateInsightText(), itself only reachable from the Intel page's
+ * "Generate commentary" button (see
+ * features/intel/api/actions.ts:generateInsightAction). On failure
+ * (no provider configured, or the API call itself failed) the
+ * previously stored insight is left untouched — a failed regeneration
+ * attempt shouldn't blank out a perfectly good earlier insight, it
+ * should just tell the user it didn't work this time.
+ */
+export async function regenerateInsight(): Promise<RegenerateInsightResult> {
+  const text = await generateInsightText();
+  if (!text) {
+    const hasProvider = Boolean(
+      serverEnv.ANTHROPIC_API_KEY || serverEnv.GEMINI_API_KEY,
+    );
+    return {
+      ok: false,
+      reason: hasProvider
+        ? "Something went wrong generating an insight. Please try again in a moment."
+        : "No AI provider is configured — set ANTHROPIC_API_KEY or GEMINI_API_KEY.",
+    };
+  }
+
+  const generatedAt = new Date().toISOString();
+  const supabase = createServiceClient();
+  const { error } = await supabase.from("intel_insights").upsert(
+    {
+      user_id: OWNER_USER_ID,
+      insight_text: text,
+      generated_at: generatedAt,
+    },
+    { onConflict: "user_id" },
+  );
+
+  if (error) {
+    throw new Error(
+      `Failed to save the generated Intel insight: ${error.message}`,
+    );
+  }
+
+  return { ok: true, insight: { text, generatedAt } };
 }

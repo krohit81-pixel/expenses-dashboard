@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { moneyToDbNumber } from "@/lib/money";
 import { OWNER_USER_ID } from "@/lib/owner";
 import { createServiceClient } from "@/lib/supabase/service";
+import { cycleMonthForStatementDate } from "@/lib/statement-cycle";
 import { resolveMerchantsForImport } from "@/services/MerchantDictionaryService";
 import {
   HdfcHeaderParseError,
@@ -127,6 +128,10 @@ export async function saveHdfcInfiniaStatement(
       statement_currency: header.statementCurrency,
       pdf_filename: pdfFilename,
       statement_hash: statementHash,
+      // v1.6.1: which cash-flow cycle this statement is paid from --
+      // see cycleMonthForStatementDate's own comment for the (statement
+      // month + 1) rule this implements.
+      cycle_month: cycleMonthForStatementDate(header.statementDate),
     })
     .select("id")
     .single();

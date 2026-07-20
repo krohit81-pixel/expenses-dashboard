@@ -141,11 +141,20 @@ export function buildCardCategoryBreakdown(
   return { cards, aggregate: summarize(rows) };
 }
 
-/** One row for buildMonthlyCardTotals -- same idea as CardTransactionRow, but keyed by date instead of by card, since Intel's existing month-over-month charts fold every card together and only ever care about the month. */
+/** One row for buildMonthlyCardTotals -- same idea as CardTransactionRow, but keyed by cycle month instead of by card, since Intel's existing month-over-month charts fold every card together and only ever care about the month. */
 export interface MonthlyCardTransactionRow {
   amount: number;
-  /** ISO date (YYYY-MM-DD); only the "YYYY-MM" prefix is used. */
-  transactionDate: string;
+  /**
+   * "YYYY-MM" -- the owning statement's cycle_month (see
+   * credit_card_statements.cycle_month / src/lib/statement-cycle.ts),
+   * NOT the transaction's own transaction_date. v1.6.1: every
+   * transaction on one statement shares that statement's cycle
+   * regardless of its individual date, since a billing period can span
+   * a calendar-month boundary -- the whole point of cycle tagging is
+   * that the statement (not the purchase date) decides which month's
+   * plan it counts toward.
+   */
+  cycleMonth: string;
   atlasCategoryId: string | null;
 }
 
@@ -158,27 +167,27 @@ export interface MonthlyCardTotal {
 
 /**
  * Groups debit transactions (across every card combined -- no per-card
- * split here, see buildCardCategoryBreakdown above for that) by
- * calendar month, and within each month by category. Built for folding
- * credit card spend into Intel's existing ledger-only cash-flow charts
- * (month-on-month expenditure, income vs. expenses, savings rate, and
- * the by-category donuts) alongside finance.transactions activity --
- * see CreditCardIntelService.getCardExpenseForMonths for the query this
- * feeds, and the Intel page for how the two get merged (by category
- * NAME, since finance.categories and atlas_categories are different id
- * spaces entirely).
+ * split here, see buildCardCategoryBreakdown above for that) by cycle
+ * month, and within each month by category. Built for folding credit
+ * card spend into Intel's existing ledger-only cash-flow charts
+ * (month-on-month expenditure, income vs. expenses, and the
+ * by-category donuts) alongside finance.transactions activity -- see
+ * CreditCardIntelService.getCardExpenseForMonths for the query this
+ * feeds. v1.6.1: the Intel page now shows card spend as a single
+ * lumped "Credit Card Dues" line in those charts rather than merging
+ * in each individual category, so byCategory here mainly backs the
+ * dedicated Card-level breakdown section, not the merge itself.
  */
 export function buildMonthlyCardTotals(
   rows: MonthlyCardTransactionRow[],
 ): MonthlyCardTotal[] {
   const byMonth = new Map<string, MonthlyCardTransactionRow[]>();
   for (const row of rows) {
-    const month = row.transactionDate.slice(0, 7);
-    const list = byMonth.get(month);
+    const list = byMonth.get(row.cycleMonth);
     if (list) {
       list.push(row);
     } else {
-      byMonth.set(month, [row]);
+      byMonth.set(row.cycleMonth, [row]);
     }
   }
 

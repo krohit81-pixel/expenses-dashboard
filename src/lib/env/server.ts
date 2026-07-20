@@ -20,15 +20,16 @@ const serverEnvSchema = z.object({
     "APP_OWNER_USER_ID must be the UUID printed by npm run bootstrap:owner",
   ),
   // Optional, unlike the two above: Intel's charts work without it. If
-  // unset, IntelService.generateInsight() returns null and the page shows
-  // a "not configured" message in the insight card instead of crashing
-  // the whole app at boot over an enhancement, not a core dependency.
+  // unset, IntelService.regenerateInsight() reports "no provider
+  // configured" when the "Generate commentary" button is pressed,
+  // instead of crashing the whole app at boot over an enhancement, not
+  // a core dependency.
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
   // v1.6.0 — an alternate provider for the same Intel insight, for anyone
   // who'd rather use a Gemini key than an Anthropic one (or has one
   // already and not the other). Replaces the earlier OPENAI_API_KEY
   // option (v1.2), removed at the user's request rather than kept as a
-  // third option. generateInsight() tries Anthropic first if both are
+  // third option. regenerateInsight() tries Anthropic first if both are
   // set — see that function's comment for why.
   GEMINI_API_KEY: z.string().min(1).optional(),
   // Optional override — defaults to a current small/cheap Gemini model

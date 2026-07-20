@@ -1091,6 +1091,7 @@ export type Database = {
           statement_currency: string;
           pdf_filename: string;
           statement_hash: string;
+          cycle_month: string;
           created_at: string;
         };
         Insert: {
@@ -1123,6 +1124,7 @@ export type Database = {
           statement_currency?: string;
           pdf_filename: string;
           statement_hash: string;
+          cycle_month: string;
           created_at?: string;
         };
         Update: {
@@ -1155,6 +1157,7 @@ export type Database = {
           statement_currency?: string;
           pdf_filename?: string;
           statement_hash?: string;
+          cycle_month?: string;
           created_at?: string;
         };
         Relationships: [];
@@ -1435,6 +1438,24 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      intel_insights: {
+        Row: {
+          user_id: string;
+          insight_text: string;
+          generated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          insight_text: string;
+          generated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          insight_text?: string;
+          generated_at?: string;
+        };
+        Relationships: [];
       };
     };
     Views: Record<string, never>;
