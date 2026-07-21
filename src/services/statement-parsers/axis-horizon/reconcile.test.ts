@@ -12,7 +12,7 @@ function makeHeader(
 ): AxisStatementHeader {
   return {
     issuer: "AXIS",
-    cardType: "atlas",
+    cardType: "horizon",
     cardLast4: "7890",
     primaryCardholder: "TEST USER",
     statementDate: "2026-06-30",

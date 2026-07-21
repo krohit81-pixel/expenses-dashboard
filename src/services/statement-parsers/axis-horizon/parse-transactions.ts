@@ -33,7 +33,7 @@ const TRANSACTION_TABLE_START = /TRANSACTION\s+DETAILS/i;
 // "**** End of Statement ****" -- printed once, right after the last
 // real transaction row and before the page-footer/legal boilerplate.
 // An earlier draft anchored on "SUMMARY OF CHARGES", a section header
-// that doesn't actually appear anywhere in a real Axis Atlas/HORIZON
+// that doesn't actually appear anywhere in a real Axis Horizon
 // statement (verified against a full 3-page sample) -- inTransactionSection
 // never got reset to false, and stayed stuck "true" through every
 // remaining page. That happened not to corrupt any output here only

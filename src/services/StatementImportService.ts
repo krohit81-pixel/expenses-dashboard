@@ -13,10 +13,8 @@ function configuredPasswordFor(card: CardStatementSource): string | undefined {
   switch (card) {
     case "hdfc-infinia":
       return serverEnv.HDFC_INFINIA_STATEMENT_PASSWORD;
-    // Axis Atlas statements aren't password-protected (verified against
-    // a real sample) -- no env var needed.
-    case "axis-atlas":
-      return undefined;
+    case "axis-horizon":
+      return serverEnv.AXIS_HORIZON_STATEMENT_PASSWORD;
   }
 }
 
@@ -27,8 +25,8 @@ function passwordEnvVarNameFor(card: CardStatementSource): string | null {
   switch (card) {
     case "hdfc-infinia":
       return "HDFC_INFINIA_STATEMENT_PASSWORD";
-    case "axis-atlas":
-      return null;
+    case "axis-horizon":
+      return "AXIS_HORIZON_STATEMENT_PASSWORD";
   }
 }
 

@@ -217,14 +217,14 @@ function parseEdgeMilesBalance(page1: string): number {
 }
 
 /**
- * Axis's HORIZON/Atlas statement format doesn't print the
- * "Rewards Program Points Summary" / "Cash Back Summary" tables HDFC's
- * does -- neither section header appears anywhere in a real statement
- * (verified against a full 3-page sample). Left as always-empty rather
- * than a sliceBetween lookup against anchor text that can never match,
- * which would be misleading dead code. Revisit if a future Axis
- * statement (a different card product, or a cashback-earning variant)
- * turns out to print one after all.
+ * Axis's Horizon statement format doesn't print the "Rewards Program
+ * Points Summary" / "Cash Back Summary" tables HDFC's does -- neither
+ * section header appears anywhere in a real statement (verified against
+ * a full 3-page sample). Left as always-empty rather than a
+ * sliceBetween lookup against anchor text that can never match, which
+ * would be misleading dead code. Revisit if a future Axis statement (a
+ * different card product, or a cashback-earning variant) turns out to
+ * print one after all.
  */
 function parseRewardProgramSummary(): RewardProgramLine[] {
   return [];
@@ -258,7 +258,7 @@ export function parseAxisHeader(pageTexts: string[]): AxisStatementHeader {
 
   return {
     issuer: "AXIS",
-    cardType: "atlas",
+    cardType: "horizon",
     cardLast4: limits.cardLast4,
     primaryCardholder,
     statementDate: summary.statementDate,

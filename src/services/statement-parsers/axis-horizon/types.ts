@@ -14,7 +14,7 @@ export interface CashbackSummaryLine {
 
 export interface AxisStatementHeader {
   issuer: "AXIS";
-  cardType: "atlas";
+  cardType: "horizon";
   cardLast4: string;
   primaryCardholder: string;
   statementDate: string;

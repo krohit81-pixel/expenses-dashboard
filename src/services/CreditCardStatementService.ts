@@ -22,18 +22,18 @@ import {
 import {
   AxisHeaderParseError,
   parseAxisHeader,
-} from "@/services/statement-parsers/axis-atlas/parse-header";
+} from "@/services/statement-parsers/axis-horizon/parse-header";
 import {
   AxisTransactionParseError,
   parseAxisTransactions,
-} from "@/services/statement-parsers/axis-atlas/parse-transactions";
+} from "@/services/statement-parsers/axis-horizon/parse-transactions";
 import {
   assertAxisStatementReconciles,
   AxisReconciliationError,
-} from "@/services/statement-parsers/axis-atlas/reconcile";
+} from "@/services/statement-parsers/axis-horizon/reconcile";
 import type { Json } from "@/lib/db/database-types";
 import type { HdfcStatementHeader } from "@/services/statement-parsers/hdfc-infinia/types";
-import type { AxisStatementHeader } from "@/services/statement-parsers/axis-atlas/types";
+import type { AxisStatementHeader } from "@/services/statement-parsers/axis-horizon/types";
 
 export {
   HdfcHeaderParseError,
@@ -263,18 +263,18 @@ export async function saveHdfcInfiniaStatement(
 }
 
 /**
- * Parses, reconciles, and persists an Axis Atlas (HORIZON) statement --
- * mirrors saveHdfcInfiniaStatement's pipeline exactly, since
+ * Parses, reconciles, and persists an Axis Horizon statement -- mirrors
+ * saveHdfcInfiniaStatement's pipeline exactly, since
  * credit_card_statements/credit_card_transactions are already
  * issuer-agnostic (generic issuer/card_type/card_last4 columns -- see
  * that migration's own comment), and AxisStatementHeader/AxisTransaction
- * (see axis-atlas/types.ts) intentionally match HdfcStatementHeader/
+ * (see axis-horizon/types.ts) intentionally match HdfcStatementHeader/
  * HdfcTransaction field-for-field. The only per-issuer differences live
- * inside the axis-atlas parser module itself (its own header/transaction
+ * inside the axis-horizon parser module itself (its own header/transaction
  * regexes, tuned against a real Axis statement -- see that module's own
  * comments), not in how a parsed statement gets saved.
  */
-export async function saveAxisAtlasStatement(
+export async function saveAxisHorizonStatement(
   pageTexts: string[],
   pdfFilename: string,
 ): Promise<SaveAxisStatementResult> {
@@ -359,7 +359,7 @@ export async function saveAxisAtlasStatement(
       .map((t) => ({
         rawText: t.merchantRaw!,
         normalizedText: t.merchantNormalized ?? t.merchantRaw!,
-        sourceBank: "axis-atlas",
+        sourceBank: "axis-horizon",
         currency: t.currency,
       }));
     const merchantResolutions = await resolveMerchantsForImport(merchantInputs);

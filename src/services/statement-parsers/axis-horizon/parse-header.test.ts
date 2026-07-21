@@ -4,9 +4,9 @@ import { AxisHeaderParseError, parseAxisHeader } from "./parse-header";
 
 /**
  * A synthetic single-page statement, entirely fake data, shaped to
- * mirror a real Axis Atlas/HORIZON statement's layout (verified against
- * a real, redacted sample statement during this parser's own delivery
- * -- see this module's comments for why each block is anchored on row
+ * mirror a real Axis Horizon statement's layout (verified against a
+ * real, redacted sample statement during this parser's own delivery --
+ * see this module's comments for why each block is anchored on row
  * *shape* rather than label proximity). Never derived from any real
  * cardholder's statement.
  *
@@ -41,7 +41,7 @@ describe("parseAxisHeader", () => {
 
     expect(header).toEqual({
       issuer: "AXIS",
-      cardType: "atlas",
+      cardType: "horizon",
       cardLast4: "7890",
       primaryCardholder: "TEST USER",
       statementDate: "2026-06-30",

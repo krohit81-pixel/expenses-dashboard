@@ -49,6 +49,11 @@ const serverEnvSchema = z.object({
   // now (Infinia); a second card would get its own env var when that's
   // actually needed, not a speculative multi-card scheme today.
   HDFC_INFINIA_STATEMENT_PASSWORD: optionalEnvString(),
+  // v1.7.0 — same reasoning as HDFC_INFINIA_STATEMENT_PASSWORD above,
+  // for Axis's own encrypted Horizon statement PDFs. A distinct env var
+  // rather than reusing HDFC's, since the two banks' password schemes
+  // have no reason to match.
+  AXIS_HORIZON_STATEMENT_PASSWORD: optionalEnvString(),
   // The access gate: /calendar stays public (shareable without exposing
   // financial data), everything else requires this shared password once
   // per browser. This is NOT Supabase Auth and never calls any Supabase
@@ -85,6 +90,8 @@ function parseServerEnv() {
     GEMINI_MODEL: process.env.GEMINI_MODEL,
     HDFC_INFINIA_STATEMENT_PASSWORD:
       process.env.HDFC_INFINIA_STATEMENT_PASSWORD,
+    AXIS_HORIZON_STATEMENT_PASSWORD:
+      process.env.AXIS_HORIZON_STATEMENT_PASSWORD,
     APP_ACCESS_PASSWORD: process.env.APP_ACCESS_PASSWORD,
     APP_SESSION_SECRET: process.env.APP_SESSION_SECRET,
   });

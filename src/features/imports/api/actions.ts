@@ -13,7 +13,7 @@ import {
   HdfcHeaderParseError,
   HdfcReconciliationError,
   HdfcTransactionParseError,
-  saveAxisAtlasStatement,
+  saveAxisHorizonStatement,
   saveHdfcInfiniaStatement,
 } from "@/services/CreditCardStatementService";
 import { extractCardStatement } from "@/services/StatementImportService";
@@ -52,12 +52,12 @@ export interface ImportStatementState {
  * reconciles, and saves it in one automatic step. Atlas has no manual
  * review/confirm screen for this — reconciliation (see each parser's own
  * reconcile.ts, e.g. statement-parsers/hdfc-infinia/reconcile.ts or
- * statement-parsers/axis-atlas/reconcile.ts) is the automated gate that
+ * statement-parsers/axis-horizon/reconcile.ts) is the automated gate that
  * stands in for a human checking the numbers before anything is written
  * to the database: if the parsed transactions don't add up to what the
  * statement itself claims, nothing is saved and this returns a clear
  * error instead. Re-uploading the same statement is always safe — the
- * per-card save function (saveHdfcInfiniaStatement / saveAxisAtlasStatement)
+ * per-card save function (saveHdfcInfiniaStatement / saveAxisHorizonStatement)
  * detects the duplicate and saves nothing a second time.
  */
 export async function importStatementAction(
@@ -100,7 +100,7 @@ export async function importStatementAction(
     const saved =
       cardSource === "hdfc-infinia"
         ? await saveHdfcInfiniaStatement(pageTexts, file.name)
-        : await saveAxisAtlasStatement(pageTexts, file.name);
+        : await saveAxisHorizonStatement(pageTexts, file.name);
     return {
       status: saved.outcome,
       summary: {
