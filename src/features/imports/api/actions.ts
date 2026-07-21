@@ -7,9 +7,13 @@ import {
   type CardStatementSource,
 } from "@/features/imports/cards";
 import {
+  AxisHeaderParseError,
+  AxisReconciliationError,
+  AxisTransactionParseError,
   HdfcHeaderParseError,
   HdfcReconciliationError,
   HdfcTransactionParseError,
+  saveAxisAtlasStatement,
   saveHdfcInfiniaStatement,
 } from "@/services/CreditCardStatementService";
 import { extractCardStatement } from "@/services/StatementImportService";
@@ -46,14 +50,15 @@ export interface ImportStatementState {
 /**
  * Phase 2: extracts an uploaded statement PDF's text, then parses,
  * reconciles, and saves it in one automatic step. Atlas has no manual
- * review/confirm screen for this — reconciliation (see
- * statement-parsers/hdfc-infinia/reconcile.ts) is the automated gate
- * that stands in for a human checking the numbers before anything is
- * written to the database: if the parsed transactions don't add up to
- * what the statement itself claims, nothing is saved and this returns a
- * clear error instead. Re-uploading the same statement is always safe —
- * saveHdfcInfiniaStatement detects the duplicate and saves nothing a
- * second time.
+ * review/confirm screen for this — reconciliation (see each parser's own
+ * reconcile.ts, e.g. statement-parsers/hdfc-infinia/reconcile.ts or
+ * statement-parsers/axis-atlas/reconcile.ts) is the automated gate that
+ * stands in for a human checking the numbers before anything is written
+ * to the database: if the parsed transactions don't add up to what the
+ * statement itself claims, nothing is saved and this returns a clear
+ * error instead. Re-uploading the same statement is always safe — the
+ * per-card save function (saveHdfcInfiniaStatement / saveAxisAtlasStatement)
+ * detects the duplicate and saves nothing a second time.
  */
 export async function importStatementAction(
   _prevState: ImportStatementState,
@@ -85,9 +90,17 @@ export async function importStatementAction(
   }
 
   const pageTexts = extraction.pages.map((page) => page.text);
+  const cardSource = card as CardStatementSource;
+  // Statement label used only for the "changed their format" hint below
+  // -- e.g. "HDFC" or "Axis" -- not the full CARD_STATEMENT_LABELS
+  // display name, which includes the card product too.
+  const issuerLabel = cardSource === "hdfc-infinia" ? "HDFC" : "Axis";
 
   try {
-    const saved = await saveHdfcInfiniaStatement(pageTexts, file.name);
+    const saved =
+      cardSource === "hdfc-infinia"
+        ? await saveHdfcInfiniaStatement(pageTexts, file.name)
+        : await saveAxisAtlasStatement(pageTexts, file.name);
     return {
       status: saved.outcome,
       summary: {
@@ -108,14 +121,19 @@ export async function importStatementAction(
   } catch (error) {
     if (
       error instanceof HdfcHeaderParseError ||
-      error instanceof HdfcTransactionParseError
+      error instanceof HdfcTransactionParseError ||
+      error instanceof AxisHeaderParseError ||
+      error instanceof AxisTransactionParseError
     ) {
       return {
-        error: `Couldn't make sense of this statement's layout: ${error.message} This can happen if HDFC changes their statement format — the extracted text below can help track down what changed.`,
+        error: `Couldn't make sense of this statement's layout: ${error.message} This can happen if ${issuerLabel} changes their statement format — the extracted text below can help track down what changed.`,
         pages: extraction.pages,
       };
     }
-    if (error instanceof HdfcReconciliationError) {
+    if (
+      error instanceof HdfcReconciliationError ||
+      error instanceof AxisReconciliationError
+    ) {
       return {
         error: `This statement parsed, but the numbers didn't add up, so nothing was saved: ${error.message}`,
         pages: extraction.pages,

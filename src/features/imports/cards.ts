@@ -8,10 +8,15 @@
  * lookup) into the client bundle.
  *
  * v1.3.0 milestone 1: one card. A second card means a second entry here
- * plus a second env var in StatementImportService, not a redesign.
+ * plus a second env var in StatementImportService, not a redesign --
+ * v1.7.0's Axis Atlas addition (see the axis-atlas parser module) is
+ * exactly that: a second entry, no other change needed here. Axis
+ * statements aren't password-protected (unlike HDFC's), so it has no
+ * corresponding env var in StatementImportService.
  */
-export type CardStatementSource = "hdfc-infinia";
+export type CardStatementSource = "hdfc-infinia" | "axis-atlas";
 
 export const CARD_STATEMENT_LABELS: Record<CardStatementSource, string> = {
   "hdfc-infinia": "HDFC Infinia",
+  "axis-atlas": "Axis Atlas",
 };

@@ -13,6 +13,22 @@ function configuredPasswordFor(card: CardStatementSource): string | undefined {
   switch (card) {
     case "hdfc-infinia":
       return serverEnv.HDFC_INFINIA_STATEMENT_PASSWORD;
+    // Axis Atlas statements aren't password-protected (verified against
+    // a real sample) -- no env var needed.
+    case "axis-atlas":
+      return undefined;
+  }
+}
+
+/** Which env var (if any) a card's password comes from -- used only to
+ * phrase the "no password configured" error message accurately per card,
+ * instead of hardcoding HDFC's var name for every card. */
+function passwordEnvVarNameFor(card: CardStatementSource): string | null {
+  switch (card) {
+    case "hdfc-infinia":
+      return "HDFC_INFINIA_STATEMENT_PASSWORD";
+    case "axis-atlas":
+      return null;
   }
 }
 
@@ -45,6 +61,7 @@ export async function extractCardStatement(
   card: CardStatementSource,
 ): Promise<StatementExtractionResult> {
   const password = configuredPasswordFor(card);
+  const envVarName = passwordEnvVarNameFor(card);
 
   try {
     const extracted = await extractPdfText(bytes, password);
@@ -59,15 +76,18 @@ export async function extractCardStatement(
             // asked for one — but keep the message accurate either way
             // rather than claiming none was configured.
             "This PDF is password protected, but the configured password didn't open it."
-          : `This PDF is password protected, but HDFC_INFINIA_STATEMENT_PASSWORD isn't set. Add it to your environment variables and try again.`,
+          : envVarName
+            ? `This PDF is password protected, but ${envVarName} isn't set. Add it to your environment variables and try again.`
+            : "This PDF is password protected, but this card isn't configured to expect one. Double-check this is the right statement.",
       };
     }
     if (error instanceof PdfPasswordIncorrectError) {
       return {
         ok: false,
         reason: "password-incorrect",
-        message:
-          "The configured HDFC_INFINIA_STATEMENT_PASSWORD didn't open this PDF — double-check the value.",
+        message: envVarName
+          ? `The configured ${envVarName} didn't open this PDF — double-check the value.`
+          : "The password used to open this PDF didn't work.",
       };
     }
     return {
