@@ -6,27 +6,46 @@ import type { AxisTransaction, CardholderType } from "./types";
 /**
  * Axis's transaction table has a THIRD column HDFC's doesn't: "MERCHANT
  * CATEGORY" (e.g. "RESTAURANTS", "DEPT STORES", "HOME FURNISHING"),
- * printed between the description and the amount. An earlier draft of
- * this regex used a single lazy `(.*?)` for everything between the date
- * and the amount, which swallowed the category into the description
- * verbatim -- including the large proportional gap the layout
- * reconstruction inserts between columns (see extract-text.ts). That's
- * a real bug, not a style nit: merchantRaw is used as the Merchant
- * Dictionary's alias key, and a gap width that varies with description
- * length would produce a different merchantRaw string for the same
- * merchant from statement to statement, permanently fragmenting it into
- * duplicate merchant entries instead of matching the existing alias.
+ * printed between the description and the amount.
  *
- * The fix captures the category as its own optional group, split from
- * the description by a run of 2+ spaces -- the same "2+ literal spaces
- * means a real column boundary" assumption HDFC's own row parsing
- * already relies on for this exact PDF-text-reconstruction pipeline
- * (see reconstructLayout's proportional gap-filling). Rows with no
- * category at all (payments, credits -- verified against a real
- * statement) simply skip the optional group.
+ * v1.7.2: a real production upload of this exact statement reconciled
+ * the header perfectly but found ZERO transactions -- reproduced
+ * nowhere locally, including against the real extractPdfText() run on
+ * the real uploaded PDF bytes (59/59 transactions, exact reconciliation).
+ * The only plausible explanation left is environment-dependent PDF font
+ * metrics: extractPdfText's reconstructLayout() turns pdf.js's reported
+ * glyph widths into a *space count* via `gap / spaceWidth`, and pdf.js's
+ * `useSystemFonts: true` resolves against whatever fonts are actually
+ * installed on the host -- which differs between this sandbox and a
+ * Vercel serverless container. A previous version of this regex
+ * required a literal 2-or-more-space run (`\s{2,}`) between the
+ * description/category and the amount as part of matching the ENTIRE
+ * row -- if that boundary ever renders as a single space under different
+ * font metrics, the row fails to match at all, and EVERY row fails the
+ * same way, exactly reproducing "header parsed fine (its regexes only
+ * ever required generous `\s+`), transactions summed to 0.00."
+ *
+ * Fixed by no longer requiring 2+ spaces anywhere in the *required*
+ * shape of a row: the row matches on date ... description/category
+ * text ... amount ... Dr/Cr, separated only by `\s+` (which
+ * reconstructLayout always inserts at least one of, regardless of font
+ * metrics). The category is then split out of that middle text as a
+ * separate, best-effort step (CATEGORY_SPLIT_REGEX) that still prefers
+ * the 2+-space column-boundary signal when it's there, but simply folds
+ * the category into the description instead of losing the whole row
+ * when it isn't -- a full merchant-category miss is a much smaller
+ * problem than reconciliation failing outright and no transactions
+ * saving at all.
  */
 const ROW_REGEX =
-  /^(\d{2}\/\d{2}\/\d{4})\s+(.*?)\s{2,}(?:([A-Z][A-Z0-9 &'/.-]*[A-Z0-9])\s{2,})?([\d,]+\.\d{2})\s*(Dr|Cr)\s*$/i;
+  /^(\d{2}\/\d{2}\/\d{4})\s+(.+?)\s+([\d,]+\.\d{2})\s*(Dr|Cr)\s*$/i;
+
+// Best-effort split of the "description [gap] MERCHANT CATEGORY" middle
+// text captured by ROW_REGEX above. Only applied when there's still a
+// clear 2+-space column boundary AND a plausible category-shaped run of
+// text after it; falls through to "no category" otherwise rather than
+// guessing.
+const CATEGORY_SPLIT_REGEX = /^(.+?)\s{2,}([A-Z][A-Z0-9 &'/.-]*[A-Z0-9])$/;
 
 const CARDHOLDER_HEADER_REGEX = /Card No:\s+.+?\s+Name\s+.+/i;
 const TRANSACTION_TABLE_START = /TRANSACTION\s+DETAILS/i;
@@ -105,14 +124,10 @@ export function parseAxisTransactions(pageTexts: string[]): AxisTransaction[] {
     const rowMatch = trimmed.match(ROW_REGEX);
     if (!rowMatch) continue;
 
-    const [
-      ,
-      dateStr,
-      descriptionRaw,
-      merchantCategory,
-      amountRaw,
-      debitCreditMarker,
-    ] = rowMatch;
+    const [, dateStr, middleRaw, amountRaw, debitCreditMarker] = rowMatch;
+    const categorySplit = (middleRaw ?? "").trim().match(CATEGORY_SPLIT_REGEX);
+    const descriptionRaw = categorySplit ? categorySplit[1] : middleRaw;
+    const merchantCategory = categorySplit ? categorySplit[2] : undefined;
     let description = (descriptionRaw ?? "").trim();
     const rawTextLines = [lines[i].raw];
 

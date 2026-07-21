@@ -112,4 +112,33 @@ Schedule of charges
     const page = "Some unrelated page text with no transaction table at all.";
     expect(parseAxisTransactions([page])).toEqual([]);
   });
+
+  /**
+   * v1.7.2 regression guard: a real production upload reconciled the
+   * header perfectly but found ZERO transactions, never reproduced
+   * locally -- traced to ROW_REGEX previously *requiring* a literal
+   * 2-or-more-space run between the description/category and the
+   * amount as part of matching the row at all. PDF text-layout
+   * reconstruction's exact space count depends on pdf.js font metrics,
+   * which can differ across environments (see extract-text.ts's
+   * useSystemFonts), so a boundary that's reliably 2+ spaces in one
+   * environment isn't guaranteed to be 2+ everywhere. This fixture has
+   * only a SINGLE space before the amount -- the row must still match.
+   */
+  it("still matches a row when only a single space separates the description from the amount", () => {
+    const page = `TRANSACTION DETAILS
+${HEADER_ROWS}
+Card No:    123456******7890                        Name    TEST USER
+01/06/2026 SOME MERCHANT,TEST CITY 1,000.00 Dr
+**** End of Statement ****`;
+
+    const [txn] = parseAxisTransactions([page]);
+    expect(txn).toMatchObject({
+      transactionDate: "2026-06-01",
+      description: "SOME MERCHANT,TEST CITY",
+      amount: "1000.00",
+      transactionType: "debit",
+      purchaseIndicatorName: null,
+    });
+  });
 });
