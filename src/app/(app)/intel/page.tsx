@@ -564,7 +564,17 @@ export default async function IntelPage({
                             <span className="min-w-0 flex-1 truncate font-medium text-ink">
                               {slice.name}
                             </span>
+                            {/* Both the amount and the percentage, matching
+                                the card-level breakdown's legend above
+                                (renderCardDonut) -- v1.6.3 there for the
+                                same reasoning. */}
                             <span className="shrink-0 font-display text-[10px] font-bold text-ink-faint">
+                              {formatMoneyDisplay(
+                                slice.total,
+                                currency,
+                              ).replace(/\.\d+$/, "")}
+                            </span>
+                            <span className="w-8 shrink-0 text-right font-display text-[10px] font-bold text-ink-faint">
                               {pct}%
                             </span>
                           </li>
