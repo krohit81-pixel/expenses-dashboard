@@ -28,7 +28,7 @@ describe("classifyTransaction", () => {
   });
 
   /**
-   * The real behavior this guards: unlike HDFC/Axis, a real Amazon Pay
+   * The real behavior this guards: unlike HDFC/Axis, a real ICICI
    * merchant-refund row carries no "refund" keyword at all -- same
    * description as the original purchase, just with a "CR" suffix. Any
    * credit that isn't the payment-received line is assumed to be a
@@ -60,6 +60,20 @@ describe("isBankFeeOrTax", () => {
 
   it("matches a GST-prefixed line", () => {
     expect(isBankFeeOrTax("GST-Late Fee")).toBe(true);
+  });
+
+  /**
+   * v1.9.0: a real RuPay-variant statement (spent almost entirely via
+   * UPI) printed "DCC Fee" and "SGST-CI@9%"/"CGST-CI@9%" rows that the
+   * Amazon Pay statement this classifier started with never had.
+   */
+  it("matches a DCC (Dynamic Currency Conversion) fee line", () => {
+    expect(isBankFeeOrTax("DCC Fee")).toBe(true);
+  });
+
+  it("matches an SGST/CGST component line", () => {
+    expect(isBankFeeOrTax("SGST-CI@9%")).toBe(true);
+    expect(isBankFeeOrTax("CGST-CI@9%")).toBe(true);
   });
 
   it("does not match an ordinary merchant description", () => {

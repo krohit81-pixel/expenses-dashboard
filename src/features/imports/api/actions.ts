@@ -18,7 +18,7 @@ import {
   IciciTransactionParseError,
   saveAxisHorizonStatement,
   saveHdfcInfiniaStatement,
-  saveIciciAmazonStatement,
+  saveIciciStatement,
 } from "@/services/CreditCardStatementService";
 import { extractCardStatement } from "@/services/StatementImportService";
 
@@ -61,8 +61,8 @@ export interface ImportStatementState {
  * to the database: if the parsed transactions don't add up to what the
  * statement itself claims, nothing is saved and this returns a clear
  * error instead. Re-uploading the same statement is always safe — the
- * per-card save function (saveHdfcInfiniaStatement / saveAxisHorizonStatement)
- * detects the duplicate and saves nothing a second time.
+ * per-card save function (saveHdfcInfiniaStatement / saveAxisHorizonStatement /
+ * saveIciciStatement) detects the duplicate and saves nothing a second time.
  */
 export async function importStatementAction(
   _prevState: ImportStatementState,
@@ -112,7 +112,7 @@ export async function importStatementAction(
         ? await saveHdfcInfiniaStatement(pageTexts, file.name)
         : cardSource === "axis-horizon"
           ? await saveAxisHorizonStatement(pageTexts, file.name)
-          : await saveIciciAmazonStatement(pageTexts, file.name);
+          : await saveIciciStatement(pageTexts, file.name);
     return {
       status: saved.outcome,
       summary: {

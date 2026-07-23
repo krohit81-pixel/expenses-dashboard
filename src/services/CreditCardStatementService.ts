@@ -33,20 +33,20 @@ import {
 } from "@/services/statement-parsers/axis-horizon/reconcile";
 import {
   IciciHeaderParseError,
-  parseIciciAmazonHeader,
-} from "@/services/statement-parsers/icici-amazon/parse-header";
+  parseIciciHeader,
+} from "@/services/statement-parsers/icici-amazon-rupay/parse-header";
 import {
   IciciTransactionParseError,
   parseIciciTransactions,
-} from "@/services/statement-parsers/icici-amazon/parse-transactions";
+} from "@/services/statement-parsers/icici-amazon-rupay/parse-transactions";
 import {
   assertIciciStatementReconciles,
   IciciReconciliationError,
-} from "@/services/statement-parsers/icici-amazon/reconcile";
+} from "@/services/statement-parsers/icici-amazon-rupay/reconcile";
 import type { Json } from "@/lib/db/database-types";
 import type { HdfcStatementHeader } from "@/services/statement-parsers/hdfc-infinia/types";
 import type { AxisStatementHeader } from "@/services/statement-parsers/axis-horizon/types";
-import type { IciciStatementHeader } from "@/services/statement-parsers/icici-amazon/types";
+import type { IciciStatementHeader } from "@/services/statement-parsers/icici-amazon-rupay/types";
 
 export {
   HdfcHeaderParseError,
@@ -458,19 +458,22 @@ export async function saveAxisHorizonStatement(
 }
 
 /**
- * Parses, reconciles, and persists an ICICI Amazon Pay statement -- same
- * pipeline as saveHdfcInfiniaStatement/saveAxisHorizonStatement above,
- * for the same reason (credit_card_statements/credit_card_transactions
- * are already issuer-agnostic). One real difference: parseIciciTransactions
- * needs the header's already-parsed primaryCardholder passed in (see that
+ * Parses, reconciles, and persists an ICICI statement -- covers both
+ * Amazon Pay and RuPay-variant cards (see icici-amazon-rupay/types.ts;
+ * renamed from saveIciciAmazonStatement in v1.9.0 once a second real
+ * statement confirmed one shared parser handles both). Same pipeline as
+ * saveHdfcInfiniaStatement/saveAxisHorizonStatement above, for the same
+ * reason (credit_card_statements/credit_card_transactions are already
+ * issuer-agnostic). One real difference: parseIciciTransactions needs
+ * the header's already-parsed primaryCardholder passed in (see that
  * module's own comment on why), so the header must be parsed first here
  * rather than in either order.
  */
-export async function saveIciciAmazonStatement(
+export async function saveIciciStatement(
   pageTexts: string[],
   pdfFilename: string,
 ): Promise<SaveIciciStatementResult> {
-  const header = parseIciciAmazonHeader(pageTexts);
+  const header = parseIciciHeader(pageTexts);
   const transactions = parseIciciTransactions(
     pageTexts,
     header.primaryCardholder,
@@ -554,7 +557,7 @@ export async function saveIciciAmazonStatement(
       .map((t) => ({
         rawText: t.merchantRaw!,
         normalizedText: t.merchantNormalized ?? t.merchantRaw!,
-        sourceBank: "icici-amazon",
+        sourceBank: "icici-amazon-rupay",
         currency: t.currency,
       }));
     const merchantResolutions = await resolveMerchantsForImport(merchantInputs);

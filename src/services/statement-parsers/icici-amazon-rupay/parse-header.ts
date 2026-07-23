@@ -1,6 +1,6 @@
-import { type Money } from "@/lib/money";
+import { ZERO, type Money } from "@/lib/money";
 
-import { findAllAmounts, findAmount } from "./amounts";
+import { findAllAmounts, findAmount, findInteger } from "./amounts";
 import type { IciciStatementHeader } from "./types";
 
 const MONTHS: Record<string, number> = {
@@ -64,14 +64,15 @@ function sliceBetween(
 }
 
 /**
- * "STATEMENT DATE"/"PAYMENT DUE DATE" print as section labels (each
- * doubled with no separator in the extracted text -- a background-image
- * rendering artifact, not a real repeat -- e.g. "STATEMENT
- * DATESTATEMENT DATE") with their actual value on its own line further
- * down, mixed in with unrelated marketing copy. Scoped by finding the
- * label, then taking the first "Month DD, YYYY"-shaped line after it,
- * rather than trying to anchor directly on the (unreliable, doubled)
- * label text itself.
+ * "STATEMENT DATE"/"PAYMENT DUE DATE" print as section labels -- on one
+ * real statement each was doubled with no separator by a background-image
+ * rendering artifact (e.g. "STATEMENT DATESTATEMENT DATE"), on the other
+ * they printed cleanly once -- with their actual value on its own line
+ * further down, mixed in with unrelated marketing copy either way.
+ * Scoped by finding the label, then taking the first "Month DD,
+ * YYYY"-shaped line after it, rather than trying to anchor directly on
+ * the (unreliably doubled) label text itself -- this works the same
+ * whether or not the doubling artifact happens to be present.
  */
 function findDateAfterLabel(fullText: string, label: string): string | null {
   const index = fullText.indexOf(label);
@@ -88,9 +89,13 @@ function findDateAfterLabel(fullText: string, label: string): string | null {
  * themselves split across two rows purely because Total Amount due
  * renders in a visually larger font that lands on its own line -- the
  * remaining four values follow immediately after on the next line, in
- * the same left-to-right order as the label row. Verified against a real
- * statement: previousBalance + purchasesCharges + cashAdvances -
- * paymentsCredits reproduces the printed Total Amount due exactly.
+ * the same left-to-right order as the label row. Verified against two
+ * real statements: previousBalance + purchasesCharges + cashAdvances -
+ * paymentsCredits reproduces the printed Total Amount due exactly both
+ * times. Anchored on "Total Amount due"/"Minimum Amount due" rather than
+ * the "STATEMENT SUMMARY"/"CREDIT SUMMARY" section labels themselves,
+ * since those have been observed both doubled and clean (same rendering
+ * quirk as the date labels above) and aren't needed anyway.
  */
 function parseStatementSummaryBlock(page1: string): {
   totalAmountDue: Money;
@@ -160,37 +165,62 @@ function parseCreditSummaryBlock(page1: string): {
 }
 
 /**
- * The EARNINGS section's cycle cashback total: a line with exactly two
- * bare integers and nothing else (both the same value in the one real
- * statement this was built against -- "earned" and "transferred to
+ * The one real difference between the two ICICI products this parser
+ * covers (see types.ts): an Amazon Pay statement's "EARNINGS" section
+ * prints a cycle cashback total as a line with exactly two bare integers
+ * and nothing else (both the same value -- "earned" and "transferred to
  * Amazon Pay balance" reporting the same cycle figure twice), found by
  * line *shape* rather than label proximity, same reasoning as HDFC's own
- * parseRewardsBlock. Amazon Pay ICICI Bank Credit Card has no
- * traditional points program (see types.ts), so this becomes
- * cashbackAmount, not rewardPointsEarned/Balance. Best-effort: returns
- * null (not a throw) if the shape isn't found, since this is a decorative
- * figure that never participates in reconcile.ts's checks -- a statement
- * that otherwise reconciles shouldn't be blocked from saving over this.
+ * parseRewardsBlock. Every other ICICI retail card tested instead prints
+ * an "ICICI Bank Rewards" section with a labeled "Total Points earned*
+ * <N>" line. Neither statement prints its own product name anywhere in
+ * the body (confirmed by full-text search against both real samples), so
+ * which of these two sections is present is the only real signal this
+ * parser has for cardType -- best-effort, defaulting to the RuPay/points
+ * shape (0 earned) if neither is found, since this is a decorative field
+ * that never participates in reconcile.ts's checks.
  */
-function parseEarningsCashback(page1: string): Money | null {
+function detectCardVariant(page1: string): {
+  cardType: "Amazon Pay" | "RuPay";
+  cashbackAmount: Money;
+  rewardPointsEarned: number;
+} {
   const lines = page1.split("\n").map((l) => l.trim());
-  const match = lines
+  const cashbackLineMatch = lines
     .map((l) => l.match(/^(\d{1,7})\s+(\d{1,7})$/))
     .find((m): m is RegExpMatchArray => m !== null);
-  return match ? findAmount(match[1]!) : null;
+  if (cashbackLineMatch) {
+    const cashbackAmount = findAmount(cashbackLineMatch[1]!);
+    if (cashbackAmount) {
+      return { cardType: "Amazon Pay", cashbackAmount, rewardPointsEarned: 0 };
+    }
+  }
+
+  const pointsMatch = page1.match(/Total Points earned\*?\s+([\d,]+)/i);
+  const rewardPointsEarned = pointsMatch
+    ? (findInteger(pointsMatch[1]!) ?? 0)
+    : 0;
+  return { cardType: "RuPay", cashbackAmount: ZERO, rewardPointsEarned };
 }
 
-export function parseIciciAmazonHeader(
-  pageTexts: string[],
-): IciciStatementHeader {
+export function parseIciciHeader(pageTexts: string[]): IciciStatementHeader {
   const page1 = pageTexts[0] ?? "";
   const fullText = pageTexts.join("\n");
 
   const cardLast4 = requireMatch(
-    // The real statement masks as "4315XXXXXXXX0005" (4 digits, 8 X's, 4
-    // digits) -- X+ rather than a fixed count in case a differently
-    // formatted ICICI card number ever masks a different number of
-    // digits.
+    // Both real statements mask their FIRST-appearing card number the
+    // same way ("4315XXXXXXXX0005", "5241XXXXXXXX3003" -- 4 digits, a
+    // run of X's, 4 digits), always right before the transaction table
+    // starts. X+ rather than a fixed count of X's in case a differently
+    // formatted card number ever masks a different number of digits. A
+    // real RuPay-on-UPI statement also prints a SECOND masked number
+    // further down, mid-table (a virtual/tokenized card number UPI
+    // charges route through) -- this regex only ever takes the first
+    // match, which is the one in the same structural position as the
+    // single card number an Amazon Pay statement prints; the second one
+    // is inert noise to parse-transactions.ts (it doesn't match
+    // ROW_REGEX, so it's simply skipped, same as any other non-row
+    // line).
     page1,
     /\d{4}X+(\d{4})/,
     "cardLast4",
@@ -221,11 +251,11 @@ export function parseIciciAmazonHeader(
   const summary = parseStatementSummaryBlock(page1);
   const minimumDue = parseMinimumDue(page1);
   const creditSummary = parseCreditSummaryBlock(page1);
-  const cashbackAmount = parseEarningsCashback(page1);
+  const variant = detectCardVariant(page1);
 
   return {
     issuer: "ICICI",
-    cardType: "Amazon Pay",
+    cardType: variant.cardType,
     cardLast4,
     primaryCardholder,
     statementDate,
@@ -244,10 +274,10 @@ export function parseIciciAmazonHeader(
     totalCreditLimit: creditSummary.totalCreditLimit,
     availableCashLimit: creditSummary.availableCashLimit,
     rewardPointsBalance: 0,
-    rewardPointsEarned: 0,
+    rewardPointsEarned: variant.rewardPointsEarned,
     rewardPointsExpiring30Days: 0,
     rewardPointsExpiring60Days: 0,
-    cashbackAmount: cashbackAmount ?? ("0.00" as Money),
+    cashbackAmount: variant.cashbackAmount,
     rewardPointsSummary: [],
     cashbackSummary: [],
     statementCurrency: "INR",

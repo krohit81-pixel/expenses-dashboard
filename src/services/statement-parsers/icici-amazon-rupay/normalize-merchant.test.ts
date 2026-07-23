@@ -48,4 +48,28 @@ describe("normalizeMerchant", () => {
       "Jw Marriott Spice Kith",
     );
   });
+
+  /**
+   * v1.9.0: a real RuPay-variant statement is spent almost entirely via
+   * UPI, and every UPI row's description is "UPI-<per-transaction
+   * reference number>-<merchant text>" -- a different reference number
+   * on every occurrence of the same merchant. Without stripping this
+   * prefix first, the same real-world merchant would normalize to a
+   * different string every time and never consolidate in the Merchant
+   * Dictionary.
+   */
+  it("strips the UPI reference-number prefix before matching a known merchant", () => {
+    expect(normalizeMerchant("UPI-616622925270-TOBOX VE NTURES")).toBe(
+      "Tobox Ventures",
+    );
+    expect(normalizeMerchant("UPI-653918856069-Tobox Ve ntures Privat")).toBe(
+      "Tobox Ventures",
+    );
+  });
+
+  it("strips the UPI reference-number prefix for an unrecognized merchant too", () => {
+    expect(normalizeMerchant("UPI-619083726735-SOME NEW SHOP IN")).toBe(
+      "Some New Shop",
+    );
+  });
 });

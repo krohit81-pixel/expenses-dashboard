@@ -65,9 +65,10 @@ function check(
  * financeCharges holds "Cash Advances" for this issuer (see types.ts) --
  * debit transactions are split between the two using isCashAdvance,
  * mirroring how axis-horizon's reconcile.ts splits its own debit rows
- * with isBankFeeOrTax. The overall identity check (verified against a
- * real statement) is: previousBalance + purchasesCharges + cashAdvances -
- * paymentsCredits = totalAmountDue.
+ * with isBankFeeOrTax. The overall identity check (verified against two
+ * real statements -- an Amazon Pay card and a RuPay-variant card spent
+ * almost entirely via UPI) is: previousBalance + purchasesCharges +
+ * cashAdvances - paymentsCredits = totalAmountDue.
  */
 export function reconcileIciciStatement(
   header: IciciStatementHeader,

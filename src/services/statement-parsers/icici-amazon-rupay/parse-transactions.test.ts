@@ -60,11 +60,11 @@ ${HEADER_ROW}
   });
 
   /**
-   * A real Amazon Pay statement's merchant refund rows carry no "refund"
-   * keyword at all -- just the same merchant description as the original
-   * purchase, with a "CR" suffix and (often) a negative reward-points
-   * value. See classify-transaction.ts for why any non-payment credit
-   * defaults to a refund classification.
+   * A real ICICI merchant refund row carries no "refund" keyword at all
+   * -- just the same merchant description as the original purchase, with
+   * a "CR" suffix and (often) a negative reward-points value. See
+   * classify-transaction.ts for why any non-payment credit defaults to a
+   * refund classification.
    */
   it("classifies an unlabeled merchant credit row as a refund, non-merchant", () => {
     const page = `Transaction Details
@@ -140,5 +140,72 @@ ${HEADER_ROW}
       amount: "100.00",
       transactionType: "debit",
     });
+  });
+
+  /**
+   * v1.9.0 regression guard: a real RuPay-on-UPI statement wraps a long
+   * merchant description onto the line immediately below its own row --
+   * e.g. "UPI-616622925270-TOBOX VE NTURES" continuing with just "PRIVAT
+   * IN" on the next line. Dropped entirely by an earlier version of this
+   * parser (only Amazon Pay's never-wrapped rows had been seen at the
+   * time); the continuation must now be stitched back onto the
+   * description.
+   */
+  it("stitches an immediately-wrapped description continuation onto the row", () => {
+    const page = `Transaction Details
+${HEADER_ROW}
+1234XXXXXXXX5678
+15/01/2026      10000000008       UPI-616622925270-TOBOX VE NTURES                 3                                 168.00
+PRIVAT IN
+# International Spends`;
+
+    const [txn] = parseIciciTransactions([page], "TEST USER");
+    expect(txn).toMatchObject({
+      description: "UPI-616622925270-TOBOX VE NTURES PRIVAT IN",
+      merchantNormalized: "Tobox Ventures",
+      amount: "168.00",
+    });
+  });
+
+  /**
+   * v1.9.0 regression guard: on a real statement, the wrapped
+   * continuation fragment isn't always the very next line -- a "SPENDS
+   * OVERVIEW" donut-chart label (e.g. "Fuel-1% Others-25%") or a masked
+   * card/token number can land in between, both purely visual layout
+   * noise. The continuation must still be found past that noise.
+   */
+  it("stitches a wrapped continuation even when a chart-label or masked-card noise line sits in between", () => {
+    const page = `Transaction Details
+${HEADER_ROW}
+1234XXXXXXXX5678
+16/01/2026      10000000009       UPI-616902091680-SALVI PE TRO STATION            0                                 433.42
+Fuel-1%                     Others-25%
+IN
+17/01/2026      10000000010       ANOTHER MERCHANT                                        0                                    50.00
+# International Spends`;
+
+    const [firstTxn, secondTxn] = parseIciciTransactions([page], "TEST USER");
+    expect(firstTxn).toMatchObject({
+      description: "UPI-616902091680-SALVI PE TRO STATION IN",
+      amount: "433.42",
+    });
+    expect(secondTxn).toMatchObject({
+      description: "ANOTHER MERCHANT",
+      amount: "50.00",
+    });
+  });
+
+  it("does not stitch a masked card number line onto the preceding description", () => {
+    const page = `Transaction Details
+${HEADER_ROW}
+1234XXXXXXXX5678
+18/01/2026      10000000011       INFINITY PAYMENT RECEIVED, THANK YOU           0                          31,108.80 CR
+6528XXXXXXXX7000
+19/01/2026      10000000012       UPI-616622925270-SOME MERCHANT                 3                                 168.00
+# International Spends`;
+
+    const [firstTxn, secondTxn] = parseIciciTransactions([page], "TEST USER");
+    expect(firstTxn?.description).toBe("INFINITY PAYMENT RECEIVED, THANK YOU");
+    expect(secondTxn?.description).toBe("UPI-616622925270-SOME MERCHANT");
   });
 });

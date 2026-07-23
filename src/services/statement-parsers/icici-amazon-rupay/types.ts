@@ -13,20 +13,31 @@ export interface CashbackSummaryLine {
 }
 
 /**
- * ICICI's Amazon Pay statement doesn't split its "Purchases / Charges"
- * and "Cash Advances" totals the way HDFC's purchasesDebit/financeCharges
- * split does, and it has no traditional points program at all -- see this
- * module's parse-header.ts for the actual field-mapping decisions. Field
- * *names* below still match HdfcStatementHeader/AxisStatementHeader
+ * Covers two real ICICI Bank retail credit card products, not just one --
+ * this module started as "icici-amazon" (Amazon Pay only) and was
+ * renamed after a second real statement (a Sapphiro card, spent almost
+ * entirely via RuPay-linked UPI) turned out to reconcile against the
+ * exact same layout, password scheme, and statement conventions with no
+ * structural changes needed. See parse-header.ts's detectCardVariant for
+ * the one real difference between the two: Amazon Pay earns cashback
+ * into the cardholder's Amazon Pay balance (an "EARNINGS" section);
+ * every other ICICI retail card this was tested against earns ordinary
+ * reward points (an "ICICI Bank Rewards" section) instead. Neither
+ * statement prints its own product name as text anywhere in the body
+ * (confirmed by full-text search against both real samples), so cardType
+ * is inferred from which of those two sections is present, not read
+ * directly.
+ *
+ * Field *names* below still match HdfcStatementHeader/AxisStatementHeader
  * field-for-field (not renamed to "cashAdvances" etc.) on purpose: it's
  * what lets CreditCardStatementService's save function reuse the exact
  * same credit_card_statements insert shape for all three issuers, since
  * that table's columns are already issuer-agnostic. The comments on each
- * field below say what it actually holds for this card.
+ * field below say what it actually holds for this issuer.
  */
 export interface IciciStatementHeader {
   issuer: "ICICI";
-  cardType: "Amazon Pay";
+  cardType: "Amazon Pay" | "RuPay";
   cardLast4: string;
   primaryCardholder: string;
   statementDate: string;
@@ -55,23 +66,26 @@ export interface IciciStatementHeader {
   availableCreditLimit: Money;
   totalCreditLimit: Money;
   availableCashLimit: Money;
-  /** Amazon Pay ICICI Bank Credit Card has no traditional reward-points
-   * program -- it earns cashback straight into the cardholder's Amazon
-   * Pay balance (see cashbackAmount below). Always 0; kept only so this
-   * header shape matches HdfcStatementHeader/AxisStatementHeader. */
+  /** Only populated for a RuPay-variant statement (see cardType above) --
+   * the statement's own "Total Points earned" figure for this cycle. 0
+   * for an Amazon Pay statement, which earns cashback instead (see
+   * cashbackAmount below). No running points *balance* is printed on
+   * either real statement this was tested against, so
+   * rewardPointsBalance stays 0 either way. */
   rewardPointsBalance: number;
   rewardPointsEarned: number;
   rewardPointsExpiring30Days: number;
   rewardPointsExpiring60Days: number;
-  /** The statement's own "EARNINGS" section total -- cashback earned
-   * this cycle, credited to the cardholder's Amazon Pay balance (not
-   * reward points). */
+  /** Only populated for an Amazon Pay statement (see cardType above) --
+   * the "EARNINGS" section's cycle cashback total, credited to the
+   * cardholder's Amazon Pay balance (not reward points). 0.00 for a
+   * RuPay-variant statement, which earns points instead. */
   cashbackAmount: Money;
-  /** Never populated for this card -- no per-program points table is
-   * printed (see rewardPointsBalance above). */
+  /** Never populated by this parser -- neither real statement this was
+   * tested against prints a per-program points table. */
   rewardPointsSummary: RewardProgramLine[];
-  /** Never populated for this card -- the EARNINGS section prints one
-   * cycle total (cashbackAmount above), not a per-transaction table. */
+  /** Never populated by this parser -- neither real statement this was
+   * tested against prints a per-transaction cashback table. */
   cashbackSummary: CashbackSummaryLine[];
   statementCurrency: "INR";
 }

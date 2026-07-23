@@ -1,12 +1,24 @@
 /**
- * Known merchant name variants seen on a real Amazon Pay ICICI statement
- * -- checked as a prefix match (case-insensitive) before the generic
- * processor-prefix/city-suffix stripping below, same approach as
- * axis-horizon's own KNOWN_MERCHANT_PREFIXES. Several merchants print
- * under more than one raw shape depending on which payment aggregator
- * routed the charge (e.g. Swiggy via its own gateway vs. via Razorpay's
- * "RAZ*" prefix vs. via "CAS*"), so those all fold into one canonical
- * name here rather than becoming distinct Merchant Dictionary entries.
+ * A real RuPay-variant statement is spent almost entirely via UPI, and
+ * every UPI-routed row's description is "UPI-<per-transaction reference
+ * number>-<merchant text>" -- e.g. "UPI-616622925270-TOBOX VE NTURES".
+ * That reference number is different on every single transaction even
+ * for the exact same merchant, so leaving it in place would make
+ * normalizeMerchant return a different "merchant" for every UPI charge
+ * and defeat the whole point of merchant normalization. Stripped first,
+ * before any other rule below runs.
+ */
+const UPI_REFERENCE_PREFIX = /^UPI-\d+-/i;
+
+/**
+ * Known merchant name variants seen on a real Amazon Pay or RuPay-variant
+ * ICICI statement -- checked as a prefix match (case-insensitive) after
+ * the UPI reference prefix above is stripped, same approach as
+ * axis-horizon's own KNOWN_MERCHANT_PREFIXES. "TOBOX VE NTURES" (note the
+ * mangled internal space -- see the comment on stripKnownCitySuffix)
+ * is this statement's single most frequent merchant by transaction
+ * count; folded to one canonical name rather than becoming a
+ * differently-spaced Merchant Dictionary entry every time.
  */
 const KNOWN_MERCHANT_PREFIXES: [prefix: string, name: string][] = [
   ["AMAZON PAY IN GROCERY", "Amazon Fresh"],
@@ -33,13 +45,15 @@ const KNOWN_MERCHANT_PREFIXES: [prefix: string, name: string][] = [
   ["GIVA", "Giva"],
   ["VERCEL", "Vercel"],
   ["BLOOMBERG", "Bloomberg"],
+  ["TOBOX VE NTURES", "Tobox Ventures"],
+  ["TOBOX VENTURES", "Tobox Ventures"],
 ];
 
 // Payment-aggregator prefixes that route a real merchant's charge through
 // their own gateway id -- stripped so the underlying merchant name (or,
 // for the merchants above, the KNOWN_MERCHANT_PREFIXES match) is what's
 // left. "RAZ*"/"CAS*"/"PAY*"/"PYU*" are Razorpay/Cashfree/PayU-style
-// aggregator tags actually seen in this statement's transaction table.
+// aggregator tags actually seen in a real statement.
 const PROCESSOR_PREFIXES = [/^RAZ\*/i, /^CAS\*/i, /^PAY\*/i, /^PYU\*/i];
 
 const KNOWN_CITY_SUFFIXES = [
@@ -56,10 +70,13 @@ const KNOWN_CITY_SUFFIXES = [
   "CHENNAI",
 ];
 
-// Every real row in this statement ends its description with a trailing
-// "IN" (domestic) or "US*" (a US-based merchant) country marker --
-// stripped the same way city names are, so it doesn't end up baked into
-// the normalized merchant name.
+// Every real row in these statements ends its description with a
+// trailing "IN" (domestic) or "US*" (a US-based merchant) country
+// marker -- stripped the same way city names are, so it doesn't end up
+// baked into the normalized merchant name. A UPI-routed row's wrapped
+// continuation line (see parse-transactions.ts's collectWrappedContinuation)
+// often puts this "IN" on its own trailing fragment, so it must still be
+// stripped after that fragment is joined on.
 const TRAILING_COUNTRY_MARKER = /\s+(?:IN|US\*?)$/i;
 
 const SMALL_WORDS = new Set(["and", "of", "the", "n"]);
@@ -90,17 +107,19 @@ export function normalizeMerchant(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
 
-  const upper = trimmed.toUpperCase();
+  const withoutUpiPrefix = trimmed.replace(UPI_REFERENCE_PREFIX, "");
+
+  const upper = withoutUpiPrefix.toUpperCase();
   for (const [prefix, name] of KNOWN_MERCHANT_PREFIXES) {
     if (upper.startsWith(prefix)) return name;
   }
 
-  let working = trimmed.replace(TRAILING_COUNTRY_MARKER, "").trim();
+  let working = withoutUpiPrefix.replace(TRAILING_COUNTRY_MARKER, "").trim();
   for (const pattern of PROCESSOR_PREFIXES) {
     working = working.replace(pattern, "");
   }
   working = stripKnownCitySuffix(working).trim();
   working = working.replace(/\s{2,}/g, " ");
 
-  return working ? titleCase(working) : titleCase(trimmed);
+  return working ? titleCase(working) : titleCase(withoutUpiPrefix || trimmed);
 }

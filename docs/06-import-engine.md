@@ -18,14 +18,21 @@ partial set of rows.
 
 - **HDFC Infinia** (`src/services/statement-parsers/hdfc-infinia/`)
 - **Axis Horizon** (`src/services/statement-parsers/axis-horizon/`)
-- **ICICI Amazon Pay** (`src/services/statement-parsers/icici-amazon/`,
-  v1.8.0) — its own summary block combines "purchases" and "charges" into
-  one figure rather than splitting them like HDFC/Axis do; see that
-  module's `types.ts` for how it still maps onto the shared header shape.
+- **ICICI Amazon Pay / RuPay**
+  (`src/services/statement-parsers/icici-amazon-rupay/`, added as
+  `icici-amazon` in v1.8.0, renamed in v1.9.0) — covers two real ICICI
+  retail card products against one shared parser: its own summary block
+  combines "purchases" and "charges" into one figure rather than
+  splitting them like HDFC/Axis do, and neither real statement prints its
+  own product name anywhere in the body, so `cardType` ("Amazon Pay" vs.
+  "RuPay") is inferred from which rewards section is present (cashback vs.
+  points) — see that module's `types.ts` and `parse-header.ts`.
 
-`src/services/statement-parsers/axis-atlas/` is a leftover from a naming
-mistake before the "Axis Horizon" rename — it's untracked in git and
-should be deleted from disk by hand; nothing references it.
+`src/services/statement-parsers/axis-atlas/` and the pre-rename
+`src/services/statement-parsers/icici-amazon/` are both leftovers from
+naming changes (the "Axis Horizon" rename and the "icici-amazon-rupay"
+rename, respectively) — both untracked in git and should be deleted from
+disk by hand; nothing references either.
 
 Adding a new issuer means adding a new directory with the same module
 shape (below) plus a new `CardStatementSource` entry in
@@ -80,7 +87,7 @@ flowchart LR
 6. **Resolve merchants** (`MerchantDictionaryService.resolveMerchantsForImport`):
    sequential per-import exact-then-normalized alias lookup against the
    shared Merchant Dictionary, tagged with a `sourceBank` string
-   (`"hdfc-infinia"`, `"axis-horizon"`).
+   (`"hdfc-infinia"`, `"axis-horizon"`, `"icici-amazon-rupay"`).
 7. **Save** (`CreditCardStatementService`): hash the extracted text for
    dedupe (`statement_hash` + date + card last 4), insert the statement
    row (with `cycle_month`), insert transaction rows, roll back the

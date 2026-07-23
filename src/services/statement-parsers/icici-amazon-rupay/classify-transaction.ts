@@ -9,19 +9,19 @@ export interface Classification {
 }
 
 /**
- * Unlike HDFC/Axis, a real Amazon Pay statement's credit ("CR") rows for
- * an ordinary merchant refund carry NO keyword at all -- just the same
+ * Unlike HDFC/Axis, a real ICICI statement's credit ("CR") rows for an
+ * ordinary merchant refund carry NO keyword at all -- just the same
  * merchant description as the original purchase, with a "CR" suffix on
  * the amount (see parse-transactions.ts's ROW_REGEX). The only credit
  * row that identifies itself by name is the bank's own payment-received
- * line ("INFINITY PAYMENT RECEIVED, THANK YOU" in the one real statement
+ * line ("INFINITY PAYMENT RECEIVED, THANK YOU" on both real statements
  * this was built against). So the rule here is: a payment-received match
  * wins; a cashback/reversal keyword match wins if present (kept as a
- * defensive fallback -- neither has been observed on a real Amazon Pay
- * statement, whose cashback is disbursed separately via the EARNINGS
- * section, not as a transaction row); anything else that's a credit is
- * assumed to be a merchant refund, since there's no other explanation for
- * a negative-direction amount against a normal merchant description.
+ * defensive fallback -- neither has been observed on a real statement,
+ * whose cashback/points are disbursed separately, never as a transaction
+ * row); anything else that's a credit is assumed to be a merchant
+ * refund, since there's no other explanation for a negative-direction
+ * amount against a normal merchant description.
  */
 export function classifyTransaction(
   description: string,
@@ -62,12 +62,12 @@ export function classifyTransaction(
 }
 
 /**
- * No fee/GST/late-charge transaction row appears anywhere in the one
- * real statement this was built against (the statement's own footnote
- * says such charges are folded into the printed transaction amount
- * instead -- see types.ts's comment on purchasesDebit). Kept as a
- * defensive classifier for a future statement that does print one,
- * same spirit as axis-horizon's own isBankFeeOrTax.
+ * A real RuPay-variant statement (unlike the Amazon Pay one this
+ * classifier started with) does print its own fee/tax transaction rows
+ * -- "DCC Fee" (Dynamic Currency Conversion) and "SGST-CI@9%"/"CGST-
+ * CI@9%" lines all appeared on a real statement. Kept alongside the
+ * HDFC/Axis-style patterns that haven't been seen on either real ICICI
+ * statement yet, as a defensive superset.
  */
 export function isBankFeeOrTax(description: string): boolean {
   return (
@@ -76,6 +76,7 @@ export function isBankFeeOrTax(description: string): boolean {
     /^SGST-/i.test(description) ||
     /^GST-/i.test(description) ||
     /^GST$/i.test(description) ||
+    /^DCC Fee$/i.test(description) ||
     /late payment fee/i.test(description) ||
     /late fee/i.test(description) ||
     /annual fee/i.test(description) ||
@@ -88,8 +89,8 @@ export function isBankFeeOrTax(description: string): boolean {
 
 /**
  * Best-effort cash-advance detector -- the statement's summary block
- * prints a "Cash Advances" total (0.00 in the one real statement this
- * was built against) but no cash-advance transaction row exists there to
+ * prints a "Cash Advances" total (0.00 on both real statements this was
+ * built against) but no cash-advance transaction row exists on either to
  * confirm actual wording against. Kept defensive, same spirit as the
  * classifiers above: reconcile.ts uses this to split debit rows between
  * header.purchasesDebit and header.financeCharges (which holds "Cash
