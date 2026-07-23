@@ -45,10 +45,18 @@ const serverEnvSchema = z.object({
   // formula — it's just read as an opaque string from this env var).
   // Optional, same reasoning as the AI keys above: without it, the
   // /imports page still loads, it just can't decrypt a protected PDF —
-  // it says so rather than crashing. Only one card is supported for
-  // now (Infinia); a second card would get its own env var when that's
-  // actually needed, not a speculative multi-card scheme today.
+  // it says so rather than crashing.
   HDFC_INFINIA_STATEMENT_PASSWORD: optionalEnvString(),
+  // v1.11.0 — a real Tata Neu Plus HDFC Bank Credit Card statement turned
+  // out to reconcile against the hdfc-infinia parser's transaction table
+  // unmodified (renamed to hdfc-infinia-tata, with header-level cardType
+  // detection added). Unlike the Axis/ICICI generalizations above, this
+  // one keeps a SEPARATE password env var rather than folding into
+  // HDFC_INFINIA_STATEMENT_PASSWORD, per explicit instruction: HDFC's
+  // co-branded cards don't necessarily share the same password formula
+  // as the core Infinia product, even though the PDF layout and parser
+  // are otherwise identical.
+  HDFC_TATA_STATEMENT_PASSWORD: optionalEnvString(),
   // v1.7.0 — same reasoning as HDFC_INFINIA_STATEMENT_PASSWORD above,
   // for Axis's own encrypted statement PDFs. A distinct env var rather
   // than reusing HDFC's, since the two banks' password schemes have no
@@ -103,6 +111,7 @@ function parseServerEnv() {
     GEMINI_MODEL: process.env.GEMINI_MODEL,
     HDFC_INFINIA_STATEMENT_PASSWORD:
       process.env.HDFC_INFINIA_STATEMENT_PASSWORD,
+    HDFC_TATA_STATEMENT_PASSWORD: process.env.HDFC_TATA_STATEMENT_PASSWORD,
     AXIS_STATEMENT_PASSWORD: process.env.AXIS_STATEMENT_PASSWORD,
     ICICI_STATEMENT_PASSWORD: process.env.ICICI_STATEMENT_PASSWORD,
     APP_ACCESS_PASSWORD: process.env.APP_ACCESS_PASSWORD,

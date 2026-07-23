@@ -14,7 +14,7 @@ import { shiftMonth } from "@/lib/dates/month";
  *
  * Mirrors finance.transactions.cycle_month (see the v0.5.0 migration)
  * applied to statements instead of individual ledger rows -- see
- * CreditCardStatementService.saveHdfcInfiniaStatement for where this
+ * CreditCardStatementService.saveHdfcStatement for where this
  * gets computed and stored (credit_card_statements.cycle_month), and
  * CreditCardIntelService for how every card-related Intel aggregate
  * groups by it instead of individual transaction dates.

@@ -4,7 +4,7 @@
  * the Merchant Dictionary, for statements that were imported before the
  * Merchant Dictionary (merchant_id/needs_review columns, see
  * supabase/migrations/20260722*.sql) existed. The live import pipeline
- * (CreditCardStatementService.saveHdfcInfiniaStatement) only resolves
+ * (CreditCardStatementService.saveHdfcStatement) only resolves
  * merchants for NEW transaction rows at insert time -- re-uploading an
  * already-imported statement is treated as a duplicate and touches
  * nothing (see statement_hash dedup), so old rows stay merchant_id =

@@ -6,10 +6,9 @@ import {
 } from "./parse-transactions";
 
 /**
- * Synthetic fixtures shaped like the real HDFC Infinia reconstructed
- * layout (see this module's header comment for the tail-pattern
- * shapes), entirely fake data -- never derived from any real
- * cardholder's statement.
+ * Synthetic fixtures shaped like the real HDFC reconstructed layout (see
+ * this module's header comment for the tail-pattern shapes), entirely
+ * fake data -- never derived from any real cardholder's statement.
  */
 const TABLE_HEADER =
   "DATE & TIME                  TRANSACTION DESCRIPTION                                                     REWARDS                AMOUNT     PI";

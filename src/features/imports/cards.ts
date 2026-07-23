@@ -24,12 +24,28 @@
  * bank, same password scheme, same PDF layout, just a different rewards
  * section (cashback instead of eDGE Miles points). Env var renamed to
  * match: AXIS_STATEMENT_PASSWORD, not AXIS_HORIZON_....
+ *
+ * v1.11.0 added a fourth entry, "hdfc-tata-neu", for a real Tata Neu Plus
+ * HDFC Bank Credit Card statement -- reconciled against the unmodified
+ * hdfc-infinia parser's transaction table with zero changes needed (only
+ * the header's rewards section needed variant-aware handling; see the
+ * renamed hdfc-infinia-tata module's parse-header.ts). Unlike the Axis/
+ * ICICI cases above, this one did NOT collapse into a single shared
+ * entry: the user explicitly wants a distinct password env var per card
+ * (HDFC_TATA_STATEMENT_PASSWORD, not reusing HDFC_INFINIA_STATEMENT_PASSWORD)
+ * even though both entries dispatch to the exact same underlying parser
+ * module and save function -- see StatementImportService.ts and
+ * CreditCardStatementService.ts's saveHdfcStatement.
  */
 export type CardStatementSource =
-  "hdfc-infinia" | "axis-horizon-airtel" | "icici-amazon-rupay";
+  | "hdfc-infinia"
+  | "hdfc-tata-neu"
+  | "axis-horizon-airtel"
+  | "icici-amazon-rupay";
 
 export const CARD_STATEMENT_LABELS: Record<CardStatementSource, string> = {
   "hdfc-infinia": "HDFC Infinia",
+  "hdfc-tata-neu": "HDFC Tata Neu Plus",
   "axis-horizon-airtel": "Axis Horizon / Airtel",
   "icici-amazon-rupay": "ICICI Amazon Pay / RuPay",
 };

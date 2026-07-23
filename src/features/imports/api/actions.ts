@@ -17,7 +17,7 @@ import {
   IciciReconciliationError,
   IciciTransactionParseError,
   saveAxisStatement,
-  saveHdfcInfiniaStatement,
+  saveHdfcStatement,
   saveIciciStatement,
 } from "@/services/CreditCardStatementService";
 import { extractCardStatement } from "@/services/StatementImportService";
@@ -55,14 +55,20 @@ export interface ImportStatementState {
  * Phase 2: extracts an uploaded statement PDF's text, then parses,
  * reconciles, and saves it in one automatic step. Atlas has no manual
  * review/confirm screen for this — reconciliation (see each parser's own
- * reconcile.ts, e.g. statement-parsers/hdfc-infinia/reconcile.ts or
+ * reconcile.ts, e.g. statement-parsers/hdfc-infinia-tata/reconcile.ts or
  * statement-parsers/axis-horizon-airtel/reconcile.ts) is the automated
  * gate that stands in for a human checking the numbers before anything
  * is written to the database: if the parsed transactions don't add up to
  * what the statement itself claims, nothing is saved and this returns a
  * clear error instead. Re-uploading the same statement is always safe —
- * the per-card save function (saveHdfcInfiniaStatement / saveAxisStatement /
- * saveIciciStatement) detects the duplicate and saves nothing a second time.
+ * the per-card save function (saveHdfcStatement / saveAxisStatement /
+ * saveIciciStatement) detects the duplicate and saves nothing a second
+ * time. Note "hdfc-infinia" and "hdfc-tata-neu" are two distinct
+ * CardStatementSource entries (different password env vars) that BOTH
+ * dispatch to saveHdfcStatement -- parsing auto-detects which real card
+ * product a statement is from its own content, so the save function
+ * doesn't need to know which UI entry the user picked, only the password
+ * lookup does (see StatementImportService.ts).
  */
 export async function importStatementAction(
   _prevState: ImportStatementState,
@@ -95,24 +101,24 @@ export async function importStatementAction(
 
   const pageTexts = extraction.pages.map((page) => page.text);
   const cardSource = card as CardStatementSource;
+  const isHdfc =
+    cardSource === "hdfc-infinia" || cardSource === "hdfc-tata-neu";
   // Statement label used only for the "changed their format" hint below
   // -- e.g. "HDFC", "Axis", or "ICICI" -- not the full
   // CARD_STATEMENT_LABELS display name, which includes the card product
   // too.
-  const issuerLabel =
-    cardSource === "hdfc-infinia"
-      ? "HDFC"
-      : cardSource === "axis-horizon-airtel"
-        ? "Axis"
-        : "ICICI";
+  const issuerLabel = isHdfc
+    ? "HDFC"
+    : cardSource === "axis-horizon-airtel"
+      ? "Axis"
+      : "ICICI";
 
   try {
-    const saved =
-      cardSource === "hdfc-infinia"
-        ? await saveHdfcInfiniaStatement(pageTexts, file.name)
-        : cardSource === "axis-horizon-airtel"
-          ? await saveAxisStatement(pageTexts, file.name)
-          : await saveIciciStatement(pageTexts, file.name);
+    const saved = isHdfc
+      ? await saveHdfcStatement(pageTexts, file.name)
+      : cardSource === "axis-horizon-airtel"
+        ? await saveAxisStatement(pageTexts, file.name)
+        : await saveIciciStatement(pageTexts, file.name);
     return {
       status: saved.outcome,
       summary: {

@@ -57,7 +57,7 @@ src/
                                  # CategoryService, InstitutionService, AssetService,
                                  # LiabilityService, UserSettingsService, AttachmentService
   services/statement-parsers/
-    hdfc-infinia/                # types, amounts, parse-header, parse-transactions,
+    hdfc-infinia-tata/           # types, amounts, parse-header, parse-transactions,
     axis-horizon-airtel/         #   classify-transaction, normalize-merchant, reconcile, index
   lib/
     money/                       # Money branded type + decimal.js-backed arithmetic

@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v1.10.0**
+correction layer: what's actually true today, current as of **v1.11.0**
 (July 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -72,27 +72,35 @@ app must actually enforce today.
 - **Credit card statement imports**: upload a PDF (password-protected or
   not), it's parsed deterministically (no LLM) into a structured statement
   + transaction rows, reconciled against the statement's own printed
-  totals, and only saved if reconciliation passes. Three issuer slots
-  today: **HDFC Infinia**, **Axis Horizon / Airtel** (`axis-horizon-airtel`
-  — added as `axis-horizon` in v1.7.0, renamed in v1.10.0 after a second
-  real statement, an Airtel co-branded Mastercard, reconciled against the
-  exact same parser with zero code changes — same bank, same password
-  scheme, same PDF layout, differing only in which rewards section is
-  printed), and **ICICI Amazon Pay / RuPay** (`icici-amazon-rupay` —
-  added as `icici-amazon` in v1.8.0, renamed in v1.9.0 after a second real
-  statement, a RuPay-variant card spent almost entirely via UPI,
-  reconciled against the exact same parser with no structural changes).
-  ICICI's own summary block doesn't split "purchases" from "finance
-  charges" the way HDFC/Axis do, and neither real ICICI statement prints
-  its own product name anywhere in the body — see
-  `icici-amazon-rupay/types.ts` for how that parser's header fields map
-  onto the shared `credit_card_statements` columns, and its
+  totals, and only saved if reconciliation passes. Four issuer slots
+  today: **HDFC Infinia / Tata Neu Plus** (`hdfc-infinia-tata` — added as
+  `hdfc-infinia` in v1.3.0, renamed in v1.11.0 after a second real
+  statement, a Tata Neu Plus co-branded card, reconciled against the
+  exact same transaction parser with zero code changes, needing only a
+  header-level cardType detection for its differently-shaped rewards
+  section; unlike the two generalizations below, this one keeps TWO
+  separate `CardStatementSource` entries with distinct password env vars,
+  since HDFC's co-branded cards aren't guaranteed to share the core
+  product's password formula), **Axis Horizon / Airtel**
+  (`axis-horizon-airtel` — added as `axis-horizon` in v1.7.0, renamed in
+  v1.10.0 after a second real statement, an Airtel co-branded Mastercard,
+  reconciled against the exact same parser with zero code changes — same
+  bank, same password scheme, same PDF layout, differing only in which
+  rewards section is printed), and **ICICI Amazon Pay / RuPay**
+  (`icici-amazon-rupay` — added as `icici-amazon` in v1.8.0, renamed in
+  v1.9.0 after a second real statement, a RuPay-variant card spent almost
+  entirely via UPI, reconciled against the exact same parser with no
+  structural changes). ICICI's own summary block doesn't split
+  "purchases" from "finance charges" the way HDFC/Axis do, and neither
+  real ICICI statement prints its own product name anywhere in the body —
+  see `icici-amazon-rupay/types.ts` for how that parser's header fields
+  map onto the shared `credit_card_statements` columns, and its
   `parse-header.ts` for how `cardType` is inferred (Amazon Pay's cashback
   section vs. every other card's reward-points section) rather than read
-  directly. Three orphaned parser directories, `axis-atlas`, the pre-
-  rename `axis-horizon`, and the pre-rename `icici-amazon`, are naming
-  leftovers and should be deleted by hand — all are untracked in git
-  already.
+  directly. Four orphaned parser directories, `axis-atlas`, the pre-rename
+  `axis-horizon`, the pre-rename `icici-amazon`, and the pre-rename
+  `hdfc-infinia`, are naming leftovers and should be deleted by hand — all
+  are untracked in git already.
 - **Merchant Dictionary**: a shared, issuer-agnostic merchant/category
   resolution layer (`finance.merchants`, `finance.merchant_aliases`,
   `finance.atlas_categories`) that every statement parser feeds into, plus

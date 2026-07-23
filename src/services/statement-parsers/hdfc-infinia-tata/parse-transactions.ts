@@ -11,6 +11,10 @@ import type { CardholderType, HdfcTransaction } from "./types";
  *   21/06/2026| 12:11    EMI    GYFTR VIA SMARTBUYNEW DELHI       + 130    C  4,000.00     l
  *   22/06/2026| 20:16            GOOGLE CLOUDMUMBAI                        C  2.00     l
  *
+ * Confirmed identical on both real card products this module covers
+ * (Infinia and the Tata Neu Plus co-branded card) -- same table shape,
+ * same tail convention, same "l" Purchase Indicator marker.
+ *
  * Tail shapes observed/anticipated (see this repo's delivery notes for
  * how the leading "+" convention was discovered): "[+ N] C amount" for a
  * debit (optionally with N reward points earned), "+ C amount" for a
@@ -71,7 +75,7 @@ export class HdfcTransactionParseError extends Error {
 
 /**
  * Parses every transaction row across all pages of an already
- * text-extracted HDFC Infinia statement (see extract-text.ts). Purely
+ * text-extracted HDFC statement (see extract-text.ts). Purely
  * rule-based: table-row regex plus a small amount of state (which
  * cardholder section we're currently in, whether we're inside the
  * transaction table at all) -- no LLM, nothing inferred beyond what a

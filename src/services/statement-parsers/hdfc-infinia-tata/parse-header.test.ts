@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { HdfcHeaderParseError, parseHdfcInfiniaHeader } from "./parse-header";
+import { HdfcHeaderParseError, parseHdfcHeader } from "./parse-header";
 
 /**
  * A synthetic two-page statement text, entirely fake data, shaped to
@@ -44,9 +44,41 @@ Cash Back Summary
 2 Plain Refund Entry 25.00
 Important Information`;
 
-describe("parseHdfcInfiniaHeader", () => {
-  it("extracts every header field from a well-formed statement", () => {
-    const header = parseHdfcInfiniaHeader([PAGE_1, PAGE_2]);
+/**
+ * A synthetic single-page statement mirroring a real Tata Neu Plus HDFC
+ * Bank Credit Card statement's layout -- same "PREVIOUS STATEMENT DUES /
+ * TOTAL CREDIT LIMIT" totals block and limits/due-date shape as Infinia
+ * above, but a "NeuCoins" rewards block instead of "Opening Balance /
+ * POINTS EXPIRING" (and no points-expiry sub-section at all). Never
+ * derived from any real cardholder's statement.
+ */
+const TATA_PAGE_1 = `TEST USER Credit Card No. 652925XXXXXX9936
+Statement Date 14 Jul, 2026
+Billing Period 15 Jun, 2026 - 14 Jul, 2026
+PREVIOUS STATEMENT DUES
+1,000.00
+PAYMENTS RECEIVED
+500.00
+PURCHASE/DEBITS
+2,000.00
+FINANCE CHARGES
+50.00
+TOTAL AMOUNT DUE
+2,550.00
+TOTAL CREDIT LIMIT AVAILABLE CREDIT LIMIT AVAILABLE CASH LIMIT
+5,00,000.00 4,50,000.00 1,00,000.00
+MINIMUM DUE DUE DATE
+500.00 05 Aug, 2026
+Past Dues
+Opening NeuCoins with Bank NeuCoins Earned (Base+Bonus) NeuCoins Transferred to Tata Neu Adjusted/Lapsed
+835 9 835 0
+9
+Note:
+1. Some footnote about NeuCoins.`;
+
+describe("parseHdfcHeader", () => {
+  it("extracts every header field from a well-formed Infinia statement", () => {
+    const header = parseHdfcHeader([PAGE_1, PAGE_2]);
 
     expect(header).toEqual({
       issuer: "HDFC",
@@ -82,11 +114,34 @@ describe("parseHdfcInfiniaHeader", () => {
     });
   });
 
+  /**
+   * Tata Neu Plus-variant guard: same totals/limits shape as Infinia
+   * everywhere except the rewards section, which prints "NeuCoins"
+   * anywhere on page 1 instead of "Opening Balance", and has no
+   * points-expiry sub-section at all. detectCardVariant must flip
+   * cardType to "Tata Neu Plus", still populate rewardPointsBalance/
+   * rewardPointsEarned from the same 4-number-line-then-balance shape
+   * (just under different surrounding labels), and default both expiry
+   * fields to 0 rather than throwing when "IN 30/60 DAYS" is absent.
+   */
+  it("detects the Tata Neu Plus variant and reads its NeuCoins block instead of Opening Balance/POINTS EXPIRING", () => {
+    const header = parseHdfcHeader([TATA_PAGE_1]);
+
+    expect(header.cardType).toBe("Tata Neu Plus");
+    expect(header.rewardPointsEarned).toBe(9);
+    expect(header.rewardPointsBalance).toBe(9);
+    expect(header.rewardPointsExpiring30Days).toBe(0);
+    expect(header.rewardPointsExpiring60Days).toBe(0);
+    // Everything else about the statement shape is identical to Infinia.
+    expect(header.totalAmountDue).toBe("2550.00");
+    expect(header.cardLast4).toBe("9936");
+  });
+
   it("strips trailing currency-symbol noise from a cashback line's description", () => {
     // The real statement's font maps its ₹ glyph to a literal "C" -- this
     // asserts the digit-index slice + trailing-letter-strip in
     // parseCashbackSummary handles that without leaving "C" attached.
-    const header = parseHdfcInfiniaHeader([PAGE_1, PAGE_2]);
+    const header = parseHdfcHeader([PAGE_1, PAGE_2]);
     expect(header.cashbackSummary[0]?.transaction).not.toMatch(/[A-Z]$/);
   });
 
@@ -98,7 +153,7 @@ describe("parseHdfcInfiniaHeader", () => {
       "1 Test Cashback Reward C 110.00",
       "1 5% CashBack on SmartPay C 150.00",
     );
-    const header = parseHdfcInfiniaHeader([PAGE_1, pageWithPercentCashback]);
+    const header = parseHdfcHeader([PAGE_1, pageWithPercentCashback]);
     expect(header.cashbackSummary[0]).toEqual({
       srNo: 1,
       transaction: "5% CashBack on SmartPay",
@@ -108,7 +163,7 @@ describe("parseHdfcInfiniaHeader", () => {
 
   it("defaults to an empty cashback summary and zero cashback amount when the section is absent", () => {
     const pageWithoutCashback = PAGE_1;
-    const header = parseHdfcInfiniaHeader([pageWithoutCashback]);
+    const header = parseHdfcHeader([pageWithoutCashback]);
     expect(header.cashbackSummary).toEqual([]);
     expect(header.cashbackAmount).toBe("0.00");
     expect(header.rewardPointsSummary).toEqual([]);
@@ -116,7 +171,7 @@ describe("parseHdfcInfiniaHeader", () => {
 
   it("throws HdfcHeaderParseError when a required field is missing", () => {
     const broken = PAGE_1.replace("Statement Date 15 Jul, 2026\n", "");
-    expect(() => parseHdfcInfiniaHeader([broken, PAGE_2])).toThrow(
+    expect(() => parseHdfcHeader([broken, PAGE_2])).toThrow(
       HdfcHeaderParseError,
     );
   });
@@ -126,7 +181,7 @@ describe("parseHdfcInfiniaHeader", () => {
       "Credit Card No. 412345XXXXXX6789",
       "Credit Card No. 4123456789",
     );
-    expect(() => parseHdfcInfiniaHeader([broken, PAGE_2])).toThrow(
+    expect(() => parseHdfcHeader([broken, PAGE_2])).toThrow(
       HdfcHeaderParseError,
     );
   });

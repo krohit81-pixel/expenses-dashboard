@@ -9,16 +9,16 @@ import { cycleMonthForStatementDate } from "@/lib/statement-cycle";
 import { resolveMerchantsForImport } from "@/services/MerchantDictionaryService";
 import {
   HdfcHeaderParseError,
-  parseHdfcInfiniaHeader,
-} from "@/services/statement-parsers/hdfc-infinia/parse-header";
+  parseHdfcHeader,
+} from "@/services/statement-parsers/hdfc-infinia-tata/parse-header";
 import {
   HdfcTransactionParseError,
   parseHdfcTransactions,
-} from "@/services/statement-parsers/hdfc-infinia/parse-transactions";
+} from "@/services/statement-parsers/hdfc-infinia-tata/parse-transactions";
 import {
   assertHdfcStatementReconciles,
   HdfcReconciliationError,
-} from "@/services/statement-parsers/hdfc-infinia/reconcile";
+} from "@/services/statement-parsers/hdfc-infinia-tata/reconcile";
 import {
   AxisHeaderParseError,
   parseAxisHeader,
@@ -44,7 +44,7 @@ import {
   IciciReconciliationError,
 } from "@/services/statement-parsers/icici-amazon-rupay/reconcile";
 import type { Json } from "@/lib/db/database-types";
-import type { HdfcStatementHeader } from "@/services/statement-parsers/hdfc-infinia/types";
+import type { HdfcStatementHeader } from "@/services/statement-parsers/hdfc-infinia-tata/types";
 import type { AxisStatementHeader } from "@/services/statement-parsers/axis-horizon-airtel/types";
 import type { IciciStatementHeader } from "@/services/statement-parsers/icici-amazon-rupay/types";
 
@@ -97,21 +97,31 @@ function hashStatementText(pageTexts: string[]): string {
 }
 
 /**
- * Parses, reconciles, and persists an HDFC Infinia statement -- the full
- * pipeline behind "parse and save automatically" (Atlas has no manual
- * review/confirm step; reconciliation is what stands in for one). Throws
- * HdfcHeaderParseError / HdfcTransactionParseError if the text can't be
- * turned into structured data, or HdfcReconciliationError if it parses
- * but the numbers don't add up -- in both cases nothing is written to
- * the database. Never overwrites or duplicates an already-saved
- * statement (see statement_hash); calling this again with the same PDF
- * is always safe and returns { outcome: "duplicate" } instead of erroring.
+ * Parses, reconciles, and persists an HDFC statement -- either of the two
+ * real card products the hdfc-infinia-tata parser module covers (Infinia
+ * or the Tata Neu Plus co-branded card; see that module's types.ts for
+ * how cardType is detected). The full pipeline behind "parse and save
+ * automatically" (Atlas has no manual review/confirm step; reconciliation
+ * is what stands in for one). Throws HdfcHeaderParseError /
+ * HdfcTransactionParseError if the text can't be turned into structured
+ * data, or HdfcReconciliationError if it parses but the numbers don't add
+ * up -- in both cases nothing is written to the database. Never
+ * overwrites or duplicates an already-saved statement (see
+ * statement_hash); calling this again with the same PDF is always safe
+ * and returns { outcome: "duplicate" } instead of erroring. Renamed from
+ * saveHdfcInfiniaStatement in v1.11.0 once the parser itself was
+ * generalized past just the Infinia card -- unlike the Axis/ICICI
+ * generalizations, this one is still reached via TWO distinct
+ * CardStatementSource entries ("hdfc-infinia" and "hdfc-tata-neu", each
+ * with its own password env var), both dispatching here since parsing
+ * auto-detects cardType from the statement's own content regardless of
+ * which entry the user picked in the UI.
  */
-export async function saveHdfcInfiniaStatement(
+export async function saveHdfcStatement(
   pageTexts: string[],
   pdfFilename: string,
 ): Promise<SaveHdfcStatementResult> {
-  const header = parseHdfcInfiniaHeader(pageTexts);
+  const header = parseHdfcHeader(pageTexts);
   const transactions = parseHdfcTransactions(pageTexts);
   assertHdfcStatementReconciles(header, transactions);
 
@@ -207,7 +217,7 @@ export async function saveHdfcInfiniaStatement(
       .map((t) => ({
         rawText: t.merchantRaw!,
         normalizedText: t.merchantNormalized ?? t.merchantRaw!,
-        sourceBank: "hdfc-infinia",
+        sourceBank: "hdfc-infinia-tata",
         currency: t.currency,
       }));
     const merchantResolutions = await resolveMerchantsForImport(merchantInputs);
@@ -291,7 +301,7 @@ export async function saveHdfcInfiniaStatement(
  * two real card products the axis-horizon-airtel parser module covers
  * (Horizon or the Airtel co-branded Mastercard; see that module's
  * types.ts for how cardType is detected). Mirrors
- * saveHdfcInfiniaStatement's pipeline exactly, since
+ * saveHdfcStatement's pipeline exactly, since
  * credit_card_statements/credit_card_transactions are already
  * issuer-agnostic (generic issuer/card_type/card_last4 columns -- see
  * that migration's own comment), and AxisStatementHeader/AxisTransaction
@@ -468,7 +478,7 @@ export async function saveAxisStatement(
  * Amazon Pay and RuPay-variant cards (see icici-amazon-rupay/types.ts;
  * renamed from saveIciciAmazonStatement in v1.9.0 once a second real
  * statement confirmed one shared parser handles both). Same pipeline as
- * saveHdfcInfiniaStatement/saveAxisStatement above, for the same
+ * saveHdfcStatement/saveAxisStatement above, for the same
  * reason (credit_card_statements/credit_card_transactions are already
  * issuer-agnostic). One real difference: parseIciciTransactions needs
  * the header's already-parsed primaryCardholder passed in (see that

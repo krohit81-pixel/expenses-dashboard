@@ -34,12 +34,12 @@ they say so.
 - Single-owner app: one fixed account, an HMAC-signed access-gate cookie
   instead of sign-in, and a service-role Supabase client that bypasses RLS
   (see doc 00 for why, and what that means for how you write services).
-- Feature set as of v1.10.0: ledger core (accounts, transactions, budgets,
+- Feature set as of v1.11.0: ledger core (accounts, transactions, budgets,
   recurring, net worth, attachments), credit-card statement imports (HDFC
-  Infinia, Axis Horizon / Airtel, ICICI Amazon Pay / RuPay) with a shared
-  Merchant Dictionary, an Intel tab with charts and a button-triggered AI
-  insight, and a Calendar tab (school calendar + trips) that's the one
-  public, gate-free route.
+  Infinia / Tata Neu Plus, Axis Horizon / Airtel, ICICI Amazon Pay /
+  RuPay) with a shared Merchant Dictionary, an Intel tab with charts and a
+  button-triggered AI insight, and a Calendar tab (school calendar +
+  trips) that's the one public, gate-free route.
 - Root `INSTALL.md` is the source of truth for setup, environment
   variables, and release history — not this folder.
 

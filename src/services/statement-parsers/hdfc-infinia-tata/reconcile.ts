@@ -9,19 +9,21 @@ import type { HdfcStatementHeader, HdfcTransaction } from "./types";
  * HDFC's own header totals claim -- a statement quirk, not a parsing bug.
  * On a statement with only domestic activity that gap is a few paise
  * (0.09, then 0.37/0.26 on the "total amount due" identity check across
- * three real statements). But on a statement with heavy International
- * Transactions activity (dozens of foreign-currency purchases, each with
- * its own IGST tax line, all independently rounded to paise on their own
- * printed row), the *purchases/debits* and *payments received* sums can
- * carry a materially larger, still entirely legitimate residual: one real
- * June statement with ~250 international rows was short by 177.15 on a
- * 900,842.10 purchases figure (0.0197%) and 177.15 on a 691,744.99
- * payments figure (0.0256%) -- confirmed NOT a parsing bug by cross-
- * checking every single parsed row's amount/direction against the raw
- * statement text (all matched) and the printed IGST section's own "TOTAL
- * GST" figure (matched exactly). There's no way to recover this residual
- * from the statement's own text -- it isn't itemized anywhere -- so it's
- * treated as expected noise, not a failure.
+ * three real statements; a fourth real statement, the Tata Neu Plus
+ * co-branded card, showed a 0.39 gap on the same identity check). But on
+ * a statement with heavy International Transactions activity (dozens of
+ * foreign-currency purchases, each with its own IGST tax line, all
+ * independently rounded to paise on their own printed row), the
+ * *purchases/debits* and *payments received* sums can carry a materially
+ * larger, still entirely legitimate residual: one real June statement
+ * with ~250 international rows was short by 177.15 on a 900,842.10
+ * purchases figure (0.0197%) and 177.15 on a 691,744.99 payments figure
+ * (0.0256%) -- confirmed NOT a parsing bug by cross-checking every single
+ * parsed row's amount/direction against the raw statement text (all
+ * matched) and the printed IGST section's own "TOTAL GST" figure (matched
+ * exactly). There's no way to recover this residual from the statement's
+ * own text -- it isn't itemized anywhere -- so it's treated as expected
+ * noise, not a failure.
  *
  * ABSOLUTE_FLOOR keeps small statements (where 0.05% would round below a
  * single paisa) from being unreasonably strict. RELATIVE_RATE is chosen

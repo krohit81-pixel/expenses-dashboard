@@ -16,7 +16,22 @@ partial set of rows.
 
 ## Supported issuers
 
-- **HDFC Infinia** (`src/services/statement-parsers/hdfc-infinia/`)
+- **HDFC Infinia / Tata Neu Plus**
+  (`src/services/statement-parsers/hdfc-infinia-tata/`, added as
+  `hdfc-infinia` in v1.3.0, renamed in v1.11.0) — covers two real HDFC
+  retail card products against one shared parser: identical transaction
+  table shape and totals/limits block on both, differing only in which
+  rewards section is printed ("Opening Balance"/HDFC Reward Points for
+  Infinia vs. "NeuCoins" for the Tata Neu Plus co-branded card, which also
+  has no points-expiry sub-section at all) — `cardType` is read directly
+  from whichever section is present, see that module's `types.ts` and
+  `parse-header.ts`. Unlike the two generalizations below, this one keeps
+  TWO separate `CardStatementSource` entries (`hdfc-infinia` and
+  `hdfc-tata-neu`) with their own password env vars, since HDFC's
+  co-branded cards aren't guaranteed to share the core product's password
+  formula — both still dispatch to the same parser and save function
+  (`saveHdfcStatement`), since parsing auto-detects cardType from the
+  statement's own content.
 - **Axis Horizon / Airtel**
   (`src/services/statement-parsers/axis-horizon-airtel/`, added as
   `axis-horizon` in v1.7.0, renamed in v1.10.0) — covers two real Axis
@@ -37,12 +52,13 @@ partial set of rows.
   points) — see that module's `types.ts` and `parse-header.ts`.
 
 `src/services/statement-parsers/axis-atlas/`, the pre-rename
-`src/services/statement-parsers/axis-horizon/`, and the pre-rename
-`src/services/statement-parsers/icici-amazon/` are all leftovers from
+`src/services/statement-parsers/axis-horizon/`, the pre-rename
+`src/services/statement-parsers/icici-amazon/`, and the pre-rename
+`src/services/statement-parsers/hdfc-infinia/` are all leftovers from
 naming changes (an earlier "Axis Horizon" rename, the v1.10.0
-"axis-horizon-airtel" rename, and the "icici-amazon-rupay" rename,
-respectively) — all untracked in git and should be deleted from disk by
-hand; nothing references any of them.
+"axis-horizon-airtel" rename, the "icici-amazon-rupay" rename, and the
+v1.11.0 "hdfc-infinia-tata" rename, respectively) — all untracked in git
+and should be deleted from disk by hand; nothing references any of them.
 
 Adding a new issuer means adding a new directory with the same module
 shape (below) plus a new `CardStatementSource` entry in
@@ -97,7 +113,7 @@ flowchart LR
 6. **Resolve merchants** (`MerchantDictionaryService.resolveMerchantsForImport`):
    sequential per-import exact-then-normalized alias lookup against the
    shared Merchant Dictionary, tagged with a `sourceBank` string
-   (`"hdfc-infinia"`, `"axis-horizon-airtel"`, `"icici-amazon-rupay"`).
+   (`"hdfc-infinia-tata"`, `"axis-horizon-airtel"`, `"icici-amazon-rupay"`).
 7. **Save** (`CreditCardStatementService`): hash the extracted text for
    dedupe (`statement_hash` + date + card last 4), insert the statement
    row (with `cycle_month`), insert transaction rows, roll back the

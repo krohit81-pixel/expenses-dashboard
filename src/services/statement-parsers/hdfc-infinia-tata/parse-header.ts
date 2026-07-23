@@ -92,7 +92,9 @@ function sliceBetween(
  * date value in this whole block), and the other three amounts always
  * appear together on their own line, in TOTAL CREDIT LIMIT / AVAILABLE
  * CREDIT LIMIT / AVAILABLE CASH LIMIT order (matching the header row,
- * which -- unlike the value rows -- has never been observed out of order).
+ * which -- unlike the value rows -- has never been observed out of
+ * order). Confirmed identical on both real card products this module
+ * covers.
  */
 function parseLimitsBlock(block: string): {
   totalCreditLimit: Money;
@@ -138,7 +140,12 @@ function parseLimitsBlock(block: string): {
  * Disbursed / Adjusted-Lapsed" (4 numbers, one line) followed by the
  * closing "Reward Points" balance (1 number, its own line) -- see this
  * module's header comment for why anchoring on line *shape* (how many
- * numbers a line has) is more reliable here than label proximity.
+ * numbers a line has) is more reliable here than label proximity. The
+ * Tata Neu Plus variant prints the exact same shape for its "Opening
+ * NeuCoins with Bank / NeuCoins Earned / NeuCoins Transferred to Tata Neu
+ * / Adjusted/Lapsed" block -- only the surrounding label text differs
+ * (see detectCardVariant below for which anchors select which block),
+ * the 4-number-line-then-balance-line structure itself needed no changes.
  */
 function parseRewardsBlock(block: string): {
   rewardPointsBalance: number;
@@ -166,19 +173,42 @@ function parseRewardsBlock(block: string): {
   return { rewardPointsBalance, rewardPointsEarned };
 }
 
-function parseRewardProgramSummary(fullText: string): RewardProgramLine[] {
-  const block = sliceBetween(
-    fullText,
-    "Rewards Program Points Summary",
-    "Cash Back Summary",
-  );
+/**
+ * Reads whichever reward-currency section a real statement actually
+ * prints -- "Opening Balance" for Infinia's HDFC Reward Points block,
+ * "NeuCoins" (anywhere on page 1) for Tata Neu Plus's block -- to decide
+ * cardType and which section-label anchors to use for the rewards/
+ * reward-program-summary blocks below. Both real samples this module has
+ * been tested against also print their own product name plainly at the
+ * very top of page 1 ("Tata Neu Plus HDFC Bank Credit Card Statement"),
+ * but anchoring on the rewards section instead keeps this parser working
+ * even if a future statement's masthead wording changes, and mirrors the
+ * same choice made in axis-horizon-airtel's detectCardVariant.
+ */
+function detectCardVariant(page1: string): "Infinia" | "Tata Neu Plus" {
+  return /NeuCoins/i.test(page1) ? "Tata Neu Plus" : "Infinia";
+}
+
+function parseRewardProgramSummary(
+  fullText: string,
+  cardType: "Infinia" | "Tata Neu Plus",
+): RewardProgramLine[] {
+  const [startAnchor, endAnchor] =
+    cardType === "Tata Neu Plus"
+      ? (["Bonus NeuCoins Summary", "GST Summary"] as const)
+      : (["Rewards Program Points Summary", "Cash Back Summary"] as const);
+  const block = sliceBetween(fullText, startAnchor, endAnchor);
   const lines = block
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean);
   const result: RewardProgramLine[] = [];
   for (const line of lines) {
-    const match = line.match(/^(\d+)\s+(.+?)\s+([\d,]+)\s*pts?$/i);
+    // The trailing "pts"/"pt" suffix is Infinia-only (e.g. "500 pts") --
+    // Tata Neu Plus's Bonus NeuCoins Summary rows have no such suffix
+    // (e.g. "1  NeuCoins_on_UPI_Acc  8"), so it's optional here rather
+    // than required, covering both variants with one regex.
+    const match = line.match(/^(\d+)\s+(.+?)\s+([\d,]+)\s*(?:pts?)?$/i);
     if (!match) continue;
     const bonusPoints = findInteger(match[3]);
     if (bonusPoints == null) continue;
@@ -192,6 +222,11 @@ function parseRewardProgramSummary(fullText: string): RewardProgramLine[] {
 }
 
 function parseCashbackSummary(fullText: string): CashbackSummaryLine[] {
+  // Tata Neu Plus's one real sample has no "Cash Back Summary" section at
+  // all (NeuCoins has no separate cashback sub-table) -- sliceBetween
+  // simply returns "" when the anchor isn't found, so this naturally
+  // defaults to an empty array for that card without needing a cardType
+  // branch here.
   const block = sliceBetween(
     fullText,
     "Cash Back Summary",
@@ -232,14 +267,15 @@ function parseCashbackSummary(fullText: string): CashbackSummaryLine[] {
 /**
  * Parses the statement-level header from page 1's extracted text (plus,
  * for the two summary tables, whichever page they actually landed on --
- * always page 3 in the one real statement this was built against, but
- * scanned across all pages defensively rather than hardcoding that).
+ * always page 3 for Infinia, page 2 for Tata Neu Plus in the real
+ * statements this was built against, but scanned across all pages
+ * defensively rather than hardcoding either).
  */
-export function parseHdfcInfiniaHeader(
-  pageTexts: string[],
-): HdfcStatementHeader {
+export function parseHdfcHeader(pageTexts: string[]): HdfcStatementHeader {
   const page1 = pageTexts[0] ?? "";
   const fullText = pageTexts.join("\n");
+
+  const cardType = detectCardVariant(page1);
 
   const cardLast4 = requireMatch(
     page1,
@@ -269,7 +305,8 @@ export function parseHdfcInfiniaHeader(
   // "received + (current cycle) + finance charges = total due", in that
   // order -- unlike the limits block below, this one's reading order has
   // held up across reconstruction, so simple positional extraction is
-  // enough here.
+  // enough here. Confirmed identical on both real card products this
+  // module covers.
   const totalsBlock = sliceBetween(
     page1,
     "PREVIOUS STATEMENT DUES",
@@ -296,21 +333,43 @@ export function parseHdfcInfiniaHeader(
   const limitsBlock = sliceBetween(page1, "TOTAL CREDIT LIMIT", "Past Dues");
   const limits = parseLimitsBlock(limitsBlock);
 
-  const rewardsBlock = sliceBetween(
-    page1,
-    "Opening Balance",
-    "POINTS EXPIRING",
-  );
+  // Tata Neu Plus prints "Adjusted/Lapsed" (slash) as the last rewards
+  // label, immediately followed by the 4-number value line and the
+  // closing balance line, then a "Note:" section -- structurally the
+  // same shape as Infinia's "Opening Balance ... POINTS EXPIRING" block,
+  // just with different surrounding labels (see detectCardVariant above)
+  // and, notably, no points-expiry sub-section at all.
+  const rewardsBlock =
+    cardType === "Tata Neu Plus"
+      ? sliceBetween(page1, "Adjusted/Lapsed", "Note:")
+      : sliceBetween(page1, "Opening Balance", "POINTS EXPIRING");
   const rewards = parseRewardsBlock(rewardsBlock);
-  const expiring30 = findInteger(
-    requireMatch(page1, /IN 30 DAYS\s+([\d,]+)/, "rewardPointsExpiring30Days"),
-  );
-  const expiring60 = findInteger(
-    requireMatch(page1, /IN 60 DAYS\s+([\d,]+)/, "rewardPointsExpiring60Days"),
-  );
-  if (expiring30 == null || expiring60 == null) {
-    throw new HdfcHeaderParseError("rewardPointsExpiring");
+
+  let expiring30 = 0;
+  let expiring60 = 0;
+  if (cardType === "Infinia") {
+    const expiring30Match = findInteger(
+      requireMatch(
+        page1,
+        /IN 30 DAYS\s+([\d,]+)/,
+        "rewardPointsExpiring30Days",
+      ),
+    );
+    const expiring60Match = findInteger(
+      requireMatch(
+        page1,
+        /IN 60 DAYS\s+([\d,]+)/,
+        "rewardPointsExpiring60Days",
+      ),
+    );
+    if (expiring30Match == null || expiring60Match == null) {
+      throw new HdfcHeaderParseError("rewardPointsExpiring");
+    }
+    expiring30 = expiring30Match;
+    expiring60 = expiring60Match;
   }
+  // Tata Neu Plus's NeuCoins have no expiry concept on the one real
+  // statement this was tested against -- expiring30/expiring60 stay 0.
 
   const cashbackSummary = parseCashbackSummary(fullText);
   const cashbackAmount = cashbackSummary.length
@@ -322,7 +381,7 @@ export function parseHdfcInfiniaHeader(
 
   return {
     issuer: "HDFC",
-    cardType: "Infinia",
+    cardType,
     cardLast4,
     primaryCardholder,
     statementDate,
@@ -343,7 +402,7 @@ export function parseHdfcInfiniaHeader(
     rewardPointsExpiring30Days: expiring30,
     rewardPointsExpiring60Days: expiring60,
     cashbackAmount,
-    rewardPointsSummary: parseRewardProgramSummary(fullText),
+    rewardPointsSummary: parseRewardProgramSummary(fullText, cardType),
     cashbackSummary,
     statementCurrency: "INR",
   };
