@@ -11,11 +11,15 @@
  * plus a second env var in StatementImportService, not a redesign --
  * v1.7.0's Axis Horizon addition (see the axis-horizon parser module) is
  * exactly that: a second entry, plus its own password env var
- * (AXIS_HORIZON_STATEMENT_PASSWORD), same pattern as HDFC's.
+ * (AXIS_HORIZON_STATEMENT_PASSWORD), same pattern as HDFC's. v1.8.0's
+ * ICICI Amazon Pay addition is the same pattern again
+ * (ICICI_AMAZON_STATEMENT_PASSWORD).
  */
-export type CardStatementSource = "hdfc-infinia" | "axis-horizon";
+export type CardStatementSource =
+  "hdfc-infinia" | "axis-horizon" | "icici-amazon";
 
 export const CARD_STATEMENT_LABELS: Record<CardStatementSource, string> = {
   "hdfc-infinia": "HDFC Infinia",
   "axis-horizon": "Axis Horizon",
+  "icici-amazon": "ICICI Amazon Pay",
 };

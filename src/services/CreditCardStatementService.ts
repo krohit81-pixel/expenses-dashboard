@@ -31,9 +31,22 @@ import {
   assertAxisStatementReconciles,
   AxisReconciliationError,
 } from "@/services/statement-parsers/axis-horizon/reconcile";
+import {
+  IciciHeaderParseError,
+  parseIciciAmazonHeader,
+} from "@/services/statement-parsers/icici-amazon/parse-header";
+import {
+  IciciTransactionParseError,
+  parseIciciTransactions,
+} from "@/services/statement-parsers/icici-amazon/parse-transactions";
+import {
+  assertIciciStatementReconciles,
+  IciciReconciliationError,
+} from "@/services/statement-parsers/icici-amazon/reconcile";
 import type { Json } from "@/lib/db/database-types";
 import type { HdfcStatementHeader } from "@/services/statement-parsers/hdfc-infinia/types";
 import type { AxisStatementHeader } from "@/services/statement-parsers/axis-horizon/types";
+import type { IciciStatementHeader } from "@/services/statement-parsers/icici-amazon/types";
 
 export {
   HdfcHeaderParseError,
@@ -42,6 +55,9 @@ export {
   AxisHeaderParseError,
   AxisReconciliationError,
   AxisTransactionParseError,
+  IciciHeaderParseError,
+  IciciReconciliationError,
+  IciciTransactionParseError,
 };
 
 export interface SaveHdfcStatementResult {
@@ -58,6 +74,14 @@ export interface SaveAxisStatementResult {
   outcome: "saved" | "duplicate";
   statementId: string;
   header: AxisStatementHeader;
+  transactionCount: number;
+  needsReviewCount: number;
+}
+
+export interface SaveIciciStatementResult {
+  outcome: "saved" | "duplicate";
+  statementId: string;
+  header: IciciStatementHeader;
   transactionCount: number;
   needsReviewCount: number;
 }
@@ -360,6 +384,177 @@ export async function saveAxisHorizonStatement(
         rawText: t.merchantRaw!,
         normalizedText: t.merchantNormalized ?? t.merchantRaw!,
         sourceBank: "axis-horizon",
+        currency: t.currency,
+      }));
+    const merchantResolutions = await resolveMerchantsForImport(merchantInputs);
+
+    const { error: transactionsError } = await supabase
+      .from("credit_card_transactions")
+      .insert(
+        transactions.map((t) => {
+          const resolution =
+            t.merchantRaw !== null
+              ? merchantResolutions.get(t.merchantRaw)
+              : undefined;
+          return {
+            user_id: OWNER_USER_ID,
+            statement_id: inserted.id,
+            transaction_date: t.transactionDate,
+            transaction_time: t.transactionTime,
+            description: t.description,
+            merchant_raw: t.merchantRaw,
+            merchant_normalized: t.merchantNormalized,
+            amount: moneyToDbNumber(t.amount),
+            currency: t.currency,
+            transaction_type: t.transactionType,
+            is_payment: t.isPayment,
+            is_cashback: t.isCashback,
+            is_refund: t.isRefund,
+            is_emi: t.isEmi,
+            credit_type: t.creditType,
+            payment_reference: t.paymentReference,
+            emi_merchant: t.emiMerchant,
+            emi_amount: t.emiAmount ? moneyToDbNumber(t.emiAmount) : null,
+            reward_points: t.rewardPoints,
+            purchase_indicator_code: t.purchaseIndicatorCode,
+            purchase_indicator_name: t.purchaseIndicatorName,
+            cardholder_type: t.cardholderType,
+            cardholder_name: t.cardholderName,
+            page_number: t.pageNumber,
+            sequence_number: t.sequenceNumber,
+            raw_text: t.rawText,
+            merchant_id: resolution?.merchantId ?? null,
+            needs_review: resolution?.needsReview ?? false,
+          };
+        }),
+      );
+
+    if (transactionsError) {
+      await supabase
+        .from("credit_card_statements")
+        .delete()
+        .eq("id", inserted.id);
+      throw new Error(
+        `Failed to save transactions: ${transactionsError.message}`,
+      );
+    }
+
+    needsReviewCount = transactions.filter((t) => {
+      const resolution =
+        t.merchantRaw !== null
+          ? merchantResolutions.get(t.merchantRaw)
+          : undefined;
+      return resolution?.needsReview ?? false;
+    }).length;
+  }
+
+  return {
+    outcome: "saved",
+    statementId: inserted.id,
+    header,
+    transactionCount: transactions.length,
+    needsReviewCount,
+  };
+}
+
+/**
+ * Parses, reconciles, and persists an ICICI Amazon Pay statement -- same
+ * pipeline as saveHdfcInfiniaStatement/saveAxisHorizonStatement above,
+ * for the same reason (credit_card_statements/credit_card_transactions
+ * are already issuer-agnostic). One real difference: parseIciciTransactions
+ * needs the header's already-parsed primaryCardholder passed in (see that
+ * module's own comment on why), so the header must be parsed first here
+ * rather than in either order.
+ */
+export async function saveIciciAmazonStatement(
+  pageTexts: string[],
+  pdfFilename: string,
+): Promise<SaveIciciStatementResult> {
+  const header = parseIciciAmazonHeader(pageTexts);
+  const transactions = parseIciciTransactions(
+    pageTexts,
+    header.primaryCardholder,
+  );
+  assertIciciStatementReconciles(header, transactions);
+
+  const statementHash = hashStatementText(pageTexts);
+  const supabase = createServiceClient();
+
+  const { data: existing, error: lookupError } = await supabase
+    .from("credit_card_statements")
+    .select("id")
+    .eq("user_id", OWNER_USER_ID)
+    .eq("statement_hash", statementHash)
+    .eq("statement_date", header.statementDate)
+    .eq("card_last4", header.cardLast4)
+    .maybeSingle();
+
+  if (lookupError) {
+    throw new Error(
+      `Failed to check for a duplicate statement: ${lookupError.message}`,
+    );
+  }
+  if (existing) {
+    return {
+      outcome: "duplicate",
+      statementId: existing.id,
+      header,
+      transactionCount: transactions.length,
+      needsReviewCount: 0,
+    };
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("credit_card_statements")
+    .insert({
+      user_id: OWNER_USER_ID,
+      issuer: header.issuer,
+      card_type: header.cardType,
+      card_last4: header.cardLast4,
+      primary_cardholder: header.primaryCardholder,
+      statement_date: header.statementDate,
+      billing_period_start: header.billingPeriodStart,
+      billing_period_end: header.billingPeriodEnd,
+      due_date: header.dueDate,
+      total_amount_due: moneyToDbNumber(header.totalAmountDue),
+      minimum_due: moneyToDbNumber(header.minimumDue),
+      previous_statement_due: moneyToDbNumber(header.previousStatementDue),
+      payments_received: moneyToDbNumber(header.paymentsReceived),
+      purchases_debit: moneyToDbNumber(header.purchasesDebit),
+      finance_charges: moneyToDbNumber(header.financeCharges),
+      available_credit_limit: moneyToDbNumber(header.availableCreditLimit),
+      total_credit_limit: moneyToDbNumber(header.totalCreditLimit),
+      available_cash_limit: moneyToDbNumber(header.availableCashLimit),
+      reward_points_balance: header.rewardPointsBalance,
+      reward_points_earned: header.rewardPointsEarned,
+      reward_points_expiring_30_days: header.rewardPointsExpiring30Days,
+      reward_points_expiring_60_days: header.rewardPointsExpiring60Days,
+      cashback_amount: moneyToDbNumber(header.cashbackAmount),
+      reward_points_summary: header.rewardPointsSummary as unknown as Json,
+      cashback_summary: header.cashbackSummary as unknown as Json,
+      statement_currency: header.statementCurrency,
+      pdf_filename: pdfFilename,
+      statement_hash: statementHash,
+      cycle_month: cycleMonthForStatementDate(header.statementDate),
+    })
+    .select("id")
+    .single();
+
+  if (insertError || !inserted) {
+    throw new Error(
+      `Failed to save statement: ${insertError?.message ?? "unknown error"}`,
+    );
+  }
+
+  let needsReviewCount = 0;
+
+  if (transactions.length > 0) {
+    const merchantInputs = transactions
+      .filter((t) => t.merchantRaw !== null)
+      .map((t) => ({
+        rawText: t.merchantRaw!,
+        normalizedText: t.merchantNormalized ?? t.merchantRaw!,
+        sourceBank: "icici-amazon",
         currency: t.currency,
       }));
     const merchantResolutions = await resolveMerchantsForImport(merchantInputs);

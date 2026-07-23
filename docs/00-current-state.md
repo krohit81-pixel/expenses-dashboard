@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v1.7.3**
+correction layer: what's actually true today, current as of **v1.8.0**
 (July 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -72,11 +72,15 @@ app must actually enforce today.
 - **Credit card statement imports**: upload a PDF (password-protected or
   not), it's parsed deterministically (no LLM) into a structured statement
   + transaction rows, reconciled against the statement's own printed
-  totals, and only saved if reconciliation passes. Two issuers today:
-  **HDFC Infinia** and **Axis Horizon** (see `src/services/statement-parsers/`
-  and doc 06). A third orphaned parser directory, `axis-atlas`, is a naming
-  mistake from before the "Axis Horizon" rename and should be deleted by
-  hand — it's untracked in git already.
+  totals, and only saved if reconciliation passes. Three issuers today:
+  **HDFC Infinia**, **Axis Horizon**, and **ICICI Amazon Pay** (v1.8.0 —
+  see `src/services/statement-parsers/` and doc 06). ICICI's own summary
+  block doesn't split "purchases" from "finance charges" the way HDFC/Axis
+  do — see `icici-amazon/types.ts` for how that parser's header fields map
+  onto the shared `credit_card_statements` columns anyway. An orphaned
+  parser directory, `axis-atlas`, is a naming mistake from before the
+  "Axis Horizon" rename and should be deleted by hand — it's untracked in
+  git already.
 - **Merchant Dictionary**: a shared, issuer-agnostic merchant/category
   resolution layer (`finance.merchants`, `finance.merchant_aliases`,
   `finance.atlas_categories`) that every statement parser feeds into, plus

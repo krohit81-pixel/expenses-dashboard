@@ -13,8 +13,12 @@ import {
   HdfcHeaderParseError,
   HdfcReconciliationError,
   HdfcTransactionParseError,
+  IciciHeaderParseError,
+  IciciReconciliationError,
+  IciciTransactionParseError,
   saveAxisHorizonStatement,
   saveHdfcInfiniaStatement,
+  saveIciciAmazonStatement,
 } from "@/services/CreditCardStatementService";
 import { extractCardStatement } from "@/services/StatementImportService";
 
@@ -92,15 +96,23 @@ export async function importStatementAction(
   const pageTexts = extraction.pages.map((page) => page.text);
   const cardSource = card as CardStatementSource;
   // Statement label used only for the "changed their format" hint below
-  // -- e.g. "HDFC" or "Axis" -- not the full CARD_STATEMENT_LABELS
-  // display name, which includes the card product too.
-  const issuerLabel = cardSource === "hdfc-infinia" ? "HDFC" : "Axis";
+  // -- e.g. "HDFC", "Axis", or "ICICI" -- not the full
+  // CARD_STATEMENT_LABELS display name, which includes the card product
+  // too.
+  const issuerLabel =
+    cardSource === "hdfc-infinia"
+      ? "HDFC"
+      : cardSource === "axis-horizon"
+        ? "Axis"
+        : "ICICI";
 
   try {
     const saved =
       cardSource === "hdfc-infinia"
         ? await saveHdfcInfiniaStatement(pageTexts, file.name)
-        : await saveAxisHorizonStatement(pageTexts, file.name);
+        : cardSource === "axis-horizon"
+          ? await saveAxisHorizonStatement(pageTexts, file.name)
+          : await saveIciciAmazonStatement(pageTexts, file.name);
     return {
       status: saved.outcome,
       summary: {
@@ -123,7 +135,9 @@ export async function importStatementAction(
       error instanceof HdfcHeaderParseError ||
       error instanceof HdfcTransactionParseError ||
       error instanceof AxisHeaderParseError ||
-      error instanceof AxisTransactionParseError
+      error instanceof AxisTransactionParseError ||
+      error instanceof IciciHeaderParseError ||
+      error instanceof IciciTransactionParseError
     ) {
       return {
         error: `Couldn't make sense of this statement's layout: ${error.message} This can happen if ${issuerLabel} changes their statement format — the extracted text below can help track down what changed.`,
@@ -132,7 +146,8 @@ export async function importStatementAction(
     }
     if (
       error instanceof HdfcReconciliationError ||
-      error instanceof AxisReconciliationError
+      error instanceof AxisReconciliationError ||
+      error instanceof IciciReconciliationError
     ) {
       return {
         error: `This statement parsed, but the numbers didn't add up, so nothing was saved: ${error.message}`,

@@ -54,6 +54,12 @@ const serverEnvSchema = z.object({
   // rather than reusing HDFC's, since the two banks' password schemes
   // have no reason to match.
   AXIS_HORIZON_STATEMENT_PASSWORD: optionalEnvString(),
+  // v1.8.0 — same reasoning again, for ICICI's Amazon Pay statement PDFs.
+  // The one real sample statement this parser was built against wasn't
+  // password-protected, but ICICI does encrypt these in production the
+  // same way HDFC/Axis do, so this follows the identical optional
+  // env-var pattern rather than assuming no password is ever needed.
+  ICICI_AMAZON_STATEMENT_PASSWORD: optionalEnvString(),
   // The access gate: /calendar stays public (shareable without exposing
   // financial data), everything else requires this shared password once
   // per browser. This is NOT Supabase Auth and never calls any Supabase
@@ -92,6 +98,8 @@ function parseServerEnv() {
       process.env.HDFC_INFINIA_STATEMENT_PASSWORD,
     AXIS_HORIZON_STATEMENT_PASSWORD:
       process.env.AXIS_HORIZON_STATEMENT_PASSWORD,
+    ICICI_AMAZON_STATEMENT_PASSWORD:
+      process.env.ICICI_AMAZON_STATEMENT_PASSWORD,
     APP_ACCESS_PASSWORD: process.env.APP_ACCESS_PASSWORD,
     APP_SESSION_SECRET: process.env.APP_SESSION_SECRET,
   });

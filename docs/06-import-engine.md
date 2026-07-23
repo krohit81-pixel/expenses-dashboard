@@ -18,6 +18,10 @@ partial set of rows.
 
 - **HDFC Infinia** (`src/services/statement-parsers/hdfc-infinia/`)
 - **Axis Horizon** (`src/services/statement-parsers/axis-horizon/`)
+- **ICICI Amazon Pay** (`src/services/statement-parsers/icici-amazon/`,
+  v1.8.0) — its own summary block combines "purchases" and "charges" into
+  one figure rather than splitting them like HDFC/Axis do; see that
+  module's `types.ts` for how it still maps onto the shared header shape.
 
 `src/services/statement-parsers/axis-atlas/` is a leftover from a naming
 mistake before the "Axis Horizon" rename — it's untracked in git and
