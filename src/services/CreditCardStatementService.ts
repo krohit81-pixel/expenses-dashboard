@@ -22,15 +22,15 @@ import {
 import {
   AxisHeaderParseError,
   parseAxisHeader,
-} from "@/services/statement-parsers/axis-horizon/parse-header";
+} from "@/services/statement-parsers/axis-horizon-airtel/parse-header";
 import {
   AxisTransactionParseError,
   parseAxisTransactions,
-} from "@/services/statement-parsers/axis-horizon/parse-transactions";
+} from "@/services/statement-parsers/axis-horizon-airtel/parse-transactions";
 import {
   assertAxisStatementReconciles,
   AxisReconciliationError,
-} from "@/services/statement-parsers/axis-horizon/reconcile";
+} from "@/services/statement-parsers/axis-horizon-airtel/reconcile";
 import {
   IciciHeaderParseError,
   parseIciciHeader,
@@ -45,7 +45,7 @@ import {
 } from "@/services/statement-parsers/icici-amazon-rupay/reconcile";
 import type { Json } from "@/lib/db/database-types";
 import type { HdfcStatementHeader } from "@/services/statement-parsers/hdfc-infinia/types";
-import type { AxisStatementHeader } from "@/services/statement-parsers/axis-horizon/types";
+import type { AxisStatementHeader } from "@/services/statement-parsers/axis-horizon-airtel/types";
 import type { IciciStatementHeader } from "@/services/statement-parsers/icici-amazon-rupay/types";
 
 export {
@@ -287,18 +287,24 @@ export async function saveHdfcInfiniaStatement(
 }
 
 /**
- * Parses, reconciles, and persists an Axis Horizon statement -- mirrors
+ * Parses, reconciles, and persists an Axis statement -- either of the
+ * two real card products the axis-horizon-airtel parser module covers
+ * (Horizon or the Airtel co-branded Mastercard; see that module's
+ * types.ts for how cardType is detected). Mirrors
  * saveHdfcInfiniaStatement's pipeline exactly, since
  * credit_card_statements/credit_card_transactions are already
  * issuer-agnostic (generic issuer/card_type/card_last4 columns -- see
  * that migration's own comment), and AxisStatementHeader/AxisTransaction
- * (see axis-horizon/types.ts) intentionally match HdfcStatementHeader/
- * HdfcTransaction field-for-field. The only per-issuer differences live
- * inside the axis-horizon parser module itself (its own header/transaction
- * regexes, tuned against a real Axis statement -- see that module's own
- * comments), not in how a parsed statement gets saved.
+ * (see axis-horizon-airtel/types.ts) intentionally match
+ * HdfcStatementHeader/HdfcTransaction field-for-field. The only
+ * per-issuer differences live inside the axis-horizon-airtel parser
+ * module itself (its own header/transaction regexes, tuned against two
+ * real Axis statements -- see that module's own comments), not in how a
+ * parsed statement gets saved. Renamed from saveAxisHorizonStatement in
+ * v1.10.0 once the parser itself was generalized past just the Horizon
+ * card.
  */
-export async function saveAxisHorizonStatement(
+export async function saveAxisStatement(
   pageTexts: string[],
   pdfFilename: string,
 ): Promise<SaveAxisStatementResult> {
@@ -383,7 +389,7 @@ export async function saveAxisHorizonStatement(
       .map((t) => ({
         rawText: t.merchantRaw!,
         normalizedText: t.merchantNormalized ?? t.merchantRaw!,
-        sourceBank: "axis-horizon",
+        sourceBank: "axis-horizon-airtel",
         currency: t.currency,
       }));
     const merchantResolutions = await resolveMerchantsForImport(merchantInputs);
@@ -462,7 +468,7 @@ export async function saveAxisHorizonStatement(
  * Amazon Pay and RuPay-variant cards (see icici-amazon-rupay/types.ts;
  * renamed from saveIciciAmazonStatement in v1.9.0 once a second real
  * statement confirmed one shared parser handles both). Same pipeline as
- * saveHdfcInfiniaStatement/saveAxisHorizonStatement above, for the same
+ * saveHdfcInfiniaStatement/saveAxisStatement above, for the same
  * reason (credit_card_statements/credit_card_transactions are already
  * issuer-agnostic). One real difference: parseIciciTransactions needs
  * the header's already-parsed primaryCardholder passed in (see that

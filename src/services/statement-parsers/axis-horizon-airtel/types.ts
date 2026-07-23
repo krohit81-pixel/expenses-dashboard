@@ -12,9 +12,27 @@ export interface CashbackSummaryLine {
   amount: Money;
 }
 
+/**
+ * Covers two real Axis Bank retail credit card products, not just one --
+ * this module started as "axis-horizon" (the Horizon travel/miles card
+ * only) and was renamed after a second real statement (an Airtel-
+ * co-branded Mastercard, a cashback card) turned out to reconcile
+ * against the exact same layout, password scheme, and statement
+ * conventions with no structural changes needed. The one real
+ * difference: Horizon earns eDGE Miles reward points (an "eDGE MILES
+ * POINTS" balance block); Airtel earns cashback instead (a "CASHBACK
+ * DETAILS" block) -- see parse-header.ts's detectCardVariant. Neither
+ * card's own product name needed inferring the hard way, though --
+ * unlike the icici-amazon-rupay parser's two products, both of these
+ * statements print their own product name plainly at the very top
+ * ("Axis Bank HORIZON Credit Card" / "Airtel Axis Bank Mastercard Credit
+ * Card Statement"), so cardType is read directly from whichever rewards
+ * section is present, which happens to line up with which product name
+ * is printed on both real samples tested.
+ */
 export interface AxisStatementHeader {
   issuer: "AXIS";
-  cardType: "horizon";
+  cardType: "horizon" | "airtel";
   cardLast4: string;
   primaryCardholder: string;
   statementDate: string;
@@ -30,10 +48,17 @@ export interface AxisStatementHeader {
   availableCreditLimit: Money;
   totalCreditLimit: Money;
   availableCashLimit: Money;
+  /** Only populated for a Horizon statement (see cardType above) -- 0
+   * for an Airtel statement, which earns cashback instead (see
+   * cashbackAmount below). */
   rewardPointsBalance: number;
   rewardPointsEarned: number;
   rewardPointsExpiring30Days: number;
   rewardPointsExpiring60Days: number;
+  /** Only populated for an Airtel statement (see cardType above) -- the
+   * statement's own "CASHBACK DETAILS" / "Cashback Earned" figure for
+   * this cycle. 0.00 for a Horizon statement, which earns eDGE Miles
+   * points instead. */
   cashbackAmount: Money;
   rewardPointsSummary: RewardProgramLine[];
   cashbackSummary: CashbackSummaryLine[];

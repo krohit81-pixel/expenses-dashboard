@@ -51,7 +51,7 @@ export function isBankFeeOrTax(description: string): boolean {
     /^CGST-/i.test(description) ||
     /^SGST-/i.test(description) ||
     /^GST-/i.test(description) ||
-    // A real Axis Horizon statement also prints a bare "GST" line (no
+    // A real Axis statement also prints a bare "GST" line (no
     // hyphen/suffix at all) as its own row -- e.g. GST charged on the
     // annual fee -- distinct from the hyphenated "GST-<component>" rows
     // above. Matched as a whole-line equality (not a prefix) so this

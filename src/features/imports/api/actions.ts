@@ -16,7 +16,7 @@ import {
   IciciHeaderParseError,
   IciciReconciliationError,
   IciciTransactionParseError,
-  saveAxisHorizonStatement,
+  saveAxisStatement,
   saveHdfcInfiniaStatement,
   saveIciciStatement,
 } from "@/services/CreditCardStatementService";
@@ -56,12 +56,12 @@ export interface ImportStatementState {
  * reconciles, and saves it in one automatic step. Atlas has no manual
  * review/confirm screen for this — reconciliation (see each parser's own
  * reconcile.ts, e.g. statement-parsers/hdfc-infinia/reconcile.ts or
- * statement-parsers/axis-horizon/reconcile.ts) is the automated gate that
- * stands in for a human checking the numbers before anything is written
- * to the database: if the parsed transactions don't add up to what the
- * statement itself claims, nothing is saved and this returns a clear
- * error instead. Re-uploading the same statement is always safe — the
- * per-card save function (saveHdfcInfiniaStatement / saveAxisHorizonStatement /
+ * statement-parsers/axis-horizon-airtel/reconcile.ts) is the automated
+ * gate that stands in for a human checking the numbers before anything
+ * is written to the database: if the parsed transactions don't add up to
+ * what the statement itself claims, nothing is saved and this returns a
+ * clear error instead. Re-uploading the same statement is always safe —
+ * the per-card save function (saveHdfcInfiniaStatement / saveAxisStatement /
  * saveIciciStatement) detects the duplicate and saves nothing a second time.
  */
 export async function importStatementAction(
@@ -102,7 +102,7 @@ export async function importStatementAction(
   const issuerLabel =
     cardSource === "hdfc-infinia"
       ? "HDFC"
-      : cardSource === "axis-horizon"
+      : cardSource === "axis-horizon-airtel"
         ? "Axis"
         : "ICICI";
 
@@ -110,8 +110,8 @@ export async function importStatementAction(
     const saved =
       cardSource === "hdfc-infinia"
         ? await saveHdfcInfiniaStatement(pageTexts, file.name)
-        : cardSource === "axis-horizon"
-          ? await saveAxisHorizonStatement(pageTexts, file.name)
+        : cardSource === "axis-horizon-airtel"
+          ? await saveAxisStatement(pageTexts, file.name)
           : await saveIciciStatement(pageTexts, file.name);
     return {
       status: saved.outcome,

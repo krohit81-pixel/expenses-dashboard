@@ -50,10 +50,13 @@ const serverEnvSchema = z.object({
   // actually needed, not a speculative multi-card scheme today.
   HDFC_INFINIA_STATEMENT_PASSWORD: optionalEnvString(),
   // v1.7.0 — same reasoning as HDFC_INFINIA_STATEMENT_PASSWORD above,
-  // for Axis's own encrypted Horizon statement PDFs. A distinct env var
-  // rather than reusing HDFC's, since the two banks' password schemes
-  // have no reason to match.
-  AXIS_HORIZON_STATEMENT_PASSWORD: optionalEnvString(),
+  // for Axis's own encrypted statement PDFs. A distinct env var rather
+  // than reusing HDFC's, since the two banks' password schemes have no
+  // reason to match. Renamed from AXIS_HORIZON_STATEMENT_PASSWORD in
+  // v1.10.0 (was ...HORIZON... before the parser also picked up the
+  // Airtel co-branded card) — same password scheme confirmed across
+  // both real statements, one shared env var, not a per-card-product one.
+  AXIS_STATEMENT_PASSWORD: optionalEnvString(),
   // v1.8.0 — same reasoning again, for ICICI's own encrypted statement
   // PDFs. Named ICICI_STATEMENT_PASSWORD (not ICICI_AMAZON_..., its
   // v1.8.0 name) since v1.9.0 confirmed ICICI uses the same password
@@ -100,8 +103,7 @@ function parseServerEnv() {
     GEMINI_MODEL: process.env.GEMINI_MODEL,
     HDFC_INFINIA_STATEMENT_PASSWORD:
       process.env.HDFC_INFINIA_STATEMENT_PASSWORD,
-    AXIS_HORIZON_STATEMENT_PASSWORD:
-      process.env.AXIS_HORIZON_STATEMENT_PASSWORD,
+    AXIS_STATEMENT_PASSWORD: process.env.AXIS_STATEMENT_PASSWORD,
     ICICI_STATEMENT_PASSWORD: process.env.ICICI_STATEMENT_PASSWORD,
     APP_ACCESS_PASSWORD: process.env.APP_ACCESS_PASSWORD,
     APP_SESSION_SECRET: process.env.APP_SESSION_SECRET,

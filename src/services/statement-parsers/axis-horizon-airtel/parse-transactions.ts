@@ -6,7 +6,10 @@ import type { AxisTransaction, CardholderType } from "./types";
 /**
  * Axis's transaction table has a THIRD column HDFC's doesn't: "MERCHANT
  * CATEGORY" (e.g. "RESTAURANTS", "DEPT STORES", "HOME FURNISHING"),
- * printed between the description and the amount.
+ * printed between the description and the amount. Confirmed identical on
+ * both real card products this module covers (Horizon and the
+ * Airtel-co-branded Mastercard, e.g. "UTILITIES" for an Airtel bill
+ * payment) -- same table shape, just a different set of category values.
  *
  * v1.7.2: a real production upload of this exact statement reconciled
  * the header perfectly but found ZERO transactions -- reproduced

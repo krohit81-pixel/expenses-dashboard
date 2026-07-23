@@ -13,8 +13,8 @@ function configuredPasswordFor(card: CardStatementSource): string | undefined {
   switch (card) {
     case "hdfc-infinia":
       return serverEnv.HDFC_INFINIA_STATEMENT_PASSWORD;
-    case "axis-horizon":
-      return serverEnv.AXIS_HORIZON_STATEMENT_PASSWORD;
+    case "axis-horizon-airtel":
+      return serverEnv.AXIS_STATEMENT_PASSWORD;
     case "icici-amazon-rupay":
       return serverEnv.ICICI_STATEMENT_PASSWORD;
   }
@@ -27,8 +27,8 @@ function passwordEnvVarNameFor(card: CardStatementSource): string | null {
   switch (card) {
     case "hdfc-infinia":
       return "HDFC_INFINIA_STATEMENT_PASSWORD";
-    case "axis-horizon":
-      return "AXIS_HORIZON_STATEMENT_PASSWORD";
+    case "axis-horizon-airtel":
+      return "AXIS_STATEMENT_PASSWORD";
     case "icici-amazon-rupay":
       return "ICICI_STATEMENT_PASSWORD";
   }

@@ -17,7 +17,15 @@ partial set of rows.
 ## Supported issuers
 
 - **HDFC Infinia** (`src/services/statement-parsers/hdfc-infinia/`)
-- **Axis Horizon** (`src/services/statement-parsers/axis-horizon/`)
+- **Axis Horizon / Airtel**
+  (`src/services/statement-parsers/axis-horizon-airtel/`, added as
+  `axis-horizon` in v1.7.0, renamed in v1.10.0) — covers two real Axis
+  retail card products against one shared parser: identical PAYMENT
+  SUMMARY / limits / reconciliation-row layout and password scheme on
+  both, differing only in which rewards section is printed ("eDGE MILES
+  POINTS" for Horizon vs. "CASHBACK DETAILS" for the Airtel co-branded
+  Mastercard) — `cardType` is read directly from whichever section is
+  present, see that module's `types.ts` and `parse-header.ts`.
 - **ICICI Amazon Pay / RuPay**
   (`src/services/statement-parsers/icici-amazon-rupay/`, added as
   `icici-amazon` in v1.8.0, renamed in v1.9.0) — covers two real ICICI
@@ -28,11 +36,13 @@ partial set of rows.
   "RuPay") is inferred from which rewards section is present (cashback vs.
   points) — see that module's `types.ts` and `parse-header.ts`.
 
-`src/services/statement-parsers/axis-atlas/` and the pre-rename
-`src/services/statement-parsers/icici-amazon/` are both leftovers from
-naming changes (the "Axis Horizon" rename and the "icici-amazon-rupay"
-rename, respectively) — both untracked in git and should be deleted from
-disk by hand; nothing references either.
+`src/services/statement-parsers/axis-atlas/`, the pre-rename
+`src/services/statement-parsers/axis-horizon/`, and the pre-rename
+`src/services/statement-parsers/icici-amazon/` are all leftovers from
+naming changes (an earlier "Axis Horizon" rename, the v1.10.0
+"axis-horizon-airtel" rename, and the "icici-amazon-rupay" rename,
+respectively) — all untracked in git and should be deleted from disk by
+hand; nothing references any of them.
 
 Adding a new issuer means adding a new directory with the same module
 shape (below) plus a new `CardStatementSource` entry in
@@ -78,7 +88,7 @@ flowchart LR
 5. **Reconcile** (`reconcile.ts`): sums parsed transactions (split into
    "purchases" vs. "finance charges" using the same `isBankFeeOrTax`
    classifier — a real statement can print these as two separate totals;
-   see the v1.7.3 fix in Axis Horizon's `reconcile.ts` for why lumping
+   see the v1.7.3 fix in Axis Horizon/Airtel's `reconcile.ts` for why lumping
    them together silently breaks reconciliation) and checks each against
    the statement's own printed total, plus a full "total amount due"
    identity check, all with a relative tolerance
@@ -87,7 +97,7 @@ flowchart LR
 6. **Resolve merchants** (`MerchantDictionaryService.resolveMerchantsForImport`):
    sequential per-import exact-then-normalized alias lookup against the
    shared Merchant Dictionary, tagged with a `sourceBank` string
-   (`"hdfc-infinia"`, `"axis-horizon"`, `"icici-amazon-rupay"`).
+   (`"hdfc-infinia"`, `"axis-horizon-airtel"`, `"icici-amazon-rupay"`).
 7. **Save** (`CreditCardStatementService`): hash the extracted text for
    dedupe (`statement_hash` + date + card last 4), insert the statement
    row (with `cycle_month`), insert transaction rows, roll back the
@@ -129,7 +139,7 @@ src/services/statement-parsers/<issuer>/
   bytes, then neuter it back to `describe.skip` before committing — never
   commit real personal data in a fixture.
 - **A statement's own summary totals can be split into more buckets than
-  you'd assume** (e.g. Axis Horizon's "purchases" vs. "finance charges" as
+  you'd assume** (e.g. Axis Horizon/Airtel's "purchases" vs. "finance charges" as
   two separate printed totals) — verify the exact reconciliation identity
   against a real statement's numbers before assuming a simpler formula
   holds.

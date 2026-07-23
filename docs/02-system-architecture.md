@@ -58,7 +58,7 @@ src/
                                  # LiabilityService, UserSettingsService, AttachmentService
   services/statement-parsers/
     hdfc-infinia/                # types, amounts, parse-header, parse-transactions,
-    axis-horizon/                #   classify-transaction, normalize-merchant, reconcile, index
+    axis-horizon-airtel/         #   classify-transaction, normalize-merchant, reconcile, index
   lib/
     money/                       # Money branded type + decimal.js-backed arithmetic
     dates/                       # calendar grid, recurrence, phase, month helpers

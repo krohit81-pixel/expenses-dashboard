@@ -35,8 +35,35 @@ eDGE MILES POINTS    BALANCE AS    CUSTOMER ID
 ON DATE
 5000            30-06-2026       123456`;
 
+/**
+ * A synthetic single-page statement mirroring a real Airtel Axis Bank
+ * Mastercard statement's layout -- same PAYMENT SUMMARY / limits /
+ * reconciliation-row shapes as Horizon above, but a "CASHBACK DETAILS"
+ * rewards block instead of "eDGE MILES POINTS". Never derived from any
+ * real cardholder's statement.
+ */
+const AIRTEL_PAGE_1 = `Airtel Axis Bank Mastercard Credit Card Statement
+TEST USER
+SOME ADDRESS LINE,
+TEST CITY 000000
+PAYMENT SUMMARY
+Total Payment Due             Minimum Payment Due              Statement Period                 Payment Due Date          Statement Generation Date
+10,000.00   Dr                     500.00   Dr                  01/06/2026 - 30/06/2026                 20/07/2026                          30/06/2026
+Credit Card Number                   Credit Limit                  Available Credit Limit               Available Cash Limit
+123456******7890                  200,000.00                      190,000.00                        50,000.00
+Previous Balance - Payments - Credits + Purchase + Cash Advance + Other Debit&Charges =Total Payment Due
+5,000.00 Dr         5,000.00       200.00      10,200.00           0.00                   0.00                10,000.00   Dr
+Account Summary
+DATE                                      TRANSACTION DETAILS                                         MERCHANT CATEGORY                 AMOUNT (Rs.)
+Card No:    123456******7890                        Name    TEST USER
+01/06/2026      SOME MERCHANT,TEST CITY                                                        DEPT STORES                                              1,000.00 Dr
+**** End of Statement ****
+CASHBACK DETAILS
+Cashback Earned                                                             Cashback Credited
+250.00                                                             0.00`;
+
 describe("parseAxisHeader", () => {
-  it("extracts every header field from a well-formed statement", () => {
+  it("extracts every header field from a well-formed Horizon statement", () => {
     const header = parseAxisHeader([PAGE_1]);
 
     expect(header).toEqual({
@@ -66,6 +93,25 @@ describe("parseAxisHeader", () => {
       cashbackSummary: [],
       statementCurrency: "INR",
     });
+  });
+
+  /**
+   * Airtel-variant guard: same statement shape as Horizon everywhere
+   * except the rewards section, which prints "CASHBACK DETAILS" /
+   * "Cashback Earned" instead of "eDGE MILES POINTS". detectCardVariant
+   * must flip cardType to "airtel", populate cashbackAmount from the
+   * "Cashback Earned" figure, and leave rewardPointsBalance at 0 (no
+   * eDGE Miles block exists on this card product).
+   */
+  it("detects the Airtel variant and reads its cashback figure instead of eDGE Miles", () => {
+    const header = parseAxisHeader([AIRTEL_PAGE_1]);
+
+    expect(header.cardType).toBe("airtel");
+    expect(header.cashbackAmount).toBe("250.00");
+    expect(header.rewardPointsBalance).toBe(0);
+    // Everything else about the statement shape is identical to Horizon.
+    expect(header.totalAmountDue).toBe("10000.00");
+    expect(header.cardLast4).toBe("7890");
   });
 
   it("throws AxisHeaderParseError when the payment summary block is missing", () => {
