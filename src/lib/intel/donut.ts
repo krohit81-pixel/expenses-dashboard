@@ -19,6 +19,18 @@ import type { CategoryBreakdown } from "@/services/ReportingService";
 export interface DonutSlice {
   name: string;
   total: Money;
+  /**
+   * v1.2: every atlas_categories/finance.categories id folded into this
+   * slice — a single-element array for a real top-5 category, or one
+   * entry per folded-in category for the "Other" bucket. Lets a caller
+   * (the Card-level breakdown's click-through, see intel/page.tsx) link
+   * a slice to a detail view filtered by `categoryId IN (...)` without
+   * having to redo this same bucketing decision itself. "" stands for
+   * uncategorized throughout this module (see cardDonut's own note in
+   * intel/page.tsx), so it can show up here as a literal empty-string
+   * entry — that's expected, not a bug.
+   */
+  categoryIds: string[];
 }
 
 /** Top 5 categories by amount, everything else bucketed into "Other" — keeps the donut and its legend readable regardless of how many categories are actually in use. */
@@ -37,9 +49,16 @@ export function buildDonutSlices(
     ...top.map((c) => ({
       name: categoryName.get(c.categoryId) ?? "Uncategorized",
       total: c.total,
+      categoryIds: [c.categoryId],
     })),
     ...(compareMoney(otherTotal, ZERO) > 0
-      ? [{ name: "Other", total: otherTotal }]
+      ? [
+          {
+            name: "Other",
+            total: otherTotal,
+            categoryIds: rest.map((c) => c.categoryId),
+          },
+        ]
       : []),
   ];
 }

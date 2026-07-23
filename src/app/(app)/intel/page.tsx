@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import Link from "next/link";
 import { Suspense } from "react";
 
 import { requireUser } from "@/lib/auth/require-user";
@@ -68,6 +69,47 @@ const CATEGORY_COLORS = [
 const CARD_DUES_CATEGORY_ID = "__credit_card_dues__";
 const CARD_DUES_LABEL = "Credit Card Dues";
 
+/**
+ * The disclosure triangle for a collapsible section's <summary> --
+ * v1.2, "make month on month, by category and the card-level breakdown
+ * sections collapsible." Plain native <details>/<summary> (no client
+ * component, no JS) does the actual collapsing; this is just the
+ * chevron, rotated via the group-open: variant on the parent
+ * <details className="group">. Every section defaults open (the
+ * `open` attribute on <details>) so existing behavior is unchanged
+ * until someone actually collapses one.
+ */
+function SectionChevron() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={3}
+      className="size-3 shrink-0 text-ink-faint transition-transform duration-150 group-open:rotate-90"
+      aria-hidden="true"
+    >
+      <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Builds the query string for one donut slice's drill-down link -- see the new /intel/card-category route. */
+function cardCategoryHref(params: {
+  cardMonth: string;
+  cardKey: string;
+  categoryIds: string[];
+  label: string;
+}): string {
+  const search = new URLSearchParams({
+    month: params.cardMonth,
+    card: params.cardKey,
+    categories: params.categoryIds.join(","),
+    label: params.label,
+  });
+  return `/intel/card-category?${search.toString()}`;
+}
+
 function monthShortLabel(month: string): string {
   return new Date(`${month}-01T00:00:00Z`).toLocaleDateString("en-US", {
     month: "short",
@@ -119,21 +161,48 @@ function cardDonut(
   return { slices, gradientStops };
 }
 
+/**
+ * v1.2: `variant` distinguishes the "All cards" aggregate donut (bolder,
+ * slightly larger, an "Overall" badge -- the parent view) from each
+ * individual card's own donut (the child breakdown below it) -- see the
+ * household's request to "visually show overall card slightly more
+ * parent/bolder...and separately its detailed credit cards below as
+ * separate child section." `cardMonth`/`cardKeyForLink` build each
+ * slice's click-through link to /intel/card-category (the "when you
+ * click on groceries...I would like to see the transactions" request);
+ * cardKeyForLink is "all" for the aggregate donut, or one card's own
+ * cardKey for a per-card donut.
+ */
 function renderCardDonut(
   key: string,
   label: string,
   breakdown: { totalSpend: Money; byCategory: CardCategoryAmount[] },
   atlasCategoryName: Map<string, string>,
   currency: string,
+  cardMonth: string,
+  cardKeyForLink: string,
+  variant: "aggregate" | "card" = "card",
 ) {
   const { slices, gradientStops } = cardDonut(breakdown, atlasCategoryName);
+  const isAggregate = variant === "aggregate";
   return (
     <div
       key={key}
-      className="rounded-2xl bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]"
+      className={`rounded-2xl bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)] ${
+        isAggregate ? "border-2 border-accent-soft" : ""
+      }`}
     >
-      <div className="px-3.5 pb-1 pt-3">
-        <h3 className="truncate font-display text-[11.5px] font-bold text-ink">
+      <div className="flex items-center gap-1.5 px-3.5 pb-1 pt-3">
+        {isAggregate && (
+          <span className="shrink-0 rounded-full bg-accent px-1.5 py-0.5 font-display text-[9px] font-extrabold uppercase tracking-wide text-white">
+            Overall
+          </span>
+        )}
+        <h3
+          className={`truncate font-display font-bold text-ink ${
+            isAggregate ? "text-[13px]" : "text-[11.5px]"
+          }`}
+        >
           {label}
         </h3>
       </div>
@@ -148,7 +217,7 @@ function renderCardDonut(
         // required shrink it").
         <div className="flex items-center gap-3 px-3.5 pb-3.5">
           <div
-            className="relative size-[76px] shrink-0 rounded-full"
+            className={`relative shrink-0 rounded-full ${isAggregate ? "size-[92px]" : "size-[76px]"}`}
             style={{
               background: `conic-gradient(${gradientStops.join(", ")})`,
             }}
@@ -170,31 +239,38 @@ function renderCardDonut(
                   ? Math.round((moneyToDbNumber(slice.total) / totalNum) * 100)
                   : 0;
               return (
-                <li
-                  key={slice.name}
-                  className="flex items-center gap-1.5 py-0.5 text-[11px]"
-                >
-                  <span
-                    className="size-2 shrink-0 rounded-[2px]"
-                    style={{
-                      background: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
-                    }}
-                  />
-                  <span className="min-w-0 flex-1 truncate font-medium text-ink">
-                    {slice.name}
-                  </span>
-                  {/* v1.6.3: both the amount and the percentage --
-                      v1.6.2 swapped percentage for amount instead of
-                      showing both, which wasn't what was asked for. */}
-                  <span className="shrink-0 font-display text-[10px] font-bold text-ink-faint">
-                    {formatMoneyDisplay(slice.total, currency).replace(
-                      /\.\d+$/,
-                      "",
-                    )}
-                  </span>
-                  <span className="w-8 shrink-0 text-right font-display text-[10px] font-bold text-ink-faint">
-                    {pct}%
-                  </span>
+                <li key={slice.name}>
+                  <Link
+                    href={cardCategoryHref({
+                      cardMonth,
+                      cardKey: cardKeyForLink,
+                      categoryIds: slice.categoryIds,
+                      label: slice.name,
+                    })}
+                    className="-mx-1 flex items-center gap-1.5 rounded-md px-1 py-0.5 text-[11px] hover:bg-bg"
+                  >
+                    <span
+                      className="size-2 shrink-0 rounded-[2px]"
+                      style={{
+                        background: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+                      }}
+                    />
+                    <span className="min-w-0 flex-1 truncate font-medium text-ink">
+                      {slice.name}
+                    </span>
+                    {/* v1.6.3: both the amount and the percentage --
+                        v1.6.2 swapped percentage for amount instead of
+                        showing both, which wasn't what was asked for. */}
+                    <span className="shrink-0 font-display text-[10px] font-bold text-ink-faint">
+                      {formatMoneyDisplay(slice.total, currency).replace(
+                        /\.\d+$/,
+                        "",
+                      )}
+                    </span>
+                    <span className="w-8 shrink-0 text-right font-display text-[10px] font-bold text-ink-faint">
+                      {pct}%
+                    </span>
+                  </Link>
                 </li>
               );
             })}
@@ -267,26 +343,51 @@ async function CardLevelBreakdownSection({
     );
   }
 
+  const hasMultipleCards = cardBreakdown.cards.length > 1;
+
   return (
     <div className="space-y-4">
-      {cardBreakdown.cards.length > 1 &&
+      {hasMultipleCards &&
         renderCardDonut(
           "all-cards",
           "All cards",
           cardBreakdown.aggregate,
           atlasCategoryName,
           currency,
+          cardMonth,
+          "all",
+          "aggregate",
         )}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {cardBreakdown.cards.map((card) =>
-          renderCardDonut(
-            card.cardKey,
-            card.cardLabel,
-            card,
-            atlasCategoryName,
-            currency,
-          ),
+      {/* v1.2: per-card donuts are the child section beneath "All
+          cards" -- the left border + indent + "By card" label visually
+          subordinate them to the bolder aggregate donut above, per the
+          household's request. Only shown as a distinct child block when
+          there's actually a parent aggregate above it; a single card
+          has nothing to be a child of, so it renders exactly as before. */}
+      <div
+        className={
+          hasMultipleCards ? "space-y-2 border-l-2 border-line pl-3" : ""
+        }
+      >
+        {hasMultipleCards && (
+          <h3 className="font-display text-[11px] font-bold uppercase tracking-wide text-ink-faint">
+            By card
+          </h3>
         )}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {cardBreakdown.cards.map((card) =>
+            renderCardDonut(
+              card.cardKey,
+              card.cardLabel,
+              card,
+              atlasCategoryName,
+              currency,
+              cardMonth,
+              card.cardKey,
+              "card",
+            ),
+          )}
+        </div>
       </div>
     </div>
   );
@@ -495,10 +596,13 @@ export default async function IntelPage({
             makes it possible to see at a glance whether a category is
             trending up or down, and to preview what next month already
             looks like from tagged recurring items, without extra taps. */}
-        <div>
-          <h2 className="mb-3 font-display text-sm font-bold text-ink">
-            By category
-          </h2>
+        <details open className="group">
+          <summary className="mb-3 flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
+            <SectionChevron />
+            <span className="font-display text-sm font-bold text-ink">
+              By category
+            </span>
+          </summary>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {donuts.map((d) => (
               <div
@@ -586,15 +690,21 @@ export default async function IntelPage({
               </div>
             ))}
           </div>
-        </div>
+        </details>
 
-        <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-          <div className="flex items-center justify-between px-[18px] py-4">
-            <h2 className="font-display text-sm font-bold text-ink">
-              Month on month
-            </h2>
+        <details
+          open
+          className="group rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]"
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between px-[18px] py-4 [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center gap-1.5">
+              <SectionChevron />
+              <span className="font-display text-sm font-bold text-ink">
+                Month on month
+              </span>
+            </span>
             <span className="text-xs text-ink-faint">Total expenditure</span>
-          </div>
+          </summary>
           <div className="px-[18px] pb-2">
             <div className="flex h-[130px] items-end gap-2.5">
               {expenditureBars.map((t, i) => {
@@ -656,12 +766,15 @@ export default async function IntelPage({
               transactions added ahead of time.
             </p>
           </div>
-        </div>
+        </details>
 
-        <div>
-          <h2 className="mb-3 font-display text-sm font-bold text-ink">
-            Card-level breakdown
-          </h2>
+        <details open className="group">
+          <summary className="mb-3 flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
+            <SectionChevron />
+            <span className="font-display text-sm font-bold text-ink">
+              Card-level breakdown
+            </span>
+          </summary>
           <CardMonthNav
             cardMonth={cardMonth}
             isCurrentCardMonth={isCurrentCardMonth}
@@ -673,7 +786,7 @@ export default async function IntelPage({
               currency={currency}
             />
           </Suspense>
-        </div>
+        </details>
       </div>
     </div>
   );

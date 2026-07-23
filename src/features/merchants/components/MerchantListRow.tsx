@@ -67,7 +67,7 @@ export function MerchantListRow({
           <div className="min-w-0 flex-1">
             <Link
               href={`/merchants/${merchant.id}`}
-              className="truncate text-sm font-semibold text-ink hover:underline"
+              className="block truncate text-sm font-semibold text-ink hover:underline"
             >
               {merchant.displayName}
             </Link>

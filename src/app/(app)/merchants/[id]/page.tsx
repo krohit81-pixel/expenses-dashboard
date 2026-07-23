@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { Hero } from "@/components/ui/hero";
 import { formatMoneyDisplay } from "@/lib/money";
 import { MergeMerchantForm } from "@/features/merchants/components/MergeMerchantForm";
+import { MerchantTransactionRow } from "@/features/merchants/components/MerchantTransactionRow";
 import {
   getMerchantDetail,
   listAtlasCategories,
@@ -188,22 +189,11 @@ export default async function MerchantDetailPage({
           ) : (
             <ul className="divide-y divide-line">
               {merchant.recentTransactions.map((txn) => (
-                <li
+                <MerchantTransactionRow
                   key={txn.id}
-                  className="flex items-center justify-between gap-3 py-2.5 text-sm"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-ink">{txn.description}</div>
-                    <div className="text-xs text-ink-faint">
-                      {formatIsoDate(txn.transactionDate)} · {txn.cardLabel}
-                    </div>
-                  </div>
-                  <div
-                    className={`shrink-0 font-display text-sm font-bold ${txn.transactionType === "credit" ? "text-positive" : "text-ink"}`}
-                  >
-                    {formatMoneyDisplay(txn.amount, txn.currency)}
-                  </div>
-                </li>
+                  merchantId={merchant.id}
+                  txn={txn}
+                />
               ))}
             </ul>
           )}

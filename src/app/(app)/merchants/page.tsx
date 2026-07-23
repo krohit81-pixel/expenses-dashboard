@@ -3,7 +3,12 @@ import type { Metadata } from "next";
 import { Hero } from "@/components/ui/hero";
 import { MerchantFilters } from "@/features/merchants/components/MerchantFilters";
 import { MerchantListRow } from "@/features/merchants/components/MerchantListRow";
-import { listAtlasCategories, listMerchants } from "@/services/MerchantService";
+import {
+  listAtlasCategories,
+  listCreditCardCycleMonths,
+  listMerchants,
+  listMerchantTypes,
+} from "@/services/MerchantService";
 
 export const metadata: Metadata = {
   title: "Merchants",
@@ -14,6 +19,8 @@ interface MerchantsPageProps {
     search?: string;
     category?: string;
     filter?: string;
+    merchantType?: string;
+    cycleMonth?: string;
   }>;
 }
 
@@ -33,15 +40,23 @@ export default async function MerchantsPage({
   const search = params.search ?? "";
   const categoryId = params.category ?? "";
   const uncategorizedOnly = params.filter === "uncategorized";
+  const merchantType = params.merchantType ?? "";
+  const cycleMonth = params.cycleMonth ?? "";
 
-  const [categories, merchants] = await Promise.all([
-    listAtlasCategories(),
-    listMerchants({
-      search: search || undefined,
-      categoryId: categoryId || undefined,
-      uncategorizedOnly,
-    }),
-  ]);
+  const [categories, merchantTypes, cycleMonths, merchants] = await Promise.all(
+    [
+      listAtlasCategories(),
+      listMerchantTypes(),
+      listCreditCardCycleMonths(),
+      listMerchants({
+        search: search || undefined,
+        categoryId: categoryId || undefined,
+        uncategorizedOnly,
+        merchantType: merchantType || undefined,
+        cycleMonth: cycleMonth || undefined,
+      }),
+    ],
+  );
 
   const uncategorizedCount = merchants.filter(
     (m) => m.atlasCategoryId === null,
@@ -68,6 +83,10 @@ export default async function MerchantsPage({
             search={search}
             categoryId={categoryId}
             uncategorizedOnly={uncategorizedOnly}
+            merchantTypes={merchantTypes}
+            merchantType={merchantType}
+            cycleMonths={cycleMonths}
+            cycleMonth={cycleMonth}
           />
         </div>
 

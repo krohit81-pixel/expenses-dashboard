@@ -14,17 +14,25 @@ export interface AtlasCategory {
   active: boolean;
 }
 
-/** Every active category, top-level and subcategory alike, ordered for a flat dropdown (top-level categories first by display_order, each immediately followed by its own subcategories). */
-export async function listAtlasCategories(): Promise<AtlasCategory[]> {
+/**
+ * Shared by listAtlasCategories/listAllAtlasCategories: loads rows
+ * (optionally active-only) and flattens them into the same
+ * top-level-then-its-own-subcategories order every category dropdown
+ * and the Categories admin screen (v1.2) both rely on.
+ */
+async function loadAtlasCategories(
+  activeOnly: boolean,
+): Promise<AtlasCategory[]> {
   const supabase = createServiceClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("atlas_categories")
     .select(
       "id, category_name, parent_category_id, icon, display_order, active",
     )
-    .eq("user_id", OWNER_USER_ID)
-    .eq("active", true)
-    .order("display_order");
+    .eq("user_id", OWNER_USER_ID);
+  if (activeOnly) query = query.eq("active", true);
+
+  const { data, error } = await query.order("display_order");
 
   if (error) {
     throw new Error(`Failed to load categories: ${error.message}`);
@@ -52,6 +60,127 @@ export async function listAtlasCategories(): Promise<AtlasCategory[]> {
     category,
     ...(byParent.get(category.id) ?? []),
   ]);
+}
+
+/** Every active category, top-level and subcategory alike, ordered for a flat dropdown (top-level categories first by display_order, each immediately followed by its own subcategories). */
+export async function listAtlasCategories(): Promise<AtlasCategory[]> {
+  return loadAtlasCategories(true);
+}
+
+/** Every category regardless of active state -- backs the Categories admin screen (v1.2), which needs to show (and let you reactivate) a deactivated category too, not just hide it. */
+export async function listAllAtlasCategories(): Promise<AtlasCategory[]> {
+  return loadAtlasCategories(false);
+}
+
+/** Postgres' unique_violation code -- see the two partial unique indexes on atlas_categories (top-level name, and name-within-parent). */
+const UNIQUE_VIOLATION = "23505";
+
+export interface CreateAtlasCategoryInput {
+  categoryName: string;
+  parentCategoryId: string | null;
+  icon: string | null;
+}
+
+/**
+ * Adds a new top-level category or subcategory -- v1.2's Categories
+ * admin screen. display_order defaults to "after everything else at
+ * this level" so a newly added category doesn't jump ahead of existing
+ * ones in every dropdown that orders by display_order.
+ */
+export async function createAtlasCategory(
+  input: CreateAtlasCategoryInput,
+): Promise<void> {
+  const supabase = createServiceClient();
+
+  // .is() (not .eq()) for the null case -- same reasoning as every
+  // other nullable filter in this file (.eq() can't match a literal
+  // null the way Postgres' `is null` does).
+  let siblingCountQuery = supabase
+    .from("atlas_categories")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", OWNER_USER_ID);
+  siblingCountQuery = input.parentCategoryId
+    ? siblingCountQuery.eq("parent_category_id", input.parentCategoryId)
+    : siblingCountQuery.is("parent_category_id", null);
+  const { count } = await siblingCountQuery;
+  const displayOrder = count ?? 0;
+
+  const { error } = await supabase.from("atlas_categories").insert({
+    user_id: OWNER_USER_ID,
+    category_name: input.categoryName,
+    parent_category_id: input.parentCategoryId,
+    icon: input.icon,
+    display_order: displayOrder,
+  });
+
+  if (error) {
+    if (error.code === UNIQUE_VIOLATION) {
+      throw new Error(
+        input.parentCategoryId
+          ? "A subcategory with that name already exists under this category."
+          : "A category with that name already exists.",
+      );
+    }
+    throw new Error(`Failed to create category: ${error.message}`);
+  }
+}
+
+export interface UpdateAtlasCategoryInput {
+  categoryId: string;
+  categoryName?: string;
+  parentCategoryId?: string | null;
+  icon?: string | null;
+  displayOrder?: number;
+  active?: boolean;
+}
+
+/**
+ * Edits a category -- rename, reparent, change icon/order, or
+ * activate/deactivate. v1.2, at the household's request to rename
+ * "Groceries" to "Groceries & Food Delivery" (and any future rename)
+ * without touching a migration. Deactivating (not deleting) is the
+ * only "remove" this offers, same convention as merchants' own
+ * active toggle -- a hard delete would either cascade-orphan every
+ * merchant that points at this category (atlas_category_id is
+ * `on delete set null`) or, for a category with subcategories, simply
+ * fail outright (parent_category_id is `on delete restrict`), neither
+ * of which is what "delete" should quietly do from an admin screen.
+ */
+export async function updateAtlasCategory(
+  input: UpdateAtlasCategoryInput,
+): Promise<void> {
+  const supabase = createServiceClient();
+
+  const update: Database["finance"]["Tables"]["atlas_categories"]["Update"] =
+    {};
+  if (input.categoryName !== undefined)
+    update.category_name = input.categoryName;
+  if (input.parentCategoryId !== undefined)
+    update.parent_category_id = input.parentCategoryId;
+  if (input.icon !== undefined) update.icon = input.icon;
+  if (input.displayOrder !== undefined)
+    update.display_order = input.displayOrder;
+  if (input.active !== undefined) update.active = input.active;
+
+  const { error } = await supabase
+    .from("atlas_categories")
+    .update(update)
+    .eq("id", input.categoryId)
+    .eq("user_id", OWNER_USER_ID);
+
+  if (error) {
+    if (error.code === UNIQUE_VIOLATION) {
+      throw new Error(
+        "Another category already uses that name at the same level.",
+      );
+    }
+    if (error.code === "23503") {
+      throw new Error(
+        "Can't change this category's parent to itself or one of its own subcategories.",
+      );
+    }
+    throw new Error(`Failed to update category: ${error.message}`);
+  }
 }
 
 export interface MerchantSummary {
@@ -148,12 +277,104 @@ export interface MerchantListFilters {
   categoryId?: string;
   /** Only merchants with no category assigned yet (atlas_category_id is null). */
   uncategorizedOnly?: boolean;
+  /** Exact match against merchants.merchant_type. */
+  merchantType?: string;
+  /**
+   * Only merchants with at least one transaction billed in this cycle
+   * month ("YYYY-MM"). cycle_month lives on credit_card_statements, not
+   * on the transaction or the merchant itself (see
+   * src/lib/statement-cycle.ts), so this requires a separate lookup
+   * (loadMerchantIdsForCycleMonth below) rather than a plain .eq() on
+   * the merchants query.
+   */
+  cycleMonth?: string;
+}
+
+/**
+ * Every merchant_id with at least one debit-or-credit transaction
+ * billed in the given cycle month -- the join credit_card_transactions
+ * needs through credit_card_statements to answer "which merchants were
+ * active this cycle" (cycle_month only exists on the statement row).
+ */
+async function loadMerchantIdsForCycleMonth(
+  supabase: ReturnType<typeof createServiceClient>,
+  cycleMonth: string,
+): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("credit_card_transactions")
+    .select("merchant_id, credit_card_statements!inner(cycle_month)")
+    .eq("user_id", OWNER_USER_ID)
+    .eq("credit_card_statements.cycle_month", cycleMonth)
+    .not("merchant_id", "is", null);
+
+  if (error) {
+    throw new Error(
+      `Failed to load merchants for cycle month: ${error.message}`,
+    );
+  }
+
+  return Array.from(
+    new Set(
+      data
+        .map((row) => row.merchant_id)
+        .filter((id): id is string => id !== null),
+    ),
+  );
+}
+
+/** Every distinct, non-empty merchant_type in use -- backs the Merchants list page's type filter dropdown. */
+export async function listMerchantTypes(): Promise<string[]> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("merchants")
+    .select("merchant_type")
+    .eq("user_id", OWNER_USER_ID)
+    .not("merchant_type", "is", null);
+
+  if (error) {
+    throw new Error(`Failed to load merchant types: ${error.message}`);
+  }
+
+  return Array.from(
+    new Set(
+      data
+        .map((row) => row.merchant_type)
+        .filter((t): t is string => t !== null && t.trim() !== ""),
+    ),
+  ).sort((a, b) => a.localeCompare(b));
+}
+
+/** Every distinct cycle month ("YYYY-MM") with an imported statement, newest first -- backs the Merchants list page's cycle month filter dropdown. */
+export async function listCreditCardCycleMonths(): Promise<string[]> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("credit_card_statements")
+    .select("cycle_month")
+    .eq("user_id", OWNER_USER_ID);
+
+  if (error) {
+    throw new Error(`Failed to load cycle months: ${error.message}`);
+  }
+
+  return Array.from(new Set(data.map((row) => row.cycle_month))).sort((a, b) =>
+    b.localeCompare(a),
+  );
 }
 
 export async function listMerchants(
   filters: MerchantListFilters = {},
 ): Promise<MerchantSummary[]> {
   const supabase = createServiceClient();
+
+  let cycleMerchantIds: string[] | null = null;
+  if (filters.cycleMonth) {
+    cycleMerchantIds = await loadMerchantIdsForCycleMonth(
+      supabase,
+      filters.cycleMonth,
+    );
+    if (cycleMerchantIds.length === 0) return [];
+  }
+
   let query = supabase
     .from("merchants")
     .select(
@@ -175,6 +396,12 @@ export async function listMerchants(
     query = query.or(
       `atlas_category_id.eq.${filters.categoryId},atlas_subcategory_id.eq.${filters.categoryId}`,
     );
+  }
+  if (filters.merchantType) {
+    query = query.eq("merchant_type", filters.merchantType);
+  }
+  if (cycleMerchantIds) {
+    query = query.in("id", cycleMerchantIds);
   }
 
   const { data, error } = await query.order("display_name");
@@ -435,6 +662,31 @@ export async function updateMerchant(
         `Merchant was categorized, but failed to clear its transactions' review flag: ${reviewError.message}`,
       );
     }
+  }
+}
+
+/**
+ * Removes this one transaction's merchant tag (merchant_id -> null),
+ * leaving every other transaction tagged to that merchant untouched --
+ * the one-off undo the bulk `updateMerchant`/`mergeMerchants` writes
+ * don't cover. needs_review is cleared alongside it: that flag means
+ * "this transaction's merchant has no category yet" (see the migration
+ * comment on credit_card_transactions.needs_review), and an untagged
+ * transaction has no merchant at all, so there's nothing left to
+ * review until it's tagged again. merchant_raw/normalized are left as
+ * they were, so the transaction can still be re-matched or re-tagged
+ * later without losing the original statement text.
+ */
+export async function untagTransaction(transactionId: string): Promise<void> {
+  const supabase = createServiceClient();
+  const { error } = await supabase
+    .from("credit_card_transactions")
+    .update({ merchant_id: null, needs_review: false })
+    .eq("id", transactionId)
+    .eq("user_id", OWNER_USER_ID);
+
+  if (error) {
+    throw new Error(`Failed to untag transaction: ${error.message}`);
   }
 }
 

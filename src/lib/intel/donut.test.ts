@@ -20,9 +20,9 @@ describe("buildDonutSlices", () => {
       ["c", "Dining"],
     ]);
     expect(buildDonutSlices(categories, names)).toEqual([
-      { name: "Rent", total: "500.00" },
-      { name: "Dining", total: "300.00" },
-      { name: "Groceries", total: "100.00" },
+      { name: "Rent", total: "500.00", categoryIds: ["b"] },
+      { name: "Dining", total: "300.00", categoryIds: ["c"] },
+      { name: "Groceries", total: "100.00", categoryIds: ["a"] },
     ]);
   });
 
@@ -37,7 +37,11 @@ describe("buildDonutSlices", () => {
     const names = new Map(categories.map((c) => [c.categoryId, c.categoryId]));
     const slices = buildDonutSlices(categories, names);
     expect(slices).toHaveLength(6);
-    expect(slices[5]).toEqual({ name: "Other", total: "300.00" });
+    expect(slices[5]).toEqual({
+      name: "Other",
+      total: "300.00",
+      categoryIds: ["c5", "c6"],
+    });
   });
 
   it("falls back to Uncategorized when a category id has no name", () => {
@@ -45,7 +49,7 @@ describe("buildDonutSlices", () => {
       { categoryId: "missing", total: "50.00" as never },
     ];
     expect(buildDonutSlices(categories, new Map())).toEqual([
-      { name: "Uncategorized", total: "50.00" },
+      { name: "Uncategorized", total: "50.00", categoryIds: ["missing"] },
     ]);
   });
 });
@@ -57,8 +61,8 @@ describe("buildDonutGradientStops", () => {
 
   it("splits the circle proportionally across slices", () => {
     const slices = [
-      { name: "A", total: "75.00" as never },
-      { name: "B", total: "25.00" as never },
+      { name: "A", total: "75.00" as never, categoryIds: ["a"] },
+      { name: "B", total: "25.00" as never, categoryIds: ["b"] },
     ];
     const stops = buildDonutGradientStops(slices, "100.00" as never, [
       "red",
@@ -69,15 +73,15 @@ describe("buildDonutGradientStops", () => {
 
   it("cycles through the color list if there are more slices than colors", () => {
     const slices = [
-      { name: "A", total: "50.00" as never },
-      { name: "B", total: "50.00" as never },
+      { name: "A", total: "50.00" as never, categoryIds: ["a"] },
+      { name: "B", total: "50.00" as never, categoryIds: ["b"] },
     ];
     const stops = buildDonutGradientStops(slices, "100.00" as never, ["red"]);
     expect(stops).toEqual(["red 0% 50%", "red 50% 100%"]);
   });
 
   it("treats a zero total as every slice contributing 0%", () => {
-    const slices = [{ name: "A", total: "0.00" as never }];
+    const slices = [{ name: "A", total: "0.00" as never, categoryIds: ["a"] }];
     const stops = buildDonutGradientStops(slices, "0.00" as never, ["red"]);
     expect(stops).toEqual(["red 0% 0%"]);
   });

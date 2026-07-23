@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   Landmark,
+  ListTree,
   LogOut,
   Repeat,
   Settings,
@@ -57,6 +58,13 @@ const ITEMS = [
     label: "Merchants",
     description: "Every merchant Atlas has seen, with categories and spend.",
     icon: Store,
+  },
+  {
+    href: "/categories",
+    label: "Categories",
+    description:
+      "The Merchant Dictionary's category list — rename, add, deactivate.",
+    icon: ListTree,
   },
   {
     href: "/settings",
