@@ -1,5 +1,6 @@
 import { parseMoney, subtractMoney, sumMoney, type Money } from "@/lib/money";
 
+import { isBankFeeOrTax } from "./classify-transaction";
 import type { AxisStatementHeader, AxisTransaction } from "./types";
 
 const ABSOLUTE_FLOOR = 1.0;
@@ -63,9 +64,28 @@ export function reconcileAxisStatement(
   header: AxisStatementHeader,
   transactions: AxisTransaction[],
 ): ReconciliationResult {
-  const debitSum = sumMoney(
-    transactions
-      .filter((t) => t.transactionType === "debit")
+  const debitTransactions = transactions.filter(
+    (t) => t.transactionType === "debit",
+  );
+  // v1.7.3: Axis's own PAYMENT SUMMARY block keeps "purchases" and
+  // "other debit charges" (annual fee, GST on that fee, forex
+  // transaction fee, etc. -- folded into header.financeCharges by
+  // parse-header.ts) as two separate totals. A real June statement
+  // exposed this: summing ALL debit rows (including those fee/tax
+  // lines) against header.purchasesDebit alone left a delta that was
+  // exactly header.financeCharges -- an apples-to-oranges comparison,
+  // not a parsing error. isBankFeeOrTax is the same classifier
+  // parse-transactions.ts already uses to keep these lines out of the
+  // Merchant Dictionary, so reusing it here keeps both places agreeing
+  // on which rows are "a real purchase" vs. "a fee/tax charge."
+  const purchaseDebitSum = sumMoney(
+    debitTransactions
+      .filter((t) => !isBankFeeOrTax(t.description))
+      .map((t) => t.amount),
+  );
+  const feeDebitSum = sumMoney(
+    debitTransactions
+      .filter((t) => isBankFeeOrTax(t.description))
       .map((t) => t.amount),
   );
   const creditSum = sumMoney(
@@ -89,7 +109,8 @@ export function reconcileAxisStatement(
   })();
 
   const checks = [
-    check("purchases/debits", header.purchasesDebit, debitSum),
+    check("purchases/debits", header.purchasesDebit, purchaseDebitSum),
+    check("finance charges", header.financeCharges, feeDebitSum),
     check("payments received", header.paymentsReceived, creditSum),
     check("total amount due", header.totalAmountDue, statementIdentityTotal),
   ];

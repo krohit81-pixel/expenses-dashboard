@@ -64,11 +64,21 @@ describe("isBankFeeOrTax", () => {
     "Annual Fee 2026",
     "Finance Charge for June",
     "Forex markup on international spend",
+    // v1.7.3: a real statement prints a bare "GST" row (e.g. GST on the
+    // annual fee) with no hyphen or suffix at all -- distinct from the
+    // "GST-<component>" rows above.
+    "GST",
+    "gst",
+    "FOREIGN CURRENCY TRANSACTION FEE",
   ])("recognizes %s as a bank fee/tax line", (description) => {
     expect(isBankFeeOrTax(description)).toBe(true);
   });
 
   it("does not flag an ordinary merchant purchase", () => {
     expect(isBankFeeOrTax("SOME MERCHANT,CITY")).toBe(false);
+  });
+
+  it("does not flag a merchant name that merely starts with GST", () => {
+    expect(isBankFeeOrTax("GST BHAVAN CANTEEN,DELHI")).toBe(false);
   });
 });

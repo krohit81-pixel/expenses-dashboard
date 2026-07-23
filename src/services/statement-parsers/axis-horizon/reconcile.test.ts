@@ -94,6 +94,52 @@ describe("reconcileAxisStatement", () => {
     expect(result.checks.every((c) => c.withinTolerance)).toBe(true);
   });
 
+  /**
+   * v1.7.3 regression guard: a real June statement reconciled the header
+   * fine but failed "purchases/debits" by exactly its own
+   * header.financeCharges value -- because Axis's own statement keeps
+   * "purchases" (header.purchasesDebit) and "other debit charges" like
+   * annual fee / GST / forex fee (folded into header.financeCharges)
+   * as two separate totals, but the old code summed ALL debit rows
+   * into one figure and compared it against purchasesDebit alone. Fee
+   * rows must now be split out into their own "finance charges" check
+   * instead of counting toward "purchases/debits".
+   */
+  it("splits fee/tax debit rows into their own financeCharges check instead of purchases/debits", () => {
+    const header = makeHeader({
+      purchasesDebit: "10200.00" as never,
+      financeCharges: "3000.00" as never,
+      totalAmountDue: "13000.00" as never,
+    });
+    const transactions = [
+      makeTransaction({
+        amount: "10200.00" as never,
+        transactionType: "debit",
+        description: "SOME MERCHANT",
+      }),
+      makeTransaction({
+        amount: "3000.00" as never,
+        transactionType: "debit",
+        description: "Annual Fee",
+        merchantRaw: null,
+        merchantNormalized: null,
+      }),
+      makeTransaction({
+        amount: "5200.00" as never,
+        transactionType: "credit",
+      }),
+    ];
+
+    const result = reconcileAxisStatement(header, transactions);
+    expect(result.ok).toBe(true);
+    expect(
+      result.checks.find((c) => c.label === "purchases/debits")?.computedValue,
+    ).toBe("10200.00");
+    expect(
+      result.checks.find((c) => c.label === "finance charges")?.computedValue,
+    ).toBe("3000.00");
+  });
+
   it("fails when the debit sum doesn't match purchasesDebit", () => {
     const header = makeHeader();
     const transactions = [

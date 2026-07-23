@@ -51,8 +51,16 @@ export function isBankFeeOrTax(description: string): boolean {
     /^CGST-/i.test(description) ||
     /^SGST-/i.test(description) ||
     /^GST-/i.test(description) ||
+    // A real Axis Horizon statement also prints a bare "GST" line (no
+    // hyphen/suffix at all) as its own row -- e.g. GST charged on the
+    // annual fee -- distinct from the hyphenated "GST-<component>" rows
+    // above. Matched as a whole-line equality (not a prefix) so this
+    // doesn't accidentally swallow some future merchant whose name
+    // happens to start with "GST".
+    /^GST$/i.test(description) ||
     /^CONSOLIDATED FCY MARKUP FEE/i.test(description) ||
     /\bDCC Transaction\b/i.test(description) ||
+    /^FOREIGN CURRENCY TRANSACTION FEE$/i.test(description) ||
     /late payment fee/i.test(description) ||
     /late fee/i.test(description) ||
     /annual fee/i.test(description) ||
