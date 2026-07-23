@@ -1,32 +1,57 @@
 # Testing Strategy
 
-## Test pyramid
+> The original pyramid below (unit/integration/component/e2e/security)
+> was the target. **What's actually built and run today is the unit
+> layer only**, via Vitest — no Playwright/e2e suite, no live two-user RLS
+> integration harness (RLS isn't the live enforcement path — see doc 00),
+> no component-interaction tests. This doc describes what's real.
 
-| Level | Focus | Examples |
-| --- | --- | --- |
-| Unit | Pure calculations and parsers | currency math, split totals, fingerprinting, date recurrence |
-| Integration | Services plus database | RLS, triggers, transaction creation, import commit idempotency |
-| Component | Interactive UI behavior | form validation, filter URL state, keyboard behavior |
-| End-to-end | Critical user journeys | sign-in, add transaction, import/review/commit, attachment upload |
-| Security | Authorization and abuse cases | cross-user IDs, signed URLs, service key absence, prompt injection |
+## What's actually tested
 
-## Database test requirements
+- **Pure calculations and parsers** — the overwhelming majority of test
+  coverage. Every statement-parser submodule
+  (`amounts`, `parse-header`, `parse-transactions`, `classify-transaction`,
+  `normalize-merchant`, `reconcile`) has a matching `.test.ts` with
+  synthetic fixtures. Money math (`src/lib/money`), date/recurrence math
+  (`src/lib/dates`), budget helpers (`src/lib/budget`), Intel chart-data
+  prep (`src/lib/intel`), and the access-gate core all have direct unit
+  coverage.
+- **`supabase/tests/`** exists as a migration/RLS test harness run in CI
+  against a disposable local Supabase instance — see its own README for
+  scope. Per `INSTALL.md`'s troubleshooting notes, this documents the
+  schema's own guarantees; it is a separate system from the live app's
+  actual enforcement (which is the service-role client + explicit
+  `OWNER_USER_ID` filtering, not RLS — doc 00).
+- Run via `npm run test` (`vitest run`) locally/in CI; `npm run test:db`
+  for the separate Supabase-backed suite (`vitest.config.db.ts`).
 
-Run migrations against a fresh local Supabase instance in CI. Test RLS using two authenticated test users and verify both direct table access and RPC behavior. Test all ownership triggers, subtype constraints, storage policies, and migration upgrade paths.
+## Fixture hygiene (the one hard rule)
 
-## Essential fixtures
+Parser fixtures are always synthetic, hand-built to mirror a real
+statement's layout — never real personal financial data. When a fix
+genuinely needs validating against real data, use a throwaway
+`__scratch-*.test.ts` (see doc 08), confirm, then neuter it back to
+`describe.skip` before committing.
 
-- A checking account, cash account, and credit card in multiple currencies.
-- Income, expense, transfer, pending, posted, and void transactions.
-- Split transactions and recurring templates.
-- Current and expired budgets.
-- CSV files with duplicate rows, malformed dates, decimal comma, and transfer pairs.
-- Two users with deliberately guessed foreign IDs to prove isolation.
+## Verification pipeline (what actually gates a change)
 
-## Financial correctness tests
+```bash
+npx tsc --noEmit
+npx eslint .
+npx prettier --check .
+npx vitest run
+```
 
-Use table-driven tests for rounding, negative representations from statements, timezone boundaries, monthly recurrence on the 29th-31st, leap years, and inclusive reporting periods. Snapshot only presentational output; assert financial results directly.
+All four green is the bar for "this change is verified" in this repo
+today. A full `next build` is the one thing this can't confirm inside a
+Cowork sandbox session (tool-call timeout — see doc 10); flag that
+explicitly rather than treating the four commands above as proof a
+production build would succeed.
 
-## Release gates
+## Explicitly not built yet
 
-Required before production: typecheck, lint, build, migration test, unit suite, affected integration suite, Playwright critical path, accessibility scan, dependency/security scan, and manual review of mobile Safari behavior. A failed import, authorization, or ledger test blocks release.
+Playwright/e2e critical-path tests, component-interaction tests, a live
+two-authenticated-user RLS proof (meaningless anyway while the service-role
+client bypasses RLS), an accessibility scan step, and a dependency/security
+scan step. Add these deliberately when the app's risk profile changes
+(e.g. if it ever becomes genuinely multi-user again), not by default.

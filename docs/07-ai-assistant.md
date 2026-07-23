@@ -1,42 +1,65 @@
-# AI Assistant Design
+# AI — Intel's Insight
 
-## Role
+> The original target below described a general-purpose, tool-calling
+> financial assistant (chat-style Q&A, drafts, audited tool calls). **That
+> was never built.** What exists is much narrower: a single,
+> button-triggered AI-generated commentary paragraph on the Intel page.
+> This doc describes that.
 
-The assistant helps the owner understand and organize their finance data. It is not a financial adviser, transaction executor, or background agent with unrestricted database access.
+## What actually exists
 
-## Capabilities
+`IntelService.ts` generates one short (≤2000 character) insight paragraph
+summarizing the user's recent spending, stored in `finance.intel_insights`
+(one row, overwritten each time) and shown as-is on the Intel page until
+the user presses **"Generate commentary"** again
+(`IntelService.regenerateInsight`). It is not regenerated on page load —
+calling an LLM on every visit was both slow and unnecessary for content
+that doesn't need to change more than about once a day.
 
-- Answer bounded questions such as monthly spending changes, upcoming recurring payments, category anomalies, and budget progress.
-- Draft categorization or transaction-edit proposals with cited records.
-- Explain reports and identify missing or inconsistent data.
-- Create only reversible drafts by default.
+There is no chat interface, no tool-calling loop, no read/write tool
+model, and no per-question Q&A. The AI's only job is to narrate the
+numbers the Intel page's charts already computed deterministically —
+the charts themselves (by-category, month-on-month, card-level breakdown)
+never depend on the AI and work with zero AI keys configured.
 
-## Tool model
+## Providers
 
-The model does not query the database directly. The server offers typed, allowlisted tools that each enforce session ownership, date-range limits, result limits, and audit logging.
+Two optional, mutually-substitutable providers, both configured via
+optional env vars (`src/lib/env/server.ts`):
 
-| Tool | Permission | Example |
-| --- | --- | --- |
-| `get_cash_flow` | Read | Summarize income and expenses for a period. |
-| `search_transactions` | Read | Find matching transactions within a bounded range. |
-| `get_budget_status` | Read | Explain category spend against plan. |
-| `draft_categorization` | Draft | Propose category changes; no persistence. |
-| `create_transaction_draft` | Draft | Prepare an unposted manual entry. |
+- `ANTHROPIC_API_KEY` (original provider, v0.3)
+- `GEMINI_API_KEY` + optional `GEMINI_MODEL` override (added v1.6.0,
+  replacing an earlier `OPENAI_API_KEY` option removed at the user's
+  request)
 
-Write tools require a clear confirmation screen with the exact records and changes. Do not provide tools for deletion, payment initiation, credential access, or service-role operations.
+If both are set, Anthropic is tried first (see `regenerateInsight`'s own
+comment for the exact fallback order). If neither is set, the button
+reports "no provider configured" rather than crashing the app — Intel's
+charts are the core dependency, the AI insight is a pure enhancement.
 
-## Context minimization
+## Input shape
 
-Send only the minimum data needed to answer the question. Prefer aggregates and redacted labels to full raw transaction history. Attachments, account numbers, authentication tokens, and user secrets are never model context. Persist only conversation data that has a defined retention purpose.
+The prompt includes the same combined totals the page itself displays —
+ledger transactions plus planned/actual credit-card dues (folded together
+via `BudgetSnapshotService`, see doc 12's v1.6.3 entry) — plus a short
+forward-looking forecast, explicitly steered away from calling out
+marginal/noisy month-to-month patterns as significant. No raw transaction
+list, account numbers, or attachment content is ever sent — only the
+aggregates the page already computed.
 
-## Guardrails
+## Guardrails actually enforced
 
-- System instructions forbid financial, tax, or legal conclusions presented as professional advice.
-- Tool results are treated as untrusted structured inputs and schema-validated before the model sees them.
-- Responses that contain numbers cite the period and records used.
-- Rate-limit per user and enforce spend budgets.
-- Audit prompt metadata, tool invocation, result count, confirmation, model version, and cost; avoid storing raw sensitive prompts unless opted in.
+- Read-only in effect: the insight is narration, never a tool call that
+  could write to the ledger.
+- No secrets, account identifiers, or PII beyond what's already aggregated
+  into the page's own numbers reach the prompt.
+- Optional by design — removing both API keys degrades the feature, never
+  breaks the app.
 
-## Evaluation
+## Explicitly not built
 
-Maintain a synthetic, de-identified evaluation set for calculation accuracy, ownership isolation, refusal behavior, prompt injection resistance, and correct use of confirmation. Ship assistant changes only after tool-call and numerical-answer regression tests pass.
+Any chat UI, allowlisted read/write tools, per-user rate limiting or spend
+budgets, audit logging of prompts/tool calls, a synthetic evaluation set,
+or draft-transaction/categorization proposals from the model. If a future
+request needs true Q&A over financial data, that's new scope, not an
+extension of `IntelService`.

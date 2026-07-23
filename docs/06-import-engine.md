@@ -1,51 +1,132 @@
-# Import Engine Specification
+# Import Engine — Credit Card Statement Parsing
+
+> The original target below described a generic CSV/OFX bank-statement
+> import engine with a staging/review/commit workflow. **That was never
+> built.** What exists instead is a deterministic, no-LLM PDF
+> credit-card-statement parser, one module per card issuer, that parses
+> and reconciles a statement in a single request and only saves it if the
+> numbers add up. This doc describes that system.
 
 ## Goal
 
-Turn bank, card, and cash-statement files into reviewable transaction candidates without silently changing the ledger. The import engine is a staged workflow, not a direct CSV-to-transaction insert.
+Turn a credit card statement PDF into structured, reconciled statement +
+transaction rows without ever guessing. If the parsed transactions don't
+sum to what the statement itself claims, nothing is saved — not even a
+partial set of rows.
 
-## Supported formats and canonical row
+## Supported issuers
 
-Phase one supports CSV with a per-institution mapping profile. Add OFX/QFX next. Normalize every source row into:
+- **HDFC Infinia** (`src/services/statement-parsers/hdfc-infinia/`)
+- **Axis Horizon** (`src/services/statement-parsers/axis-horizon/`)
 
-```text
-source_transaction_id, occurred_on, posted_on, description,
-amount, currency_code, balance, direction, raw_payload_hash
-```
+`src/services/statement-parsers/axis-atlas/` is a leftover from a naming
+mistake before the "Axis Horizon" rename — it's untracked in git and
+should be deleted from disk by hand; nothing references it.
 
-Store the original file privately and retain a parsed, immutable staging record. Never alter raw import evidence after parsing.
+Adding a new issuer means adding a new directory with the same module
+shape (below) plus a new `CardStatementSource` entry in
+`src/features/imports/cards.ts` and a new password env var in
+`src/lib/env/server.ts` — not a redesign.
 
-## Workflow
+## Pipeline
 
 ```mermaid
 flowchart LR
-  Upload --> Validate --> Parse --> Normalize --> Deduplicate --> Match
-  Match --> Review
-  Review --> Commit
-  Review --> Discard
-  Commit --> Ledger["finance.transactions"]
+  Upload["Upload PDF\n(features/imports)"] --> Extract["extractPdfText()\nsrc/lib/pdf/extract-text.ts"]
+  Extract --> Header["parse-header.ts\nstatement-level totals"]
+  Extract --> Txns["parse-transactions.ts\nper-row parsing"]
+  Header --> Reconcile["reconcile.ts\nsum(transactions) vs statement totals"]
+  Txns --> Reconcile
+  Reconcile -->|ok| Merchant["MerchantDictionaryService\nresolve merchant + category"]
+  Merchant --> Save["CreditCardStatementService\ninsert statement + transactions"]
+  Reconcile -->|fails| Reject["Nothing saved — error shown on /imports"]
 ```
 
-1. Create an import job with idempotency key, account, source name, file checksum, and user.
-2. Upload to a private staging path using a signed URL.
-3. Parse asynchronously; record parser version, detected encoding, headers, and row-level errors.
-4. Normalize dates, decimal separators, signs, currencies, and descriptions.
-5. Deduplicate against the same file checksum, source ID, and a configurable fingerprint of account/date/amount/description.
-6. Suggest category, transfer, and recurring matches with a confidence score and explanation.
-7. Show an explicit review queue. Auto-commit only if a future policy permits it and every confidence/risk rule passes.
-8. Commit in an atomic, idempotent operation; retain a link from created transaction to import row.
+1. **Extract** (`src/lib/pdf/extract-text.ts`): pdf.js legacy Node build,
+   password-aware. `reconstructLayout()` turns pdf.js's flat positioned
+   text items into row/column-preserving text by grouping items within
+   `ROW_TOLERANCE` of the same y-position and inserting whitespace
+   proportional to the x-gap between items. This is the single most
+   fragile part of the whole pipeline — see the "Known fragility" section
+   below.
+2. **Parse header** (`parse-header.ts`): anchored, whole-row-shape regexes
+   against literal label text extract the statement's own totals (total
+   due, minimum due, previous balance, payments received, purchases,
+   finance charges, credit limits, reward points, etc.) — never derived
+   from summing transactions.
+3. **Parse transactions** (`parse-transactions.ts`): per-row regex over
+   the reconstructed text, one row per real transaction line. Handles
+   multi-cardholder statements (primary vs. add-on, detected via a
+   `Card No: ... Name ...` header line reappearing mid-table) and
+   description continuation lines.
+4. **Classify** (`classify-transaction.ts`): flags payments, cashback,
+   refunds, reversals, and bank fee/tax lines (`isBankFeeOrTax`) —
+   determines what counts as a genuine merchant purchase vs. a
+   fee/charge/payment, both for Merchant Dictionary exclusion and for
+   reconciliation bucketing (see below).
+5. **Reconcile** (`reconcile.ts`): sums parsed transactions (split into
+   "purchases" vs. "finance charges" using the same `isBankFeeOrTax`
+   classifier — a real statement can print these as two separate totals;
+   see the v1.7.3 fix in Axis Horizon's `reconcile.ts` for why lumping
+   them together silently breaks reconciliation) and checks each against
+   the statement's own printed total, plus a full "total amount due"
+   identity check, all with a relative tolerance
+   (`max(1.00, 0.05% × statementValue)`). **Any failed check blocks the
+   save entirely.**
+6. **Resolve merchants** (`MerchantDictionaryService.resolveMerchantsForImport`):
+   sequential per-import exact-then-normalized alias lookup against the
+   shared Merchant Dictionary, tagged with a `sourceBank` string
+   (`"hdfc-infinia"`, `"axis-horizon"`).
+7. **Save** (`CreditCardStatementService`): hash the extracted text for
+   dedupe (`statement_hash` + date + card last 4), insert the statement
+   row (with `cycle_month`), insert transaction rows, roll back the
+   statement row if transaction insert fails partway.
 
-## Required future tables
+## Per-issuer module shape (fixed convention)
 
-Add `import_jobs`, `import_files`, `import_rows`, `import_mappings`, `import_matches`, and `import_commit_log` in a dedicated migration before implementation. Keep source data separate from `transactions`; import provenance must survive ledger edits.
+```text
+src/services/statement-parsers/<issuer>/
+  types.ts                 # AxisStatementHeader/Transaction or HDFC equivalent
+  amounts.ts                # findAmount/findDecimalAmount/findInteger token extraction
+  parse-header.ts
+  parse-transactions.ts
+  classify-transaction.ts
+  normalize-merchant.ts
+  reconcile.ts
+  index.ts                  # re-exports everything
+  *.test.ts                 # synthetic fixtures ONLY — never real statement data
+```
 
-## Matching policy
+## Known fragility (read before touching a parser)
 
-- Exact source transaction ID match: duplicate, never reimport.
-- Same account, amount, date window, normalized description: probable duplicate, requires review unless prior source identity is known.
-- Internal account-to-account pattern: transfer candidate, never auto-create both sides without user policy.
-- Categorization rules are user-scoped, ordered, auditable, and reversible.
+- **The `\s{2,}` "two-or-more-spaces means a column boundary" heuristic**
+  used throughout row-parsing regexes depends entirely on
+  `reconstructLayout()`'s `gap / spaceWidth` space-count computation,
+  which in turn depends on pdf.js's reported glyph widths —
+  environment-sensitive (`useSystemFonts: true` resolves against whatever
+  fonts are actually installed on the host, which differs between a dev
+  sandbox and a Vercel serverless container). **Never make a required
+  match boundary depend on an exact space count** — a real production bug
+  (v1.7.2) had every transaction row silently fail to match because a
+  required 2+-space boundary rendered as one space in production. Prefer
+  `\s+` for anything the row's basic shape depends on, and reserve
+  `\s{2,}` only for optional, best-effort column splits that degrade
+  gracefully (fold into the adjacent field) rather than drop the row.
+- **Validate parser changes against real statement text before trusting
+  them**, using a throwaway `__scratch-*.test.ts` that imports the real
+  `extractPdfText` (not a hand-rolled mirror script) against real PDF
+  bytes, then neuter it back to `describe.skip` before committing — never
+  commit real personal data in a fixture.
+- **A statement's own summary totals can be split into more buckets than
+  you'd assume** (e.g. Axis Horizon's "purchases" vs. "finance charges" as
+  two separate printed totals) — verify the exact reconciliation identity
+  against a real statement's numbers before assuming a simpler formula
+  holds.
 
-## Failure behavior
+## Explicitly not built
 
-Parsing failures affect a row, not unrelated rows. A malformed statement cannot partially commit. The user can download an error report, correct a mapping, and retry with the same source file; idempotency records prevent duplicate ledger writes.
+Bank CSV/OFX import, a staging/review/commit workflow, transfer-candidate
+matching, and user-editable import mapping rules — none of this exists.
+If a future card issuer's PDF can't be parsed deterministically (e.g. a
+scanned image with no text layer), that's a new problem, not covered by
+this pipeline.

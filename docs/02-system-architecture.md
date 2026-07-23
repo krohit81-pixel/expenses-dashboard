@@ -1,82 +1,121 @@
 # System Architecture
 
-## Target architecture
+> See [00 — Current state](./00-current-state.md) first, especially the
+> auth model section — it corrects the diagram below, which originally
+> assumed live Supabase Auth sessions and RLS as the enforcement boundary.
 
-The application is a Next.js backend-for-frontend (BFF) backed by Supabase Postgres, Auth, and Storage. The browser uses the authenticated Supabase client only for narrowly scoped reads or realtime needs. Commands that enforce business rules, import data, invoke AI, or access the service-role key execute on the server.
+## Actual architecture
+
+The application is a Next.js backend-for-frontend (BFF) over Supabase
+Postgres and Storage. There is no per-request Supabase Auth session: an
+HMAC-signed access-gate cookie stands in for sign-in, and every server-side
+read/write goes through a single service-role client
+(`src/lib/supabase/service.ts`) scoped to one fixed owner account
+(`OWNER_USER_ID`, from `src/lib/owner.ts`). The browser never talks to
+Supabase directly.
 
 ```mermaid
 flowchart LR
-  Browser["Next.js PWA\nSafari / iOS"] --> App["Next.js App Router\nServer Components + Route Handlers"]
-  App --> Auth["Supabase Auth"]
-  App --> DB["Supabase Postgres\nfinance schema + RLS"]
+  Browser["Next.js PWA"] --> Gate["Access-gate middleware\nHMAC cookie, not Supabase Auth"]
+  Gate --> App["Next.js App Router\nServer Components + Server Actions"]
+  App --> DB["Supabase Postgres\nfinance schema, service-role client"]
   App --> Storage["Supabase Storage\nprivate attachments"]
-  App --> Jobs["Worker / scheduled jobs\nimports, recurring generation"]
-  App --> AI["AI gateway\nread-only tools + audit log"]
-  Jobs --> DB
-  AI --> DB
+  App --> AI["Anthropic / Gemini\nIntel insight only, button-triggered"]
+  App --> PDF["pdf.js (server-side)\nstatement text extraction"]
 ```
 
 ## Boundaries
 
 | Layer | Responsibility | Must not do |
 | --- | --- | --- |
-| `src/app` | Routing, layouts, route handlers, server actions. | Contain domain rules or SQL construction. |
-| `src/features/<feature>` | UI, feature schemas, queries, and feature-specific components. | Reach into another feature's internals. |
-| `src/services` | Server-side orchestration of imports, reporting, AI, and integrations. | Render UI. |
-| `src/lib` | Cross-cutting infrastructure: Supabase, dates, money, auth helpers. | Become a miscellaneous dumping ground. |
-| `finance` schema | Persistent integrity, tenancy enforcement, and storage metadata. | Depend on frontend behavior for data safety. |
+| `src/app` | Routing, layouts, pages. Thin — no business logic. | Contain domain rules or SQL construction. |
+| `src/features/<feature>` | UI, feature schemas, and `api/actions.ts` server actions. | Reach into another feature's internals. |
+| `src/services` | Server-side orchestration: one class per domain area, always filtering by `OWNER_USER_ID`. | Render UI. |
+| `src/services/statement-parsers/<issuer>` | Deterministic PDF-statement-to-structured-data parsing for one issuer. | Decide merchant identity or category — that's the Merchant Dictionary's job. |
+| `src/lib` | Cross-cutting infrastructure: Supabase clients, money, dates, env validation, PDF extraction, owner constant, access gate. | Become a miscellaneous dumping ground. |
+| `finance` schema | Durable structure and invariants (constraints, FKs, RLS policies kept for future-multi-user correctness). | Assume RLS is the live enforcement path — it currently isn't (see doc 00). |
 
-## Target repository structure
+## Actual repository structure
 
 ```text
 src/
-  app/                    # route groups, layouts, pages, route handlers
-  components/
-    ui/                   # shadcn primitives only
-    shared/               # cross-feature presentation components
-  features/
-    accounts/
-    assistant/
-    attachments/
-    budgets/
-    dashboard/
-    imports/
-    investments/
-    reports/
-    transactions/
-  hooks/                  # genuinely cross-feature React hooks
+  app/
+    (app)/<route>/page.tsx     # dashboard, transactions, accounts, budgets,
+                                # imports, net-worth, settings, intel, merchants,
+                                # calendar, recurring, onboarding, more
+    api/attachments/           # the one route-handler surface (signed upload/download)
+    login/                     # access-gate login page
+  components/ui/                # shadcn primitives
+  features/<feature>/
+    api/actions.ts               # server actions — the real mutation surface
+    components/
+  services/                     # AccountService, TransactionService, BudgetSnapshotService,
+                                 # CreditCardStatementService, MerchantDictionaryService,
+                                 # MerchantService, StatementImportService, IntelService,
+                                 # CreditCardIntelService, ReportingService, NetWorthService,
+                                 # CalendarEventService, TripService, RecurringTransactionService,
+                                 # CategoryService, InstitutionService, AssetService,
+                                 # LiabilityService, UserSettingsService, AttachmentService
+  services/statement-parsers/
+    hdfc-infinia/                # types, amounts, parse-header, parse-transactions,
+    axis-horizon/                #   classify-transaction, normalize-merchant, reconcile, index
   lib/
-    auth/                 # server/client session helpers
-    db/                   # generated types and query infrastructure
-    money/                # decimal, currency, and formatting helpers
-    validation/           # common Zod utilities
-  services/               # server-only business workflows
-  types/                  # stable shared DTOs, not database row duplicates
-  test/                   # fixtures, factories, and test helpers
+    money/                       # Money branded type + decimal.js-backed arithmetic
+    dates/                       # calendar grid, recurrence, phase, month helpers
+    pdf/                         # extract-text.ts (pdf.js), dommatrix polyfill, worker setup
+    intel/                       # card-category-breakdown, donut chart data prep
+    budget/                      # home-stats, planned card dues
+    accounts/                    # spendable-balance math
+    env/                         # server/public env validation (Zod)
+    owner.ts                     # OWNER_USER_ID constant
+    access-gate.ts                # HMAC cookie gate
+    supabase/service.ts           # the one Supabase client every service uses
+  hooks/
+  types/
 supabase/
-  migrations/             # append-only database changes
-  seed.sql                # local development seed data, never production data
-docs/                     # architecture and operational documentation
+  migrations/                    # append-only, heavily commented with rationale
+docs/                            # this folder
+INSTALL.md                       # actual setup/deploy source of truth (repo root)
 ```
 
-Every feature owns its UI, validation, and feature-local data access. Cross-feature business flows live in a server-only service, not a route component or shared utility.
+Every feature owns its UI and server actions; cross-feature workflows live
+in a service, not a route component.
 
 ## Runtime choices
 
-- Use Server Components for dashboard and report reads where possible.
-- Use Client Components only for interactive forms, chart controls, upload flows, and optimistic pending UI.
-- Use Route Handlers for external-style HTTP endpoints and webhook receivers. Use server actions for co-located authenticated mutations when their request/response contract is not public.
-- Use a worker or scheduled function for recurring-transaction generation, statement processing, and expensive report snapshots. Never make an HTTP request wait for a large import.
+- Server Components for dashboard and report reads.
+- Client Components for interactive forms, upload flows, and chart
+  controls.
+- Server Actions (`features/*/api/actions.ts`) for authenticated mutations
+  — the actual pattern used everywhere except attachments, which use a
+  route handler (`src/app/api/attachments/`) for signed URL issuance.
+- No worker/queue infrastructure exists yet. Statement parsing runs
+  synchronously within the request that handles the upload — acceptable
+  today because a statement PDF is small and parsing is fast and
+  deterministic (no LLM call in the parse path).
 
-## Core domain services
+## Core domain services (as actually built)
 
-- `TransactionService`: validates, writes, edits, voids, and summarizes transactions.
-- `BudgetService`: manages periods, lines, planned amounts, and actuals.
-- `ImportService`: stages files, parses, deduplicates, matches, and commits reviewed rows.
-- `AttachmentService`: creates signed upload/download URLs and writes attachment metadata.
-- `ReportingService`: produces server-side aggregates for dashboard, cash flow, budget, and net-worth views.
-- `AssistantService`: turns approved user questions into bounded tool calls and auditable responses.
-
-## Current-state implications
-
-The present client and server Supabase helpers are useful primitives, but they do not yet provide request middleware, generated database types, error normalization, or authorization helpers. Add those before feature development starts.
+- `AccountService`, `CategoryService`, `InstitutionService`,
+  `UserSettingsService`: ledger foundations.
+- `TransactionService`: validates, writes, and summarizes transactions.
+- `RecurringTransactionService`: recurring templates and generation.
+- `BudgetSnapshotService`: planned vs. actual, including planned card dues
+  folded in from statement imports.
+- `AssetService`, `LiabilityService`, `NetWorthService`: net-worth
+  aggregation.
+- `AttachmentService`: signed upload/download URLs and metadata.
+- `StatementImportService`: orchestrates PDF decryption (per-issuer
+  password from env), extraction, and dispatch to the right parser.
+- `CreditCardStatementService`: per-issuer save pipeline — parse, reconcile,
+  hash for dedupe, insert statement + transactions, resolve merchants,
+  roll back on partial failure.
+- `MerchantDictionaryService`: exact/normalized alias resolution against
+  `finance.merchants` / `finance.merchant_aliases` / `finance.atlas_categories`,
+  shared across every issuer's parser.
+- `MerchantService`: the `/merchants` admin screen's read/edit surface.
+- `ReportingService`, `CreditCardIntelService`, `IntelService`: dashboard
+  aggregates, card-level category breakdowns, and the button-triggered AI
+  insight (`finance.intel_insights`).
+- `CalendarEventService`, `TripService`: the Calendar tab's user-entered
+  data (school calendar itself is static in-code data, not a table).

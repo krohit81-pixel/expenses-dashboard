@@ -1,5 +1,10 @@
 # Product Vision
 
+> This doc describes the product's intent and has held up well since it
+> was written. For how the app actually implements access and identity
+> today (a single fixed owner, not the "households sharing later" model
+> hinted at below), see [00 — Current state](./00-current-state.md).
+
 ## Purpose
 
 Build a private, trustworthy personal finance workspace that makes a person's financial position understandable and actionable without requiring spreadsheet maintenance. The product should feel calm and accurate: an owner can see cash flow, spending, commitments, net worth, and upcoming decisions in a few moments.
