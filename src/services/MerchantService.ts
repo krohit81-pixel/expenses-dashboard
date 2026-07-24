@@ -691,6 +691,56 @@ export async function untagTransaction(transactionId: string): Promise<void> {
 }
 
 /**
+ * The other direction from untagTransaction: manually assigns a
+ * transaction that has no merchant_id to an existing merchant -- v1.2.1,
+ * for transactions that were deliberately never auto-tagged in the
+ * first place. isBankFeeOrTax lines (IGST, FCY markup fee, DCC
+ * surcharge -- see e.g. hdfc-infinia/classify-transaction.ts) are
+ * parsed with merchant_raw/merchant_id left null on purpose, since each
+ * one carries a unique reference number and would otherwise create a
+ * brand-new junk merchant per occurrence (see bulk-tag-merchants.mjs's
+ * own comment for the historical version of this problem). That means
+ * they can never be picked up by the normal alias-resolution pipeline
+ * or by mergeMerchants/updateMerchant, which both operate on a
+ * transaction's EXISTING merchant_id -- there was previously no way to
+ * manually assign one of these to a merchant at all short of a one-off
+ * script. needs_review is set to match the target merchant's current
+ * category state, same reasoning as mergeMerchants.
+ */
+export async function tagTransactionToMerchant(params: {
+  transactionId: string;
+  merchantId: string;
+}): Promise<void> {
+  const supabase = createServiceClient();
+
+  const { data: merchant, error: merchantError } = await supabase
+    .from("merchants")
+    .select("atlas_category_id")
+    .eq("user_id", OWNER_USER_ID)
+    .eq("id", params.merchantId)
+    .maybeSingle();
+
+  if (merchantError || !merchant) {
+    throw new Error(
+      `Failed to load merchant: ${merchantError?.message ?? "not found"}`,
+    );
+  }
+
+  const { error } = await supabase
+    .from("credit_card_transactions")
+    .update({
+      merchant_id: params.merchantId,
+      needs_review: merchant.atlas_category_id === null,
+    })
+    .eq("id", params.transactionId)
+    .eq("user_id", OWNER_USER_ID);
+
+  if (error) {
+    throw new Error(`Failed to tag transaction: ${error.message}`);
+  }
+}
+
+/**
  * Merges sourceMerchantId into targetMerchantId: every alias and every
  * transaction that pointed at the source now points at the target, and
  * the source merchant row is deleted. Aliases can never collide across

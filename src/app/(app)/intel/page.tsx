@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 
-import Link from "next/link";
 import { Suspense } from "react";
 
 import { requireUser } from "@/lib/auth/require-user";
@@ -38,6 +37,7 @@ import { Hero } from "@/components/ui/hero";
 import { Spinner } from "@/components/ui/spinner";
 import { GenerateInsightButton } from "@/features/intel/components/GenerateInsightButton";
 import { CardMonthNav } from "@/features/intel/components/CardMonthNav";
+import { DonutSliceLink } from "@/features/intel/components/DonutSliceLink";
 
 export const metadata: Metadata = {
   title: "Intel",
@@ -240,37 +240,21 @@ function renderCardDonut(
                   : 0;
               return (
                 <li key={slice.name}>
-                  <Link
+                  <DonutSliceLink
                     href={cardCategoryHref({
                       cardMonth,
                       cardKey: cardKeyForLink,
                       categoryIds: slice.categoryIds,
                       label: slice.name,
                     })}
-                    className="-mx-1 flex items-center gap-1.5 rounded-md px-1 py-0.5 text-[11px] hover:bg-bg"
-                  >
-                    <span
-                      className="size-2 shrink-0 rounded-[2px]"
-                      style={{
-                        background: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
-                      }}
-                    />
-                    <span className="min-w-0 flex-1 truncate font-medium text-ink">
-                      {slice.name}
-                    </span>
-                    {/* v1.6.3: both the amount and the percentage --
-                        v1.6.2 swapped percentage for amount instead of
-                        showing both, which wasn't what was asked for. */}
-                    <span className="shrink-0 font-display text-[10px] font-bold text-ink-faint">
-                      {formatMoneyDisplay(slice.total, currency).replace(
-                        /\.\d+$/,
-                        "",
-                      )}
-                    </span>
-                    <span className="w-8 shrink-0 text-right font-display text-[10px] font-bold text-ink-faint">
-                      {pct}%
-                    </span>
-                  </Link>
+                    colorSwatch={CATEGORY_COLORS[i % CATEGORY_COLORS.length]}
+                    name={slice.name}
+                    amountText={formatMoneyDisplay(
+                      slice.total,
+                      currency,
+                    ).replace(/\.\d+$/, "")}
+                    pctText={`${pct}%`}
+                  />
                 </li>
               );
             })}

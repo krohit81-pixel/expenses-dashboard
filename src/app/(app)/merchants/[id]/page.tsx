@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { Hero } from "@/components/ui/hero";
 import { formatMoneyDisplay } from "@/lib/money";
 import { MergeMerchantForm } from "@/features/merchants/components/MergeMerchantForm";
+import { MerchantOverviewCard } from "@/features/merchants/components/MerchantOverviewCard";
 import { MerchantTransactionRow } from "@/features/merchants/components/MerchantTransactionRow";
 import {
   getMerchantDetail,
@@ -24,17 +25,6 @@ export async function generateMetadata({
   return { title: merchant ? merchant.displayName : "Merchant" };
 }
 
-const DATE_FORMATTER = new Intl.DateTimeFormat("en-IN", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  timeZone: "UTC",
-});
-
-function formatIsoDate(iso: string): string {
-  return DATE_FORMATTER.format(new Date(`${iso}T00:00:00Z`));
-}
-
 export default async function MerchantDetailPage({
   params,
 }: MerchantDetailPageProps) {
@@ -48,10 +38,6 @@ export default async function MerchantDetailPage({
 
   if (!merchant) notFound();
 
-  const category = categories.find((c) => c.id === merchant.atlasCategoryId);
-  const subcategory = categories.find(
-    (c) => c.id === merchant.atlasSubcategoryId,
-  );
   const otherMerchants = allMerchants.filter((m) => m.id !== merchant.id);
 
   return (
@@ -73,85 +59,7 @@ export default async function MerchantDetailPage({
           ← All merchants
         </Link>
 
-        <section className="rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-          <h2 className="mb-3 font-display text-[15px] font-bold text-ink">
-            Overview
-          </h2>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
-            <div>
-              <dt className="text-xs text-ink-faint">Category</dt>
-              <dd
-                className={
-                  category ? "text-ink" : "font-semibold text-negative"
-                }
-              >
-                {category ? category.categoryName : "Uncategorized"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-ink-faint">Subcategory</dt>
-              <dd className="text-ink">{subcategory?.categoryName ?? "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-ink-faint">Recurring</dt>
-              <dd className="text-ink">
-                {merchant.isRecurring ? "Yes" : "No"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-ink-faint">Subscription</dt>
-              <dd className="text-ink">
-                {merchant.isSubscription ? "Yes" : "No"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-ink-faint">Average transaction</dt>
-              <dd className="text-ink">
-                {formatMoneyDisplay(
-                  merchant.averageTransaction,
-                  merchant.defaultCurrency,
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-ink-faint">Status</dt>
-              <dd className="text-ink">
-                {merchant.active ? "Active" : "Deactivated"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-ink-faint">First seen</dt>
-              <dd className="text-ink">
-                {merchant.firstTransactionDate
-                  ? formatIsoDate(merchant.firstTransactionDate)
-                  : "—"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-ink-faint">Last seen</dt>
-              <dd className="text-ink">
-                {merchant.lastTransactionDate
-                  ? formatIsoDate(merchant.lastTransactionDate)
-                  : "—"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-ink-faint">Cards used</dt>
-              <dd className="text-ink">
-                {merchant.cardsUsed.length > 0
-                  ? merchant.cardsUsed.join(", ")
-                  : "—"}
-              </dd>
-            </div>
-          </dl>
-          <p className="mt-4 text-xs text-ink-faint">
-            To edit this merchant&apos;s category, name, or flags, go back to{" "}
-            <Link href="/merchants" className="underline">
-              Merchants
-            </Link>{" "}
-            and use Edit on its row.
-          </p>
-        </section>
+        <MerchantOverviewCard merchant={merchant} categories={categories} />
 
         <section className="rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
           <h2 className="mb-3 font-display text-[15px] font-bold text-ink">

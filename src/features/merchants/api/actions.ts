@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import {
   mergeMerchants,
+  tagTransactionToMerchant,
   untagTransaction,
   updateMerchant,
 } from "@/services/MerchantService";
@@ -113,6 +114,45 @@ export async function untagTransactionAction(
     return {
       error:
         error instanceof Error ? error.message : "Failed to untag transaction.",
+    };
+  }
+}
+
+/**
+ * Manually assigns a transaction that has no merchant to one --
+ * v1.2.1, for isBankFeeOrTax lines (IGST, FX markup fees, DCC
+ * surcharges) that are deliberately never auto-tagged at import time
+ * (see tagTransactionToMerchant's own comment) and so have no other
+ * way to reach a merchant/category. Revalidates the Merchants list,
+ * the target merchant's own detail page, and the Card-level
+ * breakdown drill-down (revalidatePath matches by pathname regardless
+ * of query string, so this covers every month/category/card
+ * combination of that route, not just the one the form happened to
+ * submit from).
+ */
+export async function tagTransactionAction(
+  _prevState: MerchantFormState,
+  formData: FormData,
+): Promise<MerchantFormState> {
+  const transactionId = formData.get("transactionId");
+  const merchantId = formData.get("merchantId");
+  if (typeof transactionId !== "string" || !transactionId) {
+    return { error: "Missing transaction." };
+  }
+  if (typeof merchantId !== "string" || !merchantId) {
+    return { error: "Choose a merchant." };
+  }
+
+  try {
+    await tagTransactionToMerchant({ transactionId, merchantId });
+    revalidatePath("/merchants");
+    revalidatePath(`/merchants/${merchantId}`);
+    revalidatePath("/intel/card-category");
+    return { success: true };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error ? error.message : "Failed to tag transaction.",
     };
   }
 }

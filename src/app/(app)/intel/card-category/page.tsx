@@ -4,9 +4,11 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth/require-user";
 import { getUserSettings } from "@/services/UserSettingsService";
 import { getCardCategoryTransactions } from "@/services/CreditCardIntelService";
+import { listMerchants } from "@/services/MerchantService";
 import { formatMoneyDisplay } from "@/lib/money";
 import { isValidMonth, monthLabel } from "@/lib/dates/month";
 import { Hero } from "@/components/ui/hero";
+import { TagTransactionForm } from "@/features/merchants/components/TagTransactionForm";
 
 export const metadata: Metadata = {
   title: "Category detail",
@@ -86,11 +88,14 @@ export default async function CardCategoryPage({
     );
   }
 
-  const drilldown = await getCardCategoryTransactions({
-    month,
-    categoryIds,
-    cardKey,
-  });
+  const [drilldown, merchants] = await Promise.all([
+    getCardCategoryTransactions({ month, categoryIds, cardKey }),
+    // Every merchant, not just ones already in this category -- the
+    // whole point of manual tagging here is often a cross-card merge
+    // (e.g. a new card's FX fees onto an existing "FX Charges" merchant
+    // another card's fees already use). See TagTransactionForm.
+    listMerchants(),
+  ]);
 
   return (
     <div>
@@ -161,22 +166,32 @@ export default async function CardCategoryPage({
           ) : (
             <ul className="divide-y divide-line">
               {drilldown.transactions.map((txn) => (
-                <li
-                  key={txn.id}
-                  className="flex items-center justify-between gap-3 py-2.5 text-sm"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-ink">{txn.description}</div>
-                    <div className="text-xs text-ink-faint">
-                      {formatIsoDate(txn.transactionDate)} · {txn.cardLabel}
-                      {txn.merchantDisplayName
-                        ? ` · ${txn.merchantDisplayName}`
-                        : ""}
+                <li key={txn.id} className="py-2.5 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-ink">{txn.description}</div>
+                      <div className="text-xs text-ink-faint">
+                        {formatIsoDate(txn.transactionDate)} · {txn.cardLabel}
+                        {txn.merchantDisplayName
+                          ? ` · ${txn.merchantDisplayName}`
+                          : ""}
+                      </div>
+                    </div>
+                    <div className="shrink-0 font-display text-sm font-bold text-ink">
+                      {formatMoneyDisplay(txn.amount, txn.currency)}
                     </div>
                   </div>
-                  <div className="shrink-0 font-display text-sm font-bold text-ink">
-                    {formatMoneyDisplay(txn.amount, txn.currency)}
-                  </div>
+                  {/* No merchant_id at all -- e.g. an IGST/FX-fee line,
+                      deliberately never auto-tagged at import time (see
+                      MerchantService.tagTransactionToMerchant's own
+                      comment). This is the only place such a
+                      transaction can ever be assigned to a merchant. */}
+                  {!txn.merchantId && (
+                    <TagTransactionForm
+                      transactionId={txn.id}
+                      merchants={merchants}
+                    />
+                  )}
                 </li>
               ))}
             </ul>
