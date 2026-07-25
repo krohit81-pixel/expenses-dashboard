@@ -10,6 +10,36 @@ export function shiftMonth(month: string, delta: number): string {
   return date.toISOString().slice(0, 7);
 }
 
+/**
+ * Which cycle month is "current" right now -- distinct from the
+ * literal calendar month (currentMonth()) once the Execution phase
+ * has begun. Atlas's monthly cycle (see lib/dates/phase.ts) rolls
+ * into next month's cycle starting the 25th: Jul 25 - Aug 5 is
+ * explicitly August's own Execution window, not July's (see
+ * getPhaseInfoForCycle), so from the 25th on, "the cycle you're
+ * operating in" is next month's even though the calendar date hasn't
+ * turned over yet. Days 1-24 stay on the calendar month unchanged
+ * (day 1-5 are still the tail of the PREVIOUS month's rolled-over
+ * Execution window, but that window's own cycle target is already the
+ * calendar month itself -- see getCurrentPhase's day 1-5 branch -- so
+ * no rollover is needed there).
+ *
+ * v1.2.2: added after a household report that the Execution phase
+ * hadn't "switched on" for August despite it being the 25th -- Home's
+ * cycle dropdown, Intel's Card-level breakdown, Budgets' default
+ * month, and the card-payment quick log's reviewing cycle all used to
+ * default to currentMonth() (July, still) rather than this. Anywhere
+ * a screen means "the cycle I should default to right now," use this
+ * instead of currentMonth() -- currentMonth() stays the literal
+ * calendar month for anything genuinely calendar-dated (real
+ * transaction activity, the Calendar tab's own month view).
+ */
+export function currentCycleMonth(date: Date = new Date()): string {
+  const day = date.getUTCDate();
+  const base = date.toISOString().slice(0, 7);
+  return day >= 25 ? shiftMonth(base, 1) : base;
+}
+
 export function monthLabel(month: string): string {
   return new Date(`${month}-01T00:00:00Z`).toLocaleDateString("en-US", {
     month: "long",

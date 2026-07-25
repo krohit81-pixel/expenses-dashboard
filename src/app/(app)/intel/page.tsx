@@ -13,10 +13,10 @@ import { getUserSettings } from "@/services/UserSettingsService";
 import { getStoredInsight } from "@/services/IntelService";
 import {
   getCardCategoryBreakdown,
+  getCardExpenseForMonths,
   hasAnyCreditCardStatement,
   type CardCategoryAmount,
 } from "@/services/CreditCardIntelService";
-import { getPlannedCardDuesForMonths } from "@/services/BudgetSnapshotService";
 import { listAtlasCategories } from "@/services/MerchantService";
 import { buildDonutGradientStops, buildDonutSlices } from "@/lib/intel/donut";
 import {
@@ -28,6 +28,7 @@ import {
   type Money,
 } from "@/lib/money";
 import {
+  currentCycleMonth,
   currentMonth,
   isValidMonth,
   shiftMonth,
@@ -61,10 +62,16 @@ const CATEGORY_COLORS = [
  * down the page. Never collides with a real finance.categories id
  * (those are uuids).
  *
- * v1.6.3: the amount behind this line is the household's own
- * planned/logged card payment for the cycle (see
- * getPlannedCardDuesForMonths), not real per-statement spend -- see
- * that function's own comment for why.
+ * v1.6.3: the amount behind this line used to be the household's own
+ * planned/logged card payment for the cycle, not real per-statement
+ * spend -- only one card had a statement parser then, so real data
+ * undercounted the true multi-card obligation.
+ *
+ * v1.2.2: switched to real per-statement spend (getCardExpenseForMonths)
+ * now that every one of the household's cards has a parser -- "reflect
+ * credit card dues as per total from all credit card loaded as per the
+ * cycles, rather than the ones used in planning." See that function's
+ * own comment for how it sums across every card for a cycle month.
  */
 const CARD_DUES_CATEGORY_ID = "__credit_card_dues__";
 const CARD_DUES_LABEL = "Credit Card Dues";
@@ -383,10 +390,16 @@ export default async function IntelPage({
   searchParams: Promise<{ cardMonth?: string }>;
 }) {
   const { cardMonth: cardMonthParam } = await searchParams;
+  // v1.2.2: the cycle-current month, not the literal calendar month --
+  // a credit card statement's own billing cycle is exactly the kind of
+  // thing currentCycleMonth's rollover exists for (see its own
+  // comment): from the 25th on, "the cycle you're reviewing statements
+  // for" is next month's, matching Home's cycle dropdown and Budgets'
+  // default month.
   const cardMonth = isValidMonth(cardMonthParam)
     ? cardMonthParam
-    : currentMonth();
-  const isCurrentCardMonth = cardMonth === currentMonth();
+    : currentCycleMonth();
+  const isCurrentCardMonth = cardMonth === currentCycleMonth();
 
   const user = await requireUser();
   const now = new Date();
@@ -431,32 +444,36 @@ export default async function IntelPage({
   // below (by-category donuts, month-on-month) -- every month those
   // charts touch, in one query rather than one per month.
   //
-  // v1.6.3: this now comes from the household's own planned/logged
-  // credit card payment for that cycle (a one-off transfer tagged to
-  // cycle_month, the same thing Home's "Card payments due" shows --
-  // see getPlannedCardDuesForMonths / computeCardDuesTotal), not from
-  // real per-statement data (CreditCardIntelService). v1.6.1/v1.6.2
-  // used real statement data for settled months and the planned figure
-  // only for the projected month, but that was still wrong for
-  // June/July: only one of the household's cards has a statement
-  // parser today, so real per-statement data for ANY month undercounts
-  // their true multi-card obligation, not just a future one. The
-  // planned/logged figure is what the household actually tracks as
-  // their full card cycle payment regardless of parser coverage, so it
-  // now applies uniformly to every month here. Safe to add directly on
-  // top of the ledger's own expense total (not double-counted): this
-  // transfer is excluded from getCashFlowSummary by design (see that
-  // module's own comment on why), and computeCardDuesTotal deliberately
-  // excludes one-off *expenses* (which getCashFlowSummary already
-  // counts) -- see that function's own comment. The dedicated
-  // Card-level breakdown section below is unaffected by any of this;
-  // it's still real per-statement data on purpose, since showing what
-  // statement data actually exists is its whole point.
+  // v1.6.3 used the household's own planned/logged credit card payment
+  // for the cycle here, not real per-statement data: only one card had
+  // a statement parser then, so real per-statement data undercounted
+  // the true multi-card obligation for every month.
+  //
+  // v1.2.2: switched to real per-statement spend, summed across every
+  // card for the cycle month (getCardExpenseForMonths) -- "reflect
+  // credit card dues as per total from all credit card loaded as per
+  // the cycles, rather than the ones used in planning," now that every
+  // one of the household's cards has a parser. A future month with no
+  // statement yet (nothing to parse) simply has no entry in the
+  // returned map, same "absence means zero" convention as everywhere
+  // else -- see getCardExpenseForMonths' own comment. Safe to add
+  // directly on top of the ledger's own expense total (not
+  // double-counted): real credit_card_transactions rows are entirely
+  // separate from finance.transactions, which is all getCashFlowSummary
+  // ever reads. The dedicated Card-level breakdown section below reads
+  // the exact same underlying data, just per-card/per-category instead
+  // of lumped and summed across every card.
   const cardDuesMonths = [...trend.map((t) => t.month), nextMonth];
-  const plannedCardDues = await getPlannedCardDuesForMonths(cardDuesMonths);
+  const cardExpenseByMonth = await getCardExpenseForMonths(cardDuesMonths);
+  const realCardDues = new Map(
+    Array.from(cardExpenseByMonth.entries()).map(([month, t]) => [
+      month,
+      t.totalSpend,
+    ]),
+  );
 
   function combinedExpense(month: string, ledgerExpense: Money): Money {
-    const dues = plannedCardDues.get(month);
+    const dues = realCardDues.get(month);
     return dues ? addMoney(ledgerExpense, dues) : ledgerExpense;
   }
 
@@ -478,7 +495,7 @@ export default async function IntelPage({
   // month with heavy card dues shows it prominently rather than always
   // pinning it to a fixed position.
   function donut(summary: CashFlowSummary, month: string) {
-    const dues = plannedCardDues.get(month);
+    const dues = realCardDues.get(month);
     const totalExpense = combinedExpense(month, summary.totalExpense);
 
     const categoriesWithCardDues = [

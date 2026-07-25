@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  currentCycleMonth,
   currentMonth,
   isValidMonth,
   monthLabel,
   monthOptions,
   shiftMonth,
 } from "./month";
+
+function utcDate(year: number, month1Indexed: number, day: number): Date {
+  return new Date(Date.UTC(year, month1Indexed - 1, day));
+}
 
 describe("shiftMonth", () => {
   it("advances within the same year", () => {
@@ -53,6 +58,33 @@ describe("isValidMonth", () => {
     expect(isValidMonth("not-a-month")).toBe(false);
     expect(isValidMonth(undefined)).toBe(false);
     expect(isValidMonth("")).toBe(false);
+  });
+});
+
+describe("currentCycleMonth", () => {
+  it("stays on the calendar month for day 24 (still Planning)", () => {
+    expect(currentCycleMonth(utcDate(2026, 7, 24))).toBe("2026-07");
+  });
+
+  it("rolls to next month starting day 25 (Execution begins)", () => {
+    expect(currentCycleMonth(utcDate(2026, 7, 25))).toBe("2026-08");
+  });
+
+  it("stays rolled over through the end of the month", () => {
+    expect(currentCycleMonth(utcDate(2026, 7, 31))).toBe("2026-08");
+  });
+
+  it("matches the calendar month again for days 1-5 (still Execution, but already next month)", () => {
+    expect(currentCycleMonth(utcDate(2026, 8, 2))).toBe("2026-08");
+  });
+
+  it("matches the calendar month through Tracking and Planning (days 6-24)", () => {
+    expect(currentCycleMonth(utcDate(2026, 8, 10))).toBe("2026-08");
+    expect(currentCycleMonth(utcDate(2026, 8, 20))).toBe("2026-08");
+  });
+
+  it("rolls over the calendar year correctly (December into January)", () => {
+    expect(currentCycleMonth(utcDate(2026, 12, 25))).toBe("2027-01");
   });
 });
 

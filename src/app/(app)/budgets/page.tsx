@@ -9,7 +9,7 @@ import { requireUser } from "@/lib/auth/require-user";
 import { formatMoneyDisplay, negateMoney, sumMoney } from "@/lib/money";
 import { computeProjectedClosing } from "@/lib/budget/home-stats";
 import {
-  currentMonth,
+  currentCycleMonth,
   isValidMonth,
   monthLabel,
   shiftMonth,
@@ -47,8 +47,14 @@ export default async function BudgetsPage({
   searchParams: Promise<{ month?: string }>;
 }) {
   const { month: monthParam } = await searchParams;
-  const month = isValidMonth(monthParam) ? monthParam : currentMonth();
-  const isCurrentMonth = month === currentMonth();
+  // v1.2.2: cycle-current, not calendar-current -- see
+  // currentCycleMonth's own comment (lib/dates/month.ts). Matches
+  // Home's cycle dropdown and Intel's Card-level breakdown, so this
+  // page's own default cycle rolls into next month starting the 25th
+  // too, instead of staying on the just-ended month through the start
+  // of the new one's Execution window.
+  const month = isValidMonth(monthParam) ? monthParam : currentCycleMonth();
+  const isCurrentMonth = month === currentCycleMonth();
 
   const user = await requireUser();
   const [snapshot, accounts, settings] = await Promise.all([

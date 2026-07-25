@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 
 import { Spinner } from "@/components/ui/spinner";
-import { monthOptions } from "@/lib/dates/month";
+import { currentCycleMonth, monthOptions } from "@/lib/dates/month";
 
 import {
   logCardPaymentAction,
@@ -44,7 +44,15 @@ export function CardPaymentQuickLog({
     initialState,
   );
   const [open, setOpen] = useState(false);
-  const [selectedCycle, setSelectedCycle] = useState(CYCLE_WINDOW[1]!.value); // next month, matches old default
+  // v1.2.2: the cycle-current month (rolls into next month starting
+  // the 25th, see currentCycleMonth's own comment), not a fixed index
+  // into CYCLE_WINDOW -- this was previously CYCLE_WINDOW[1], which is
+  // just the literal calendar month regardless of the day, so this
+  // panel kept defaulting to "July" through July 25-31 even though
+  // Home and Intel had already rolled over to reviewing August. Still
+  // always inside CYCLE_WINDOW's range (last month through +3), since
+  // the rollover is at most one month ahead of the calendar month.
+  const [selectedCycle, setSelectedCycle] = useState(currentCycleMonth());
   const loggedForCycle =
     loggedCardAccountIdsByCycle[selectedCycle] ?? new Set<string>();
   const [selectedCard, setSelectedCard] = useState<string>(

@@ -14,7 +14,7 @@ import {
   ZERO,
   type Money,
 } from "@/lib/money";
-import { currentMonth, monthLabel, shiftMonth } from "@/lib/dates/month";
+import { currentCycleMonth, monthLabel, shiftMonth } from "@/lib/dates/month";
 import { Hero } from "@/components/ui/hero";
 import { HomePhaseView, type MonthOption } from "@/features/home/HomePhaseView";
 
@@ -47,7 +47,13 @@ function ordinalSuffix(day: number | null | undefined): string {
  */
 export default async function HomePage() {
   const user = await requireUser();
-  const thisMonth = currentMonth();
+  // v1.2.2: the cycle-current month (rolls into next month's cycle
+  // starting the 25th, see currentCycleMonth's own comment), not the
+  // literal calendar month -- this is what makes the Execution phase
+  // actually "switch on" for August once its own cycle window (Jul
+  // 25-Aug 5) has begun, instead of staying locked to Planning until
+  // the calendar flips to August.
+  const thisMonth = currentCycleMonth();
   const monthWindow = [-6, -5, -4, -3, -2, -1, 0, 1, 2, 3].map((offset) =>
     shiftMonth(thisMonth, offset),
   );
