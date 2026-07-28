@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  FileText,
   Landmark,
   ListTree,
   LogOut,
@@ -65,6 +66,13 @@ const ITEMS = [
     description:
       "The Merchant Dictionary's category list — rename, add, deactivate.",
     icon: ListTree,
+  },
+  {
+    href: "/ais",
+    label: "AIS",
+    description:
+      "Annual Information Statement, FY 2025-26 — income, TDS/TCS, and big transactions explained.",
+    icon: FileText,
   },
   {
     href: "/settings",
