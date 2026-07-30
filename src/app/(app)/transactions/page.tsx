@@ -3,17 +3,29 @@ import type { Metadata } from "next";
 import { listTransactions } from "@/services/TransactionService";
 import { listAccounts } from "@/services/AccountService";
 import { listCategories } from "@/services/CategoryService";
-import { getUserSettings } from "@/services/UserSettingsService";
-import { requireUser } from "@/lib/auth/require-user";
-import { monthOptions } from "@/lib/dates/month";
 import { Hero } from "@/components/ui/hero";
-import { AddTransactionSection } from "@/features/transactions/components/AddTransactionSection";
-import { CardPaymentQuickLog } from "@/features/transactions/components/CardPaymentQuickLog";
 import { RecentTransactionsSection } from "@/features/transactions/components/RecentTransactionsSection";
 
 export const metadata: Metadata = {
   title: "Transactions",
 };
+
+/**
+ * v2.0.0: retired as a primary destination (dropped from the bottom
+ * nav) and demoted to a read-only historical log, reachable from
+ * More. The household is moving Atlas away from an execution/logging
+ * app toward a reporting one — "key in what a cycle is expected to
+ * look like" now happens entirely on Recurring (tag a template to a
+ * cycle) and Budgets (view/edit what's tagged), neither of which
+ * needed anything from this page to begin with. What's gone from
+ * here specifically: CardPaymentQuickLog (logging a card due as a
+ * one-off transfer) and AddTransactionSection (ad-hoc income/expense/
+ * transfer entry) — both still exist as files, just unused, in case a
+ * future version wants either back. RecentTransactionsSection is
+ * still rendered, but with readOnly passed all the way down to
+ * TransactionRow — no edit, delete, or mark-paid/pending controls on
+ * any row anymore, just a filterable list of what already happened.
+ */
 
 interface TransactionsPageProps {
   searchParams: Promise<{
@@ -31,25 +43,12 @@ export default async function TransactionsPage({
   searchParams,
 }: TransactionsPageProps) {
   const params = await searchParams;
-  const user = await requireUser();
 
   const kind = KIND_VALUES.find((value) => value === params.kind);
 
-  // Matches CardPaymentQuickLog's own CYCLE_WINDOW exactly — last month
-  // through 3 months ahead, so its cycle selector has real data for
-  // every option it offers.
-  const cardCycleWindow = monthOptions(5, -1).map((m) => m.value);
-
-  const [
-    accounts,
-    categories,
-    settings,
-    { transactions, total },
-    ...cycleTransfers
-  ] = await Promise.all([
+  const [accounts, categories, { transactions, total }] = await Promise.all([
     listAccounts(),
     listCategories(true),
-    getUserSettings(user.id),
     listTransactions({
       accountId: params.account || undefined,
       kind,
@@ -57,9 +56,6 @@ export default async function TransactionsPage({
       occurredFrom: params.from || undefined,
       occurredTo: params.to || undefined,
     }),
-    ...cardCycleWindow.map((cycleMonth) =>
-      listTransactions({ kind: "transfer", cycleMonth, limit: 200 }),
-    ),
   ]);
 
   const accountName = new Map(
@@ -68,43 +64,17 @@ export default async function TransactionsPage({
   const categoryName = new Map(
     categories.map((category) => [category.id, category.name]),
   );
-  const defaultCurrency = settings?.baseCurrency ?? "USD";
   const incomeTransactions = transactions.filter((t) => t.kind === "income");
   const expenseTransactions = transactions.filter((t) => t.kind !== "income");
-
-  const cardAccounts = accounts.filter((a) => a.accountType === "credit_card");
-  const checkingAccounts = accounts.filter(
-    (a) => a.accountType === "checking" || a.accountType === "savings",
-  );
-  const loggedCardAccountIdsByCycle: Record<
-    string,
-    Set<string>
-  > = Object.fromEntries(
-    cardCycleWindow.map((cycleMonth, i) => [
-      cycleMonth,
-      new Set(
-        cycleTransfers[i]!.transactions.map((t) => t.transferAccountId).filter(
-          (id): id is string => id !== null,
-        ),
-      ),
-    ]),
-  );
 
   return (
     <div>
       <Hero
         title="Transactions"
-        sub="Log a payment, add income, or record a transfer."
+        sub="Read-only historical log. To key in what a cycle is expected to look like, use Recurring or Budgets."
       />
 
       <div className="space-y-6 p-5 sm:p-8">
-        <CardPaymentQuickLog
-          cardAccounts={cardAccounts}
-          checkingAccounts={checkingAccounts}
-          loggedCardAccountIdsByCycle={loggedCardAccountIdsByCycle}
-          defaultCurrency={defaultCurrency}
-        />
-
         <div className="rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
           <h2 className="mb-3 font-display text-[15px] font-bold text-ink">
             Filter
@@ -212,13 +182,7 @@ export default async function TransactionsPage({
           total={total}
           accountName={accountName}
           categoryName={categoryName}
-        />
-
-        <AddTransactionSection
-          accounts={accounts}
-          categories={categories}
-          defaultCurrency={defaultCurrency}
-          hasAccounts={accounts.length > 0}
+          readOnly
         />
       </div>
     </div>

@@ -143,8 +143,10 @@ export async function getMonthlyBudgetSnapshot(
  * several specific months at once (prev/current/next, plus the trend
  * months). One getMonthlyBudgetSnapshot call per month, run in
  * parallel -- each is already a small, fixed number of queries (see
- * that function's own reasoning), and this is the same access pattern
- * HomePhaseView already uses one month at a time from the client.
+ * that function's own reasoning). Still used by IntelService's AI
+ * insight generation; Intel's own Card-level breakdown switched to
+ * real per-statement dues in v1.12.2 and Home dropped this figure
+ * entirely in v2.0.0 (see dashboard/page.tsx's own comment).
  * A month with no such transfer simply has no entry in the returned
  * Map (not a zeroed-out one) -- same "absence means zero" convention
  * as every other summary query in this codebase.

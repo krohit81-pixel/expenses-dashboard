@@ -40,10 +40,20 @@ export function TransactionRow({
   transaction,
   accountName,
   categoryName,
+  readOnly = false,
 }: {
   transaction: TransactionRowData;
   accountName: Map<string, string>;
   categoryName: Map<string, string>;
+  /**
+   * v2.0.0: Transactions is now a read-only historical log (see its own
+   * page) — no edit, delete, or mark-paid/pending actions. Passed down
+   * from RecentTransactionsSection rather than defaulting true, since
+   * this same row renders elsewhere too (not read-only there). The
+   * underlying actions/forms below are untouched, just not rendered —
+   * easy to bring back if a future version wants inline editing again.
+   */
+  readOnly?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -68,7 +78,7 @@ export function TransactionRow({
     }
   }, [updateState.success]);
 
-  if (editing) {
+  if (editing && !readOnly) {
     return (
       <li className="flex flex-wrap items-end gap-3 border-b border-line bg-bg px-[18px] py-3.5 last:border-b-0">
         <form
@@ -193,90 +203,94 @@ export function TransactionRow({
             {transaction.kind === "income" ? "+" : "\u2212"}
             {formatMoneyDisplay(transaction.amount, transaction.currencyCode)}
           </p>
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            className="flex size-[26px] items-center justify-center rounded-full bg-bg text-xs text-ink-soft"
-            aria-label="Edit"
-          >
-            &#9998;
-          </button>
-          {confirmingDelete ? (
-            <div className="flex shrink-0 items-center gap-1">
-              <form action={voidAction}>
-                <input type="hidden" name="id" value={transaction.id} />
-                <button
-                  type="submit"
-                  disabled={isVoidPending}
-                  className="flex h-[26px] items-center justify-center gap-1 rounded-full bg-negative px-2.5 font-display text-[10px] font-bold text-white disabled:opacity-70"
-                >
-                  {isVoidPending && <Spinner className="size-3" />}
-                  Confirm
-                </button>
-              </form>
-              <button
-                type="button"
-                onClick={() => setConfirmingDelete(false)}
-                className="flex h-[26px] items-center justify-center rounded-full bg-bg px-2.5 font-display text-[10px] font-bold text-ink-soft"
-              >
-                No
-              </button>
-            </div>
-          ) : (
+          {!readOnly && (
             <button
               type="button"
-              onClick={() => setConfirmingDelete(true)}
-              className="flex size-[26px] shrink-0 items-center justify-center rounded-full bg-bg text-xs text-negative"
-              aria-label="Delete"
+              onClick={() => setEditing(true)}
+              className="flex size-[26px] items-center justify-center rounded-full bg-bg text-xs text-ink-soft"
+              aria-label="Edit"
             >
-              &#128465;
+              &#9998;
             </button>
           )}
+          {!readOnly &&
+            (confirmingDelete ? (
+              <div className="flex shrink-0 items-center gap-1">
+                <form action={voidAction}>
+                  <input type="hidden" name="id" value={transaction.id} />
+                  <button
+                    type="submit"
+                    disabled={isVoidPending}
+                    className="flex h-[26px] items-center justify-center gap-1 rounded-full bg-negative px-2.5 font-display text-[10px] font-bold text-white disabled:opacity-70"
+                  >
+                    {isVoidPending && <Spinner className="size-3" />}
+                    Confirm
+                  </button>
+                </form>
+                <button
+                  type="button"
+                  onClick={() => setConfirmingDelete(false)}
+                  className="flex h-[26px] items-center justify-center rounded-full bg-bg px-2.5 font-display text-[10px] font-bold text-ink-soft"
+                >
+                  No
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(true)}
+                className="flex size-[26px] shrink-0 items-center justify-center rounded-full bg-bg text-xs text-negative"
+                aria-label="Delete"
+              >
+                &#128465;
+              </button>
+            ))}
         </div>
-        {voidState.error && (
+        {!readOnly && voidState.error && (
           <p className="text-xs text-negative">{voidState.error}</p>
         )}
-        {transaction.status === "pending" ? (
-          <form action={markPaidAction}>
-            <input type="hidden" name="id" value={transaction.id} />
-            <button
-              type="submit"
-              disabled={isMarkPaidPending}
-              className="flex items-center gap-1 rounded-full bg-positive-soft px-2.5 py-1 font-display text-[10px] font-bold text-positive disabled:opacity-70"
-            >
-              {isMarkPaidPending && <Spinner className="size-3" />}
-              {/* "Paid" reads wrong for income — you don't pay yourself a
-                  salary, you receive it. Same action either way (pending
-                  -> posted), just the label matching what actually
-                  happened for this transaction's direction. */}
-              {transaction.kind === "income" ? "Mark received" : "Mark paid"}
-            </button>
-            {markPaidState.error && (
-              <p className="mt-1 text-[10px] text-negative">
-                {markPaidState.error}
-              </p>
-            )}
-          </form>
-        ) : (
-          <form action={markPendingAction}>
-            <input type="hidden" name="id" value={transaction.id} />
-            <button
-              type="submit"
-              disabled={isMarkPendingPending}
-              className="flex items-center gap-1 rounded-full bg-bg px-2.5 py-1 font-display text-[10px] font-bold text-ink-soft disabled:opacity-70"
-            >
-              {isMarkPendingPending && <Spinner className="size-3" />}
-              {transaction.kind === "income"
-                ? "Undo — not actually received"
-                : "Undo — not actually paid"}
-            </button>
-            {markPendingState.error && (
-              <p className="mt-1 text-[10px] text-negative">
-                {markPendingState.error}
-              </p>
-            )}
-          </form>
-        )}
+        {!readOnly &&
+          (transaction.status === "pending" ? (
+            <form action={markPaidAction}>
+              <input type="hidden" name="id" value={transaction.id} />
+              <button
+                type="submit"
+                disabled={isMarkPaidPending}
+                className="flex items-center gap-1 rounded-full bg-positive-soft px-2.5 py-1 font-display text-[10px] font-bold text-positive disabled:opacity-70"
+              >
+                {isMarkPaidPending && <Spinner className="size-3" />}
+                {/* "Paid" reads wrong for income — you don't pay yourself a
+                    salary, you receive it. Same action either way (pending
+                    -> posted), just the label matching what actually
+                    happened for this transaction's direction. */}
+                {transaction.kind === "income" ? "Mark received" : "Mark paid"}
+              </button>
+              {markPaidState.error && (
+                <p className="mt-1 text-[10px] text-negative">
+                  {markPaidState.error}
+                </p>
+              )}
+            </form>
+          ) : (
+            <form action={markPendingAction}>
+              <input type="hidden" name="id" value={transaction.id} />
+              <button
+                type="submit"
+                disabled={isMarkPendingPending}
+                className="flex items-center gap-1 rounded-full bg-bg px-2.5 py-1 font-display text-[10px] font-bold text-ink-soft disabled:opacity-70"
+              >
+                {isMarkPendingPending && <Spinner className="size-3" />}
+                {transaction.kind === "income"
+                  ? "Undo — not actually received"
+                  : "Undo — not actually paid"}
+              </button>
+              {markPendingState.error && (
+                <p className="mt-1 text-[10px] text-negative">
+                  {markPendingState.error}
+                </p>
+              )}
+            </form>
+          ))}
       </div>
     </li>
   );

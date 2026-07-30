@@ -34,6 +34,7 @@ export function RecentTransactionsSection({
   total,
   accountName,
   categoryName,
+  readOnly = false,
 }: {
   incomeTransactions: TransactionRowData[];
   expenseTransactions: TransactionRowData[];
@@ -41,6 +42,8 @@ export function RecentTransactionsSection({
   total: number;
   accountName: Map<string, string>;
   categoryName: Map<string, string>;
+  /** v2.0.0: threaded straight through to each TransactionRow — see its own comment. */
+  readOnly?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const expenseGroups = groupByCycleMonth(expenseTransactions);
@@ -85,6 +88,7 @@ export function RecentTransactionsSection({
                   transaction={transaction}
                   accountName={accountName}
                   categoryName={categoryName}
+                  readOnly={readOnly}
                 />
               ))}
             </SplitCard>
@@ -112,6 +116,7 @@ export function RecentTransactionsSection({
                           transaction={transaction}
                           accountName={accountName}
                           categoryName={categoryName}
+                          readOnly={readOnly}
                         />
                       ))}
                     </ul>

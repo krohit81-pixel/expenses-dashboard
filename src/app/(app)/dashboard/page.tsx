@@ -1,8 +1,8 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 
 import { requireUser } from "@/lib/auth/require-user";
-import { listAccounts, getAccountBalance } from "@/services/AccountService";
-import { listRecurringTransactions } from "@/services/RecurringTransactionService";
+import { listAccounts } from "@/services/AccountService";
 import { getUserSettings } from "@/services/UserSettingsService";
 import { getMonthlyBudgetSnapshot } from "@/services/BudgetSnapshotService";
 import {
@@ -10,208 +10,353 @@ import {
   formatMoneyDisplay,
   isNegativeMoney,
   moneyToDbNumber,
+  negateMoney,
   sumMoney,
-  ZERO,
   type Money,
 } from "@/lib/money";
-import { currentCycleMonth, monthLabel, shiftMonth } from "@/lib/dates/month";
+import { computeCommittedExpenseTotal } from "@/lib/budget/home-stats";
+import {
+  currentCycleMonth,
+  isValidMonth,
+  monthLabel,
+  shiftMonth,
+} from "@/lib/dates/month";
 import { Hero } from "@/components/ui/hero";
-import { HomePhaseView, type MonthOption } from "@/features/home/HomePhaseView";
+import { transactionDisplayTitle } from "@/features/transactions/format";
 
 export const metadata: Metadata = {
   title: "Home",
 };
 
-function ordinalSuffix(day: number | null | undefined): string {
-  if (!day) return "";
-  if (day % 10 === 1 && day !== 11) return "st";
-  if (day % 10 === 2 && day !== 12) return "nd";
-  if (day % 10 === 3 && day !== 13) return "rd";
-  return "th";
+interface OutlookLine {
+  id: string;
+  title: string;
+  amount: Money;
+  currencyCode: string;
+}
+
+const MAX_ROWS = 6;
+
+function sortDescending(lines: OutlookLine[]): OutlookLine[] {
+  return [...lines].sort(
+    (a, b) => moneyToDbNumber(b.amount) - moneyToDbNumber(a.amount),
+  );
+}
+
+const STAT_CARD_BG: Record<"positive" | "negative" | "accent", string> = {
+  positive: "bg-surface",
+  negative: "bg-surface",
+  accent: "bg-accent-soft",
+};
+const STAT_CARD_TEXT: Record<"positive" | "negative" | "accent", string> = {
+  positive: "text-positive",
+  negative: "text-negative",
+  accent: "text-accent",
+};
+
+function StatCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "positive" | "negative" | "accent";
+}) {
+  return (
+    <div
+      className={`rounded-2xl p-3 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)] ${STAT_CARD_BG[tone]}`}
+    >
+      <div className="font-display text-[9.5px] font-bold uppercase tracking-wide text-ink-faint">
+        {label}
+      </div>
+      <div
+        className={`mt-1 truncate font-display text-sm font-extrabold ${STAT_CARD_TEXT[tone]}`}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function OutlookList({
+  title,
+  hint,
+  lines,
+  currency,
+  emptyLabel,
+  amountTone,
+}: {
+  title: string;
+  hint: string;
+  lines: OutlookLine[];
+  currency: string;
+  emptyLabel: string;
+  amountTone: "positive" | "negative";
+}) {
+  const shown = lines.slice(0, MAX_ROWS);
+  const remaining = lines.length - shown.length;
+
+  return (
+    <section>
+      <div className="mb-3 flex items-baseline justify-between">
+        <h2 className="font-display text-[15px] font-bold text-ink">{title}</h2>
+        <span className="text-xs text-ink-faint">{hint}</span>
+      </div>
+
+      {lines.length === 0 ? (
+        <div className="rounded-[20px] bg-surface p-4 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+          <p className="text-sm text-ink-faint">{emptyLabel}</p>
+        </div>
+      ) : (
+        <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+          {shown.map((line) => (
+            <div
+              key={line.id}
+              className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-3.5 last:border-b-0"
+            >
+              <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
+                {line.title}
+              </p>
+              <p
+                className={`whitespace-nowrap font-display text-sm font-bold ${
+                  amountTone === "positive" ? "text-positive" : "text-negative"
+                }`}
+              >
+                {amountTone === "positive" ? "+" : "−"}
+                {formatMoneyDisplay(line.amount, line.currencyCode || currency)}
+              </p>
+            </div>
+          ))}
+          {remaining > 0 && (
+            <div className="px-[18px] py-2.5 text-xs text-ink-faint">
+              +{remaining} more on{" "}
+              <Link
+                href="/budgets"
+                className="font-semibold text-accent underline"
+              >
+                Budgets
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
 }
 
 /**
- * v0.5.1: replaces the old Dashboard content. v0.5.3: adds the cycle
- * dropdown — the user picks a month, and the checklist/outlook below
- * refresh to that month's own tagged data, with the phase tabs
- * auto-defaulting per month (see lib/dates/phase.ts's
- * defaultPhaseForMonth) while still browsable within whatever that
- * month allows (see phaseAvailability — past=Tracking only,
- * future=Planning only, current=all three).
+ * v2.0.0: total Home rewrite, replacing HomePhaseView's three-phase
+ * Planning/Execution/Tracking view entirely (deleted, along with
+ * lib/dates/phase.ts and features/home/ChecklistItem.tsx). At the
+ * household's request, Atlas is moving away from being an
+ * execution/transaction-tracking app (log it, mark it paid, confirm
+ * it happened) toward a reporting/intel-first one: you key in what a
+ * cycle is expected to look like — via Recurring templates tagged to
+ * that cycle_month, exactly as before — and Home just reports how
+ * that cycle is shaping up. There is no more "mark as paid/received"
+ * step on Home; whatever is tagged to a cycle is assumed to happen.
+ * Actually editing/tagging still happens on Recurring/Budgets (kept
+ * exactly as they were) — Home only renders a condensed read of the
+ * same getMonthlyBudgetSnapshot data Budgets already shows, capped to
+ * the largest lines, with a link out to Budgets for the full list.
  *
- * Fetches a 10-month window (6 back, current, 3 ahead) in parallel up
- * front rather than fetching on-demand when the dropdown changes —
- * avoids a server round-trip per selection, and the data volumes here
- * (a handful of recurring items + one-offs per month) are small enough
- * that fetching 6 months costs little over fetching 2.
+ * The Accounts strip (cash balances) that used to sit at the bottom
+ * of Home is gone too, at the household's explicit request — real
+ * balances routinely drift from what's tagged/expected here, and
+ * showing both side by side read as if they should reconcile when
+ * they don't. Balances still live on /accounts.
+ *
+ * The Transactions tab (logging, marking paid, ad-hoc entries) is
+ * also retired as of v2.0 — nothing here links to "log a payment"
+ * anymore. It's still reachable, read-only, from More.
  */
-export default async function HomePage() {
-  const user = await requireUser();
-  // v1.2.2: the cycle-current month (rolls into next month's cycle
-  // starting the 25th, see currentCycleMonth's own comment), not the
-  // literal calendar month -- this is what makes the Execution phase
-  // actually "switch on" for August once its own cycle window (Jul
-  // 25-Aug 5) has begun, instead of staying locked to Planning until
-  // the calendar flips to August.
-  const thisMonth = currentCycleMonth();
-  const monthWindow = [-6, -5, -4, -3, -2, -1, 0, 1, 2, 3].map((offset) =>
-    shiftMonth(thisMonth, offset),
-  );
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
+  const { month: monthParam } = await searchParams;
+  const month = isValidMonth(monthParam) ? monthParam : currentCycleMonth();
+  const isCurrentMonth = month === currentCycleMonth();
 
-  const [accounts, recurring, settings, ...snapshots] = await Promise.all([
+  const user = await requireUser();
+  const [snapshot, accounts, settings] = await Promise.all([
+    getMonthlyBudgetSnapshot(month),
+    // Only used to label one-off transfers ("Credit card dues" instead
+    // of "Transfer to another account") — not for balances, which no
+    // longer appear on Home at all.
     listAccounts(),
-    listRecurringTransactions(),
     getUserSettings(user.id),
-    ...monthWindow.map((m) => getMonthlyBudgetSnapshot(m)),
   ]);
 
-  const months: MonthOption[] = monthWindow.map((month, i) => ({
-    month,
-    label: monthLabel(month),
-    snapshot: snapshots[i]!,
-    isCurrentRealMonth: month === thisMonth,
-  }));
-
-  const accountName = new Map(
-    accounts.map((account) => [account.id, account.name]),
-  );
   const currency = settings?.baseCurrency ?? "USD";
+  const accountName = new Map(accounts.map((a) => [a.id, a.name]));
 
-  const balances = await Promise.all(
-    accounts.map(async (account) => ({
-      account,
-      balance: await getAccountBalance(account.id),
+  const oneOffIncome = snapshot.oneOff.filter((l) => l.kind === "income");
+  const oneOffCommitted = snapshot.oneOff.filter(
+    (l) =>
+      l.kind === "expense" ||
+      (l.kind === "transfer" && l.transferReducesCashOnHand),
+  );
+
+  const incomeLines = sortDescending([
+    ...snapshot.income.map((l) => ({
+      id: l.id,
+      title: l.name,
+      amount: l.amount,
+      currencyCode: l.currencyCode,
     })),
+    ...oneOffIncome.map((l) => ({
+      id: l.id,
+      title: transactionDisplayTitle(l, accountName),
+      amount: l.amount,
+      currencyCode: l.currencyCode,
+    })),
+  ]);
+
+  const expenseLines = sortDescending([
+    ...snapshot.fixedExpenses.map((l) => ({
+      id: l.id,
+      title: l.name,
+      amount: l.amount,
+      currencyCode: l.currencyCode,
+    })),
+    ...oneOffCommitted.map((l) => ({
+      id: l.id,
+      title: transactionDisplayTitle(l, accountName),
+      amount: l.amount,
+      currencyCode: l.currencyCode,
+    })),
+  ]);
+
+  const totalIncome = addMoney(
+    snapshot.incomeTotal,
+    sumMoney(oneOffIncome.map((l) => l.amount)),
   );
-
-  // Savings/checking first, credit cards after — matches how the person
-  // actually thinks about these (money you have, then what you owe).
-  // Credit cards excluded here on purpose — this section is about money
-  // you have, not what you owe; card balances/due dates live on
-  // Transactions and Accounts instead.
-  const sortedBalances = balances.filter(
-    ({ account }) =>
-      account.accountType === "checking" || account.accountType === "savings",
-  );
-
-  // Expected monthly credit per checking/savings account, from matching
-  // recurring income templates — drives the "remaining" progress bar.
-  const expectedCreditByAccount = new Map<string, Money>();
-  for (const template of recurring) {
-    if (template.kind === "income") {
-      expectedCreditByAccount.set(
-        template.accountId,
-        addMoney(
-          expectedCreditByAccount.get(template.accountId) ?? ZERO,
-          template.amount,
-        ),
-      );
-    }
-  }
-
-  const availableCash = sumMoney(balances.map((b) => b.balance));
+  const totalExpense = computeCommittedExpenseTotal(snapshot);
+  const netProjected = addMoney(totalIncome, negateMoney(totalExpense));
+  const netIsNegative = isNegativeMoney(netProjected);
+  const netAbsolute = netIsNegative ? negateMoney(netProjected) : netProjected;
+  const netDisplay = `${netIsNegative ? "−" : "+"}${formatMoneyDisplay(netAbsolute, currency)}`;
 
   return (
     <div>
       <Hero
         title="Home"
-        label="Available cash right now"
-        amount={formatMoneyDisplay(availableCash, currency)}
-      />
+        label={`Projected net for ${monthLabel(month)}`}
+        amount={netDisplay}
+        sub={`${formatMoneyDisplay(totalIncome, currency)} expected in − ${formatMoneyDisplay(totalExpense, currency)} expected out`}
+      >
+        <div className="mt-4 flex items-center gap-2">
+          <Link
+            href={`/dashboard?month=${shiftMonth(month, -1)}`}
+            className="flex size-8 items-center justify-center rounded-full bg-white/15 text-sm text-white"
+            aria-label="Previous cycle"
+          >
+            &#8249;
+          </Link>
+          <span className="min-w-[150px] text-center font-display text-sm font-bold text-white">
+            {monthLabel(month)} cycle
+          </span>
+          <Link
+            href={`/dashboard?month=${shiftMonth(month, 1)}`}
+            className="flex size-8 items-center justify-center rounded-full bg-white/15 text-sm text-white"
+            aria-label="Next cycle"
+          >
+            &#8250;
+          </Link>
+          {!isCurrentMonth && (
+            <Link
+              href="/dashboard"
+              className="ml-1 rounded-full bg-white px-3 py-1.5 font-display text-xs font-bold text-[hsl(var(--hero-1))]"
+            >
+              Today
+            </Link>
+          )}
+        </div>
+      </Hero>
 
-      <HomePhaseView
-        months={months}
-        initialMonth={thisMonth}
-        accountName={accountName}
-        currency={currency}
-      />
-
-      <div className="px-5 pb-2 sm:px-8">
+      <div className="space-y-6 p-5 sm:p-8">
         <section>
           <div className="mb-3 flex items-baseline justify-between">
             <h2 className="font-display text-[15px] font-bold text-ink">
-              Accounts
+              This cycle at a glance
             </h2>
-            <span className="text-xs text-ink-faint">
-              {sortedBalances.length} account
-              {sortedBalances.length === 1 ? "" : "s"}
-            </span>
           </div>
-
-          {sortedBalances.length === 0 ? (
-            <p className="text-sm text-ink-faint">
-              No accounts yet —{" "}
-              <a href="/accounts" className="underline">
-                add one
-              </a>
-              .
-            </p>
-          ) : (
-            <div className="flex gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-[repeat(auto-fill,minmax(168px,1fr))] sm:overflow-visible">
-              {sortedBalances.map(({ account, balance }) => {
-                const expected = expectedCreditByAccount.get(account.id);
-                const showBar =
-                  expected &&
-                  moneyToDbNumber(expected) > 0 &&
-                  (account.accountType === "checking" ||
-                    account.accountType === "savings");
-                const pct = showBar
-                  ? Math.max(
-                      0,
-                      Math.min(
-                        100,
-                        Math.round(
-                          (moneyToDbNumber(balance) /
-                            moneyToDbNumber(expected)) *
-                            100,
-                        ),
-                      ),
-                    )
-                  : null;
-
-                return (
-                  <div
-                    key={account.id}
-                    className="w-[168px] shrink-0 rounded-2xl bg-surface p-4 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)] sm:w-auto"
-                  >
-                    <div className="truncate text-xs font-semibold text-ink-soft">
-                      {account.name}
-                    </div>
-                    <div className="mt-0.5 text-[10px] text-ink-faint">
-                      {account.creditCard
-                        ? `Due by the ${account.creditCard.paymentDueDay ?? "?"}${ordinalSuffix(account.creditCard.paymentDueDay)}`
-                        : account.accountType[0].toUpperCase() +
-                          account.accountType.slice(1)}
-                    </div>
-                    <div
-                      className={`mt-3 font-display text-[19px] font-extrabold tracking-tight ${isNegativeMoney(balance) ? "text-negative" : "text-ink"}`}
-                    >
-                      {formatMoneyDisplay(balance, account.currencyCode)}
-                    </div>
-                    {pct !== null && (
-                      <>
-                        <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-line">
-                          <div
-                            className="h-full rounded-full bg-positive"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <div className="mt-1.5 text-[10px] font-medium text-ink-faint">
-                          {pct}% of{" "}
-                          {formatMoneyDisplay(
-                            expected as Money,
-                            account.currencyCode,
-                          )}{" "}
-                          left
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <div className="grid grid-cols-3 gap-2.5">
+            <StatCard
+              label="Income"
+              value={formatMoneyDisplay(totalIncome, currency)}
+              tone="positive"
+            />
+            <StatCard
+              label="Expenses"
+              value={formatMoneyDisplay(totalExpense, currency)}
+              tone="negative"
+            />
+            <StatCard label="Net" value={netDisplay} tone="accent" />
+          </div>
         </section>
+
+        <OutlookList
+          title="Major expenses this month"
+          hint={`${expenseLines.length} keyed in`}
+          lines={expenseLines}
+          currency={currency}
+          amountTone="negative"
+          emptyLabel={
+            "Nothing tagged to this cycle yet — tag a recurring template on Recurring, or add one on Budgets."
+          }
+        />
+
+        <OutlookList
+          title="Income expected"
+          hint={`${incomeLines.length} keyed in`}
+          lines={incomeLines}
+          currency={currency}
+          amountTone="positive"
+          emptyLabel={
+            "No income tagged to this cycle yet — tag a recurring template on Recurring, or add one on Budgets."
+          }
+        />
+
+        <Link
+          href={`/budgets?month=${month}`}
+          className="flex items-center justify-between rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]"
+        >
+          <div>
+            <div className="font-display text-[14.5px] font-extrabold text-ink">
+              Key in or edit this cycle
+            </div>
+            <div className="mt-0.5 text-[11.5px] text-ink-faint">
+              Full editable breakdown lives on Budgets
+            </div>
+          </div>
+          <span className="shrink-0 font-display text-xs font-bold text-accent">
+            Go &rarr;
+          </span>
+        </Link>
+
+        <Link
+          href="/intel"
+          className="flex items-center gap-3 rounded-[20px] bg-gradient-to-br from-accent-soft to-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]"
+        >
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-[11px] bg-accent text-white">
+            📊
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="font-display text-[13.5px] font-extrabold text-ink">
+              See the full picture
+            </div>
+            <div className="mt-0.5 text-[11px] text-ink-faint">
+              Compare {monthLabel(month)} against recent cycles on Intel
+            </div>
+          </div>
+          <span className="shrink-0 font-display text-xs font-bold text-accent">
+            Open &rarr;
+          </span>
+        </Link>
       </div>
     </div>
   );

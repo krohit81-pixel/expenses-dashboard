@@ -20,14 +20,6 @@ function HomeIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
-function SwapIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" {...props}>
-      <path d="M4 8h13l-3-3" />
-      <path d="M20 16H7l3 3" />
-    </svg>
-  );
-}
 function BarsIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" {...props}>
@@ -58,13 +50,18 @@ function MoreIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 /**
- * Four primary destinations plus More — chosen from what the person said
- * they actually use daily, not the full feature list. Accounts, Recurring,
- * and Net worth live under /more; nothing was deleted, just demoted.
+ * v2.0.0: down to three primary destinations plus More — Transactions
+ * dropped out of the primary set entirely (was a 5-item nav: Home,
+ * Transactions, Calendar, Intel, More). At the household's request,
+ * Atlas is moving away from an execution/transaction-logging app
+ * toward a reporting/intel-first one; Transactions is retired as a
+ * daily destination and demoted to a read-only screen under More (see
+ * its own page for what "read-only" means there). Its swap-arrows icon
+ * was only ever used here, so it's gone too — recoverable from git
+ * history if a future version wants it for something else.
  */
 const PRIMARY_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Home", icon: HomeIcon },
-  { href: "/transactions", label: "Transactions", icon: SwapIcon },
   { href: "/calendar", label: "Calendar", icon: CalendarIcon },
   { href: "/intel", label: "Intel", icon: BarsIcon },
 ];
@@ -80,6 +77,7 @@ function isActive(pathname: string, href: string): boolean {
         "/imports",
         "/merchants",
         "/budgets",
+        "/transactions",
         "/settings",
         "/more",
       ].some((path) => pathname.startsWith(path))
@@ -135,7 +133,7 @@ export function BottomNav() {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-[hsl(var(--line))] bg-[hsl(var(--surface))] sm:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="grid grid-cols-5">
+      <ul className="grid grid-cols-4">
         {[...PRIMARY_ITEMS, MORE_ITEM].map((item) => {
           const active = isActive(pathname, item.href);
           return (

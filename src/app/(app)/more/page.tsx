@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   FileText,
+  History,
   Landmark,
   ListTree,
   LogOut,
@@ -27,6 +28,13 @@ const ITEMS = [
     label: "Budgets",
     description: "Income & fixed expenses, editable.",
     icon: Wallet,
+  },
+  {
+    href: "/transactions",
+    label: "Transactions",
+    description:
+      "Historical log, read-only — filter and browse what already happened.",
+    icon: History,
   },
   {
     href: "/accounts",
