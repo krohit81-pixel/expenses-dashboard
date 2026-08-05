@@ -2,21 +2,29 @@
 
 ## Actual route map
 
+> Bottom nav (primary) is **Dashboard / Log / Intel / Calendar**, plus
+> More — see [00 — Current state](./00-current-state.md)'s "v2.0/v2.1
+> revamp" section for the full story of how this changed from an earlier
+> Transactions-first, 3-phase design.
+
 ```text
-/(app)/dashboard
-/(app)/transactions
-/(app)/accounts
-/(app)/budgets
-/(app)/imports          # credit-card statement upload (HDFC Infinia, Axis Horizon)
-/(app)/merchants        # Merchant Dictionary admin (list + /merchants/[id] detail)
-/(app)/intel            # spending charts + AI insight
-/(app)/net-worth
-/(app)/recurring
-/(app)/calendar         # school calendar (static) + trips + events — the one gate-free route
-/(app)/settings
-/(app)/onboarding       # base currency/timezone, first-run only
-/(app)/more             # overflow nav for secondary items
-/login                  # access-gate password entry, not Supabase Auth sign-in
+/(app)/dashboard        # primary tab. Full cycle-wise income/expense breakdown — absorbed
+                         # Budgets in v2.1.0. Was "Home" pre-v2.1.0.
+/(app)/log               # primary tab (new, v2.1.0). Hub linking to Recurring, Accounts, Imports.
+/(app)/recurring         # under Log. Cycle-scoped, bulk cycle-tagging (v2.1.0) — see doc 00.
+/(app)/accounts          # under Log. Includes inline balance-correction panel (v2.1.0).
+/(app)/imports           # under Log. Credit-card statement upload (HDFC Infinia, Axis Horizon, ICICI).
+/(app)/intel             # primary tab. Spending charts + AI insight.
+/(app)/calendar          # primary tab. School calendar (static) + trips + events — the one gate-free route.
+/(app)/transactions      # under More. Read-only historical log as of v2.0.0 — no entry forms.
+/(app)/budgets           # under More→ nowhere (unlinked, v2.1.0). Still runs; content now duplicated on Dashboard.
+/(app)/merchants         # under More. Merchant Dictionary admin (list + /merchants/[id] detail)
+/(app)/net-worth         # under More
+/(app)/ais               # under More. Static Income Tax AIS summary (v1.13.0), not ledger-backed.
+/(app)/settings          # under More
+/(app)/onboarding        # base currency/timezone, first-run only
+/(app)/more              # overflow nav for secondary items
+/login                   # access-gate password entry, not Supabase Auth sign-in
 ```
 
 Everything under `(app)` except `/calendar` requires the access-gate

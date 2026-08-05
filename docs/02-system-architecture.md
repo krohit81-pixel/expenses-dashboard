@@ -40,9 +40,10 @@ flowchart LR
 ```text
 src/
   app/
-    (app)/<route>/page.tsx     # dashboard, transactions, accounts, budgets,
-                                # imports, net-worth, settings, intel, merchants,
-                                # calendar, recurring, onboarding, more
+    (app)/<route>/page.tsx     # dashboard (absorbed budgets, v2.1.0), log (hub, v2.1.0),
+                                # transactions (read-only, v2.0.0), accounts, budgets (unlinked,
+                                # kept running), imports, net-worth, settings, intel, merchants,
+                                # calendar, recurring, ais, onboarding, more
     api/attachments/           # the one route-handler surface (signed upload/download)
     login/                     # access-gate login page
   components/ui/                # shadcn primitives
@@ -61,7 +62,8 @@ src/
     axis-horizon-airtel/         #   classify-transaction, normalize-merchant, reconcile, index
   lib/
     money/                       # Money branded type + decimal.js-backed arithmetic
-    dates/                       # calendar grid, recurrence, phase, month helpers
+    dates/                       # calendar grid, recurrence (incl. isDueInCycle, v2.1.0), month
+                                  # helpers — phase.ts was deleted in v2.0.0, no phase concept left
     pdf/                         # extract-text.ts (pdf.js), dommatrix polyfill, worker setup
     intel/                       # card-category-breakdown, donut chart data prep
     budget/                      # home-stats, planned card dues

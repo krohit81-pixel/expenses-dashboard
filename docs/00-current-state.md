@@ -4,9 +4,15 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v1.11.0**
-(July 2026). Read this before the numbered docs — where they conflict with
+correction layer: what's actually true today, current as of **v2.1.0**
+(August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
+
+**v2.0.0 was a total revamp of the app's shape**, not just a feature add —
+if you're orienting from an older memory of this app (a Transactions-first,
+3-phase Planning/Execution/Tracking UI with 5 bottom-nav tabs), that's gone.
+See "The v2.0/v2.1 revamp" section below before touching navigation,
+Dashboard, Recurring, or Accounts.
 
 The numbered docs still hold as a record of the original reasoning and are
 kept updated where they remain accurate, but this file is the fast-start
@@ -64,11 +70,69 @@ document the intended per-user boundary and would matter again if this
 ever became genuinely multi-user), but don't rely on them for anything the
 app must actually enforce today.
 
+## The v2.0/v2.1 revamp (read this before touching nav, Dashboard, Recurring, or Accounts)
+
+Starting in v2.0.0, the household steered the app away from a
+transaction-logging tool and toward a **reporting/intel-first** tool. The
+old model was "record every transaction as it happens, walk through
+Planning → Execution → Tracking phases each month." The new model: each
+month ("cycle"), you key in what you *expect* — income and fixed expenses —
+and the app assumes it happens; you don't track individual postings against
+that expectation. Concretely:
+
+- The 3-phase system (`lib/dates/phase.ts`, `HomePhaseView`,
+  `ChecklistItem`) is **deleted** (v2.0.0). The only time concept left is
+  the monthly "cycle" (`currentCycleMonth()` in `lib/dates/month.ts`,
+  rolling to next month on day 25).
+- **Bottom nav is now 4 primary tabs + More**: `Dashboard`, `Log`, `Intel`,
+  `Calendar` (v2.1.0; was `Home`/`Calendar`/`Intel` + More in v2.0.0, and
+  `Home`/`Transactions`/`Calendar`/`Intel` + More before that). See
+  `src/components/app-nav.tsx`.
+- **Dashboard** (`/dashboard`, was "Home") is the full cycle-wise
+  income/expense breakdown — it absorbed everything **Budgets**
+  (`/budgets`) used to show. `/budgets` still runs (unlinked from nav, not
+  deleted) in case anything still points at it directly; don't build new
+  features there.
+- **Log** (`/log`, new in v2.1.0) is a landing hub for the three things
+  that used to be scattered under More: **Recurring** (`/recurring` — tag
+  templates to a cycle), **Accounts** (`/accounts` — balances, plus an
+  inline balance-correction panel), and **Imports** (`/imports` —
+  statement PDFs).
+- **Transactions** (`/transactions`) is now **read-only** — a historical
+  log, not an entry point. `TransactionRow`/`RecentTransactionsSection`
+  take a `readOnly` prop; the quick-log and add-transaction forms were
+  removed from that page. It lives under More now, not primary nav.
+- **Recurring** (`/recurring`) is cycle-scoped (a `month` search param,
+  like Dashboard) with **bulk cycle-tagging**: every template due this
+  cycle (`isDueInCycle()` in `lib/dates/recurrence.ts`) starts
+  pre-checked (opt-out, not opt-in) via `RecurringCycleTagger`; Apply once
+  tags/untags the whole set (`RecurringTransactionService.applyCycleTags`).
+  Templates not naturally due get a per-row "Tag anyway" toggle
+  (`NotDueTemplateRow`). **Transfer-kind templates are filtered out
+  entirely** — card dues are logged via statement imports instead, not
+  recurring transfer templates.
+- **Accounts** (`/accounts`) has an inline **balance correction** panel
+  per account (`AccountBalanceRow`). There's no stored `balance` column
+  to overwrite (see "Money and balances" below) — correcting a balance
+  computes the delta between what's shown and what you type, and logs it
+  as an ordinary `income`/`expense` transaction dated today, with
+  `cycle_month: null` so it never lands inside a cycle's breakdown
+  (`AccountService.correctAccountBalance`).
+- **AIS** (`/ais`, added v1.13.0) is a static Income Tax Annual Information
+  Statement summary page for the current FY, linked from More. Not
+  connected to the ledger — hand-maintained reference data.
+
+Full detail (exact files, function signatures) is in each version's commit
+message — `git log --oneline` — not duplicated here beyond what's needed to
+orient quickly.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions
-  (income/expense/transfer/split), recurring transactions, budgets,
-  attachments, assets/liabilities/loans, net worth.
+  (income/expense/transfer/split, now read-only day-to-day — see the
+  revamp section above), recurring transactions (cycle-tagged, not
+  individually posted), budgets (now shown on Dashboard, not a separate
+  tab), attachments, assets/liabilities/loans, net worth.
 - **Credit card statement imports**: upload a PDF (password-protected or
   not), it's parsed deterministically (no LLM) into a structured statement
   + transaction rows, reconciled against the statement's own printed
@@ -112,9 +176,14 @@ app must actually enforce today.
 - **Calendar**: a static, in-code school calendar merged with user-entered
   travel (`finance.trips`) and calendar events — the one route that
   bypasses the access gate.
-- **Budgets**: an income/fixed-expense planning view (not the older
-  category-envelope model the very first design had — that was deleted,
-  not hidden, per `INSTALL.md`'s v0.3 history).
+- **Budgets** (income/fixed-expense planning, not the older category-envelope
+  model the very first design had — that was deleted, not hidden, per
+  `INSTALL.md`'s v0.3 history): as of v2.1.0 this is shown **on Dashboard**,
+  not a separate nav tab — see the revamp section above. `/budgets` still
+  exists and works, just unlinked.
+- **AIS**: static Income Tax Annual Information Statement summary for the
+  current FY (`/ais`, added v1.13.0), linked from More. Hand-maintained
+  reference data, not wired to the ledger.
 
 ## Repo orientation
 
@@ -127,7 +196,9 @@ src/
   services/                   # server-only orchestration, one class per domain area
   services/statement-parsers/<issuer>/  # types, amounts, parse-header, parse-transactions,
                                           # classify-transaction, normalize-merchant, reconcile, index
-  lib/                        # money (decimal.js-backed Money type), dates, env, pdf, intel, budget, owner, access-gate
+  lib/                        # money (decimal.js-backed Money type), dates (month/recurrence —
+                                # phase.ts was deleted in v2.0.0, no phase concept anymore), env,
+                                # pdf, intel, budget, owner, access-gate
 supabase/migrations/          # append-only, one file per change, heavily commented with the "why"
 docs/                         # this folder
 INSTALL.md                    # actual setup/deploy instructions + release history (root, not here)

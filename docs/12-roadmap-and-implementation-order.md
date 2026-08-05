@@ -42,6 +42,44 @@
   font-metric fragility that silently zeroed out every transaction on one
   environment, and a reconciliation bug from not splitting "purchases"
   from "finance charges" the way Axis's own statement does.
+- **v1.8.0–v1.9.0** — ICICI Amazon Pay: a third card issuer
+  (`icici-amazon`, later renamed `icici-amazon-rupay` in v1.9.0 once a
+  second real statement, a RuPay-variant card, confirmed one shared parser
+  covers both products).
+- **v1.10.0** — Axis Horizon generalized to `axis-horizon-airtel` after a
+  second real statement (an Airtel co-branded Mastercard) reconciled
+  against the same parser with zero code changes.
+- **v1.11.0** — HDFC Infinia generalized to `hdfc-infinia-tata` after a
+  second real statement (a Tata Neu Plus co-branded card); unlike the
+  other two generalizations, this one keeps two separate
+  `CardStatementSource` entries with distinct password env vars, since
+  HDFC's co-branded cards aren't guaranteed to share the core product's
+  password formula.
+- **v1.12.0–v1.13.0** — AIS: an HTML prototype, then a real static `/ais`
+  page (Income Tax Annual Information Statement summary for the current
+  FY, hand-maintained reference data, not ledger-backed), linked from
+  More.
+- **v2.0.0 — total revamp.** The household steered the app from a
+  transaction-logging tool toward a reporting/intel-first tool: the
+  3-phase Planning/Execution/Tracking system (`lib/dates/phase.ts`,
+  `HomePhaseView`, `ChecklistItem`) was deleted outright, leaving the
+  monthly "cycle" as the only time concept. Home (now Dashboard) was
+  rebuilt around "how is this cycle looking" instead of phase checklists.
+  Transactions was demoted to a read-only historical log and dropped from
+  primary nav (4 tabs — Home/Calendar/Intel + More — down from 5). See
+  [00 — Current state](./00-current-state.md) for the full writeup; this
+  is the single biggest shape change in the app's history so far.
+- **v2.1.0** — Nav restructure to **Dashboard / Log / Intel / Calendar +
+  More** (5 primary tabs again, but a different 5): Dashboard absorbed
+  Budgets' full cycle-wise breakdown; a new Log tab became the hub for
+  Recurring, Accounts, and Imports. Recurring gained bulk cycle-tagging
+  (opt-out — everything due starts pre-checked, `isDueInCycle` +
+  `applyCycleTags`) replacing one-at-a-time tagging, and dropped
+  transfer-kind templates from its lists (card dues now come from
+  statement imports). Accounts gained inline balance correction —
+  computes the delta between the shown and typed balance and logs it as
+  an ordinary income/expense transaction, since there's no stored balance
+  column to overwrite.
 
 ## What was explicitly descoped or replaced along the way
 
@@ -54,17 +92,27 @@
   doc 11) after the original per-request Supabase Auth design proved
   fragile under real mobile usage.
 - Category-envelope budgeting (the original `finance.budgets`/
-  `budget_lines` model) — the Budgets tab now shows an income/fixed-expense
-  plan instead; the old feature was deleted, not hidden (recoverable from
-  git history per `INSTALL.md`'s v0.3 note).
+  `budget_lines` model) — replaced by an income/fixed-expense plan instead;
+  the old feature was deleted, not hidden (recoverable from git history per
+  `INSTALL.md`'s v0.3 note). That replacement itself lived as a standalone
+  Budgets tab through v2.0.0, then was absorbed into Dashboard in v2.1.0
+  (see the v2.1.0 entry above) — `/budgets` still runs, just unlinked.
+- The 3-phase Planning/Execution/Tracking system and per-transaction
+  logging as the primary daily interaction — deleted in v2.0.0 in favor of
+  cycle-level planning (key in expected income/expenses once, don't track
+  individual postings). Transactions is now a read-only historical log.
 - Investment tracking — schema exists (`securities`,
   `investment_transactions`) but no UI was ever built; not currently
   planned.
 
 ## Plausible next directions (not committed, just the obvious candidates)
 
-- A third statement-parser issuer, following the exact module convention
-  in doc 06 — the architecture is designed for this to be additive.
+- A fourth statement-parser issuer, following the exact module convention
+  in doc 06 — the architecture is designed for this to be additive. (A
+  third, ICICI Amazon Pay/RuPay, shipped in v1.8.0–v1.9.0.)
+- A dedicated Dashboards tab, or sections within Intel — flagged by the
+  household as a later addition when the v2.0.0 revamp was requested, not
+  yet built.
 - Hardening the PDF-layout extraction against the font-metric fragility
   documented in doc 06, e.g. reducing reliance on `\s{2,}` heuristics
   further, or adding a lower-confidence fallback path instead of an
