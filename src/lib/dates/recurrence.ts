@@ -112,6 +112,27 @@ export function computeNextOccurrence(
 }
 
 /**
+ * Whether a template whose next occurrence is `nextOccurrenceOn` should
+ * count as "due" for `cycleMonth` in Recurring's bulk cycle-tagging UI
+ * (v2.1) — true whenever its own next-occurrence month is on or before
+ * the cycle being viewed. Deliberately keeps something "due" (and so
+ * pre-checked in the bulk UI) every cycle after its natural month, not
+ * just the one it was originally due in — next_occurrence_on only ever
+ * advances via generateDueTransactions' catch-up path, never through
+ * tagging alone (see RecurringTransactionService.tagRecurringToCycle's
+ * own comment), so an unadvanced template should keep reading as due
+ * rather than silently dropping off. A monthly template naturally
+ * satisfies this every month; a yearly one only starts once its due
+ * month arrives (or has passed).
+ */
+export function isDueInCycle(
+  nextOccurrenceOn: string,
+  cycleMonth: string,
+): boolean {
+  return nextOccurrenceOn.slice(0, 7) <= cycleMonth;
+}
+
+/**
  * Every occurrence date from `startsOn` up to and including `until`
  * (inclusive), respecting `endsOn` if set. Used to generate any occurrences
  * a recurring template missed since it was last run — not just the single

@@ -15,6 +15,10 @@ import {
   type CreateRecurringTransactionInput,
   type UpdateRecurringTransactionInput,
 } from "@/features/recurring/schemas";
+import {
+  listTransactions,
+  voidTransaction,
+} from "@/services/TransactionService";
 
 export type {
   CreateRecurringTransactionInput,
@@ -515,4 +519,115 @@ export async function tagRecurringToCycle(
   }
 
   return { transactionId: txRow.id as string };
+}
+
+/**
+ * Every template currently tagged to `cycleMonth`, keyed by template id —
+ * i.e. every non-void transaction with a recurring_transaction_id and this
+ * cycle_month. Reuses TransactionService.listTransactions rather than a
+ * fresh query (its cycleMonth filter already does exactly this), then
+ * narrows to recurring-linked, non-transfer rows client-side. Transfers are
+ * excluded here on purpose — see applyCycleTags's own comment; they aren't
+ * part of the bulk cycle-tagging flow at all as of v2.1.
+ */
+export async function listCycleTagsForMonth(
+  cycleMonth: string,
+): Promise<Map<string, string>> {
+  const { transactions } = await listTransactions({
+    cycleMonth,
+    limit: 300,
+  });
+  return new Map(
+    transactions
+      .filter((t) => t.recurringTransactionId && t.kind !== "transfer")
+      .map((t) => [t.recurringTransactionId as string, t.id]),
+  );
+}
+
+export interface ApplyCycleTagsInput {
+  cycleMonth: string;
+  /** Every template id currently checked in the bulk UI — the desired end
+   * state, not a diff. The server works out what actually needs to
+   * change by comparing against listCycleTagsForMonth. */
+  desiredTemplateIds: string[];
+  /** The full set of templates the bulk UI showed as options (every
+   * "due this cycle" template, checked or not) — anything in this set
+   * that's currently tagged but NOT in desiredTemplateIds gets untagged.
+   * A template outside this set is left alone entirely, even if it
+   * happens to already be tagged (e.g. a "tag anyway" one-off from the
+   * "not due this cycle" list) — the bulk Apply action only ever touches
+   * what it actually showed as a bulk option. */
+  candidateTemplateIds: string[];
+}
+
+export interface ApplyCycleTagsResult {
+  tagged: number;
+  untagged: number;
+}
+
+/**
+ * The bulk "Apply" behind Recurring's cycle-tagging UI (v2.1) — replaces
+ * tagging one template to one cycle at a time via TagToCycleButton's
+ * per-row dropdown. The household's own framing: most recurring items
+ * SHOULD count toward the upcoming cycle by default, so the UI now starts
+ * everything due this cycle pre-checked and this function just reconciles
+ * "what's checked" against "what's actually tagged in the database" —
+ * tags whatever's newly checked, untags (voids) whatever got unchecked.
+ *
+ * Loops tagRecurringToCycle/voidTransaction rather than a batch insert —
+ * there's no batch-insert path for either yet, and per-item duplication is
+ * exactly the tolerance this codebase already has for tagRecurringToCycle
+ * itself (see its own comment on duplicating generateDueTransactions'
+ * insert logic). The listCycleTagsForMonth lookup up front is also what
+ * gives tagRecurringToCycle the dedupe guard it doesn't have on its own —
+ * a template already tagged this cycle is simply skipped, never
+ * double-tagged.
+ *
+ * Transfers are deliberately never part of desiredTemplateIds/
+ * candidateTemplateIds — as of v2.1 the household logs credit card dues
+ * from statement PDF imports instead of recurring templates, so the
+ * Recurring page no longer surfaces transfer-kind templates in this flow
+ * at all (tagRecurringToCycle still rejects them regardless, as a second
+ * line of defense).
+ */
+export async function applyCycleTags(
+  input: ApplyCycleTagsInput,
+): Promise<ApplyCycleTagsResult> {
+  if (!/^\d{4}-\d{2}$/.test(input.cycleMonth)) {
+    throw new Error("cycleMonth must be in YYYY-MM format");
+  }
+
+  const existing = await listCycleTagsForMonth(input.cycleMonth);
+  const desired = new Set(input.desiredTemplateIds);
+
+  let tagged = 0;
+  let untagged = 0;
+
+  for (const templateId of input.desiredTemplateIds) {
+    if (existing.has(templateId)) continue;
+    await tagRecurringToCycle(templateId, input.cycleMonth);
+    tagged += 1;
+  }
+
+  for (const templateId of input.candidateTemplateIds) {
+    if (desired.has(templateId)) continue;
+    const transactionId = existing.get(templateId);
+    if (!transactionId) continue;
+    await voidTransaction(transactionId);
+    untagged += 1;
+  }
+
+  return { tagged, untagged };
+}
+
+/**
+ * Untags a single template from a cycle — the "Undo" behind a "tag
+ * anyway" on a not-due-this-cycle template. Thin wrapper around
+ * voidTransaction; exists mainly so callers on the Recurring page don't
+ * need to import TransactionService directly for this one case.
+ */
+export async function untagRecurringFromCycle(
+  transactionId: string,
+): Promise<void> {
+  await voidTransaction(transactionId);
 }

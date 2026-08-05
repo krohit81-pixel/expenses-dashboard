@@ -29,6 +29,16 @@ function BarsIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+function LogIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" {...props}>
+      <rect x="5" y="4" width="14" height="17" rx="2.2" />
+      <path d="M9 3.3v3" />
+      <path d="M15 3.3v3" />
+      <path d="M8.5 12.5 10.5 14.5 15 9.5" />
+    </svg>
+  );
+}
 function CalendarIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" {...props}>
@@ -50,32 +60,41 @@ function MoreIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 /**
- * v2.0.0: down to three primary destinations plus More — Transactions
- * dropped out of the primary set entirely (was a 5-item nav: Home,
- * Transactions, Calendar, Intel, More). At the household's request,
- * Atlas is moving away from an execution/transaction-logging app
- * toward a reporting/intel-first one; Transactions is retired as a
- * daily destination and demoted to a read-only screen under More (see
- * its own page for what "read-only" means there). Its swap-arrows icon
- * was only ever used here, so it's gone too — recoverable from git
- * history if a future version wants it for something else.
+ * v2.1.0: Dashboard / Log / Intel / Calendar, plus More — up from the
+ * v2.0.0 three-tab set (Home/Calendar/Intel). Two changes, both at the
+ * household's explicit request:
+ *
+ * - "Home" is relabeled "Dashboard" (same /dashboard route) now that it
+ *   absorbs Budgets' full breakdown too — "where I see the budget:
+ *   monthly cycle-wise break up of expenses/income," in their words.
+ * - "Log" is new: a landing hub (tag recurring items, correct an
+ *   account balance, import a statement) for the three things that
+ *   used to be scattered under More as separate destinations.
+ *
+ * Accounts, Recurring, and Imports move out of the More-group matcher
+ * below accordingly — they're reachable from Log now, not More.
  */
 const PRIMARY_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Home", icon: HomeIcon },
-  { href: "/calendar", label: "Calendar", icon: CalendarIcon },
+  { href: "/dashboard", label: "Dashboard", icon: HomeIcon },
+  { href: "/log", label: "Log", icon: LogIcon },
   { href: "/intel", label: "Intel", icon: BarsIcon },
+  { href: "/calendar", label: "Calendar", icon: CalendarIcon },
 ];
 
 const MORE_ITEM: NavItem = { href: "/more", label: "More", icon: MoreIcon };
 
 function isActive(pathname: string, href: string): boolean {
+  if (href === "/log") {
+    return ["/log", "/recurring", "/accounts", "/imports"].some((path) =>
+      pathname.startsWith(path),
+    );
+  }
   return href === "/more"
     ? [
-        "/accounts",
-        "/recurring",
         "/net-worth",
-        "/imports",
         "/merchants",
+        "/categories",
+        "/ais",
         "/budgets",
         "/transactions",
         "/settings",
@@ -133,7 +152,7 @@ export function BottomNav() {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-[hsl(var(--line))] bg-[hsl(var(--surface))] sm:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="grid grid-cols-4">
+      <ul className="grid grid-cols-5">
         {[...PRIMARY_ITEMS, MORE_ITEM].map((item) => {
           const active = isActive(pathname, item.href);
           return (

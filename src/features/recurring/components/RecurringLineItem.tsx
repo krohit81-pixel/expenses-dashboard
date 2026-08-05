@@ -4,7 +4,6 @@ import { useActionState, useEffect, useState } from "react";
 
 import { formatMoneyDisplay, type Money } from "@/lib/money";
 import { Spinner } from "@/components/ui/spinner";
-import { TagToCycleButton } from "@/features/recurring/components/TagToCycleButton";
 import { formatFrequency } from "@/features/recurring/format";
 import {
   deleteRecurringTransactionAction,
@@ -131,7 +130,6 @@ export function RecurringLineItem({
             </button>
           )}
         </div>
-        <TagToCycleButton templateId={id} />
         {deleteState.error && (
           <p className="text-xs text-negative">{deleteState.error}</p>
         )}

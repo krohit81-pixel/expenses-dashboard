@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { Repeat } from "lucide-react";
 
 import { requireUser } from "@/lib/auth/require-user";
 import { listAccounts } from "@/services/AccountService";
@@ -9,10 +10,8 @@ import {
   addMoney,
   formatMoneyDisplay,
   isNegativeMoney,
-  moneyToDbNumber,
   negateMoney,
   sumMoney,
-  type Money,
 } from "@/lib/money";
 import { computeCommittedExpenseTotal } from "@/lib/budget/home-stats";
 import {
@@ -22,26 +21,12 @@ import {
   shiftMonth,
 } from "@/lib/dates/month";
 import { Hero } from "@/components/ui/hero";
+import { SplitCard } from "@/components/ui/split-card";
 import { transactionDisplayTitle } from "@/features/transactions/format";
 
 export const metadata: Metadata = {
-  title: "Home",
+  title: "Dashboard",
 };
-
-interface OutlookLine {
-  id: string;
-  title: string;
-  amount: Money;
-  currencyCode: string;
-}
-
-const MAX_ROWS = 6;
-
-function sortDescending(lines: OutlookLine[]): OutlookLine[] {
-  return [...lines].sort(
-    (a, b) => moneyToDbNumber(b.amount) - moneyToDbNumber(a.amount),
-  );
-}
 
 const STAT_CARD_BG: Record<"positive" | "negative" | "accent", string> = {
   positive: "bg-surface",
@@ -79,99 +64,28 @@ function StatCard({
   );
 }
 
-function OutlookList({
-  title,
-  hint,
-  lines,
-  currency,
-  emptyLabel,
-  amountTone,
-}: {
-  title: string;
-  hint: string;
-  lines: OutlookLine[];
-  currency: string;
-  emptyLabel: string;
-  amountTone: "positive" | "negative";
-}) {
-  const shown = lines.slice(0, MAX_ROWS);
-  const remaining = lines.length - shown.length;
-
-  return (
-    <section>
-      <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="font-display text-[15px] font-bold text-ink">{title}</h2>
-        <span className="text-xs text-ink-faint">{hint}</span>
-      </div>
-
-      {lines.length === 0 ? (
-        <div className="rounded-[20px] bg-surface p-4 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-          <p className="text-sm text-ink-faint">{emptyLabel}</p>
-        </div>
-      ) : (
-        <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-          {shown.map((line) => (
-            <div
-              key={line.id}
-              className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-3.5 last:border-b-0"
-            >
-              <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
-                {line.title}
-              </p>
-              <p
-                className={`whitespace-nowrap font-display text-sm font-bold ${
-                  amountTone === "positive" ? "text-positive" : "text-negative"
-                }`}
-              >
-                {amountTone === "positive" ? "+" : "−"}
-                {formatMoneyDisplay(line.amount, line.currencyCode || currency)}
-              </p>
-            </div>
-          ))}
-          {remaining > 0 && (
-            <div className="px-[18px] py-2.5 text-xs text-ink-faint">
-              +{remaining} more on{" "}
-              <Link
-                href="/budgets"
-                className="font-semibold text-accent underline"
-              >
-                Budgets
-              </Link>
-            </div>
-          )}
-        </div>
-      )}
-    </section>
-  );
-}
-
 /**
- * v2.0.0: total Home rewrite, replacing HomePhaseView's three-phase
- * Planning/Execution/Tracking view entirely (deleted, along with
- * lib/dates/phase.ts and features/home/ChecklistItem.tsx). At the
- * household's request, Atlas is moving away from being an
- * execution/transaction-tracking app (log it, mark it paid, confirm
- * it happened) toward a reporting/intel-first one: you key in what a
- * cycle is expected to look like — via Recurring templates tagged to
- * that cycle_month, exactly as before — and Home just reports how
- * that cycle is shaping up. There is no more "mark as paid/received"
- * step on Home; whatever is tagged to a cycle is assumed to happen.
- * Actually editing/tagging still happens on Recurring/Budgets (kept
- * exactly as they were) — Home only renders a condensed read of the
- * same getMonthlyBudgetSnapshot data Budgets already shows, capped to
- * the largest lines, with a link out to Budgets for the full list.
+ * v2.1: absorbs Budgets entirely — one monthly-cycle budget view instead
+ * of two nearly-identical pages (a condensed Home glance that just linked
+ * out to a separate, fuller Budgets page for the real breakdown). The
+ * household's own framing for this version: Dashboard is "where I see
+ * the budget: monthly cycle-wise break up of expenses/income" — so this
+ * now shows both the quick glance (income/expenses/net stat row) AND the
+ * full editable-style breakdown (every recurring income/fixed-expense
+ * line, plus one-off/card-due items tagged to this cycle) on one screen,
+ * exactly what /budgets used to show, sourced from the same
+ * getMonthlyBudgetSnapshot data.
  *
- * The Accounts strip (cash balances) that used to sit at the bottom
- * of Home is gone too, at the household's explicit request — real
- * balances routinely drift from what's tagged/expected here, and
- * showing both side by side read as if they should reconcile when
- * they don't. Balances still live on /accounts.
+ * /budgets itself is left running, untouched, in case anything still
+ * links to it directly — it's just no longer in More's nav, since
+ * everything it showed now lives here.
  *
- * The Transactions tab (logging, marking paid, ad-hoc entries) is
- * also retired as of v2.0 — nothing here links to "log a payment"
- * anymore. It's still reachable, read-only, from More.
+ * No accounts balance strip (removed in v2.0, still gone) and no "mark
+ * as paid" anywhere — whatever's tagged to a cycle (via Recurring, see
+ * Log) is assumed to happen. Editing/tagging still happens on Recurring;
+ * this page is a read of that same data, not a second place to edit it.
  */
-export default async function HomePage({
+export default async function DashboardPage({
   searchParams,
 }: {
   searchParams: Promise<{ month?: string }>;
@@ -183,9 +97,6 @@ export default async function HomePage({
   const user = await requireUser();
   const [snapshot, accounts, settings] = await Promise.all([
     getMonthlyBudgetSnapshot(month),
-    // Only used to label one-off transfers ("Credit card dues" instead
-    // of "Transfer to another account") — not for balances, which no
-    // longer appear on Home at all.
     listAccounts(),
     getUserSettings(user.id),
   ]);
@@ -194,41 +105,15 @@ export default async function HomePage({
   const accountName = new Map(accounts.map((a) => [a.id, a.name]));
 
   const oneOffIncome = snapshot.oneOff.filter((l) => l.kind === "income");
-  const oneOffCommitted = snapshot.oneOff.filter(
-    (l) =>
-      l.kind === "expense" ||
-      (l.kind === "transfer" && l.transferReducesCashOnHand),
+  const oneOffTotal = sumMoney(
+    snapshot.oneOff
+      .filter(
+        (line) => line.kind !== "transfer" || line.transferReducesCashOnHand,
+      )
+      .map((line) =>
+        line.kind === "income" ? line.amount : negateMoney(line.amount),
+      ),
   );
-
-  const incomeLines = sortDescending([
-    ...snapshot.income.map((l) => ({
-      id: l.id,
-      title: l.name,
-      amount: l.amount,
-      currencyCode: l.currencyCode,
-    })),
-    ...oneOffIncome.map((l) => ({
-      id: l.id,
-      title: transactionDisplayTitle(l, accountName),
-      amount: l.amount,
-      currencyCode: l.currencyCode,
-    })),
-  ]);
-
-  const expenseLines = sortDescending([
-    ...snapshot.fixedExpenses.map((l) => ({
-      id: l.id,
-      title: l.name,
-      amount: l.amount,
-      currencyCode: l.currencyCode,
-    })),
-    ...oneOffCommitted.map((l) => ({
-      id: l.id,
-      title: transactionDisplayTitle(l, accountName),
-      amount: l.amount,
-      currencyCode: l.currencyCode,
-    })),
-  ]);
 
   const totalIncome = addMoney(
     snapshot.incomeTotal,
@@ -243,7 +128,7 @@ export default async function HomePage({
   return (
     <div>
       <Hero
-        title="Home"
+        title="Dashboard"
         label={`Projected net for ${monthLabel(month)}`}
         amount={netDisplay}
         sub={`${formatMoneyDisplay(totalIncome, currency)} expected in − ${formatMoneyDisplay(totalExpense, currency)} expected out`}
@@ -299,38 +184,138 @@ export default async function HomePage({
           </div>
         </section>
 
-        <OutlookList
-          title="Major expenses this month"
-          hint={`${expenseLines.length} keyed in`}
-          lines={expenseLines}
-          currency={currency}
-          amountTone="negative"
-          emptyLabel={
-            "Nothing tagged to this cycle yet — tag a recurring template on Recurring, or add one on Budgets."
-          }
-        />
+        <section>
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="font-display text-[15px] font-bold text-ink">
+              Full breakdown
+            </h2>
+            <span className="text-xs text-ink-faint">{monthLabel(month)}</span>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <SplitCard
+              title="Income & receivables"
+              titleColorClass="text-positive"
+              total={`+${formatMoneyDisplay(snapshot.incomeTotal, currency)}`}
+              isEmpty={snapshot.income.length === 0}
+            >
+              {snapshot.income.map((line) => (
+                <li
+                  key={line.id}
+                  className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-3 last:border-b-0"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-ink">
+                      {line.name}
+                    </p>
+                    {line.status === "pending" && (
+                      <p className="text-[11px] text-ink-faint">Not yet paid</p>
+                    )}
+                  </div>
+                  <p className="whitespace-nowrap font-display text-sm font-bold text-positive">
+                    +{formatMoneyDisplay(line.amount, line.currencyCode)}
+                  </p>
+                </li>
+              ))}
+            </SplitCard>
 
-        <OutlookList
-          title="Income expected"
-          hint={`${incomeLines.length} keyed in`}
-          lines={incomeLines}
-          currency={currency}
-          amountTone="positive"
-          emptyLabel={
-            "No income tagged to this cycle yet — tag a recurring template on Recurring, or add one on Budgets."
-          }
-        />
+            <SplitCard
+              title="Fixed expenses"
+              titleColorClass="text-negative"
+              total={`−${formatMoneyDisplay(snapshot.fixedExpenseTotal, currency)}`}
+              isEmpty={snapshot.fixedExpenses.length === 0}
+            >
+              {snapshot.fixedExpenses.map((line) => (
+                <li
+                  key={line.id}
+                  className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-3 last:border-b-0"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-ink">
+                      {line.name}
+                    </p>
+                    {line.status === "pending" && (
+                      <p className="text-[11px] text-ink-faint">Not yet paid</p>
+                    )}
+                  </div>
+                  <p className="whitespace-nowrap font-display text-sm font-bold text-negative">
+                    &minus;
+                    {formatMoneyDisplay(line.amount, line.currencyCode)}
+                  </p>
+                </li>
+              ))}
+            </SplitCard>
+          </div>
+
+          <div className="mt-4 rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+            <div className="flex items-center justify-between px-[18px] py-4">
+              <h3 className="font-display text-sm font-bold text-accent">
+                Logged this cycle &middot; card payments &amp; other one-off
+              </h3>
+              <span className="font-display text-xs font-bold text-ink-faint">
+                {formatMoneyDisplay(oneOffTotal, currency)} net
+              </span>
+            </div>
+            {snapshot.oneOff.length === 0 ? (
+              <p className="px-[18px] pb-4 text-sm text-ink-faint">
+                Nothing logged for {monthLabel(month)} yet.
+              </p>
+            ) : (
+              <ul>
+                {snapshot.oneOff.map((line) => (
+                  <li
+                    key={line.id}
+                    className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-3 last:border-b-0"
+                  >
+                    <p className="min-w-0 truncate text-sm font-semibold text-ink">
+                      {transactionDisplayTitle(line, accountName)}
+                    </p>
+                    {line.kind === "transfer" &&
+                    !line.transferReducesCashOnHand ? (
+                      <p className="whitespace-nowrap font-display text-sm font-bold text-ink-faint">
+                        Transfer &middot;{" "}
+                        {formatMoneyDisplay(line.amount, line.currencyCode)}
+                      </p>
+                    ) : (
+                      <p
+                        className={`whitespace-nowrap font-display text-sm font-bold ${
+                          line.kind === "income"
+                            ? "text-positive"
+                            : "text-negative"
+                        }`}
+                      >
+                        {line.kind === "income" ? "+" : "−"}
+                        {formatMoneyDisplay(line.amount, line.currencyCode)}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+
+        <p className="text-xs text-ink-faint">
+          Recurring items only show up here once tagged to this cycle &mdash;
+          tag templates, edit amounts, or delete them on{" "}
+          <Link href="/log" className="underline">
+            Log
+          </Link>
+          .
+        </p>
 
         <Link
-          href={`/budgets?month=${month}`}
-          className="flex items-center justify-between rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]"
+          href="/recurring"
+          className="flex items-center gap-3 rounded-[20px] bg-surface p-5 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]"
         >
-          <div>
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-[11px] bg-accent-soft text-accent">
+            <Repeat className="size-4.5" />
+          </div>
+          <div className="min-w-0 flex-1">
             <div className="font-display text-[14.5px] font-extrabold text-ink">
               Key in or edit this cycle
             </div>
             <div className="mt-0.5 text-[11.5px] text-ink-faint">
-              Full editable breakdown lives on Budgets
+              Tag recurring income/expenses to {monthLabel(month)} on Recurring
             </div>
           </div>
           <span className="shrink-0 font-display text-xs font-bold text-accent">

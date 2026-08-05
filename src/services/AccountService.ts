@@ -2,8 +2,11 @@ import "server-only";
 
 import {
   dbNumberToMoney,
+  isNegativeMoney,
+  isZeroMoney,
   moneyToDbNumber,
   negateMoney,
+  subtractMoney,
   sumMoney,
   type Money,
 } from "@/lib/money";
@@ -14,6 +17,7 @@ import {
   createAccountInputSchema,
   type CreateAccountInput,
 } from "@/features/accounts/schemas";
+import { createTransaction } from "@/services/TransactionService";
 
 export type { CreateAccountInput };
 export type AccountType = Enum<"account_type">;
@@ -262,4 +266,66 @@ export async function getAccountBalance(accountId: string): Promise<Money> {
   }
 
   return balance;
+}
+
+export interface CorrectAccountBalanceResult {
+  /** Null when the typed-in balance already matched what Atlas computed — nothing was logged. */
+  transactionId: string | null;
+  /** actualBalance - computed balance. Positive means an income adjustment was logged, negative an expense one. */
+  delta: Money;
+}
+
+/**
+ * "Correct this account's balance" — there's no stored `balance` column to
+ * overwrite (see getAccountBalance's own comment: it's always opening_balance
+ * plus every posted transaction), so this can't just UPDATE a field. Instead
+ * it works out the gap between what Atlas currently computes and what the
+ * person says the account actually holds, and logs that gap as one ordinary
+ * income or expense transaction — payee "Balance adjustment", dated today,
+ * posted immediately (it should count right away, not sit pending) — using
+ * the exact same createTransaction() path any other transaction goes
+ * through. Deliberately NOT the reserved-but-unused `adjustment` transaction
+ * kind: that kind's sign convention was never resolved (see the comment on
+ * it in features/transactions/schemas.ts and TransactionService), and
+ * reusing plain income/expense sidesteps that entirely — the schema and
+ * getAccountBalance already know exactly how to handle both.
+ *
+ * Not tagged to any cycle (cycleMonth: null) — a balance correction is a
+ * point-in-time fact about today, not a planned/expected line for a
+ * cycle's budget, so it deliberately won't show up on Dashboard's
+ * income/expense lists. It's still fully visible in Transactions history,
+ * and can be undone by voiding it there.
+ */
+export async function correctAccountBalance(
+  accountId: string,
+  actualBalance: Money,
+): Promise<CorrectAccountBalanceResult> {
+  const account = await getAccount(accountId);
+  if (!account) {
+    throw new Error("Account not found");
+  }
+
+  const computed = await getAccountBalance(accountId);
+  const delta = subtractMoney(actualBalance, computed);
+
+  if (isZeroMoney(delta)) {
+    return { transactionId: null, delta };
+  }
+
+  const negative = isNegativeMoney(delta);
+  const amount = negative ? negateMoney(delta) : delta;
+
+  const created = await createTransaction({
+    accountId,
+    currencyCode: account.currencyCode,
+    occurredOn: new Date().toISOString().slice(0, 10),
+    payee: "Balance adjustment",
+    memo: `Corrected from ${computed} to ${actualBalance}`,
+    status: "posted",
+    cycleMonth: null,
+    kind: negative ? "expense" : "income",
+    amount,
+  });
+
+  return { transactionId: created.id, delta };
 }

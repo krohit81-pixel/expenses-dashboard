@@ -2,15 +2,11 @@ import Link from "next/link";
 import {
   FileText,
   History,
-  Landmark,
   ListTree,
   LogOut,
-  Repeat,
   Settings,
   Store,
   TrendingUp,
-  Upload,
-  Wallet,
 } from "lucide-react";
 import type { Metadata } from "next";
 
@@ -22,13 +18,14 @@ export const metadata: Metadata = {
   title: "More",
 };
 
+/**
+ * v2.1.0: Budgets, Accounts, Recurring, and Imports all moved out of
+ * here — Budgets was absorbed into Dashboard, and Accounts/Recurring/
+ * Imports are reachable from the new Log tab instead. What's left is
+ * genuinely secondary: historical browsing, net worth, the Merchant
+ * Dictionary's admin screens, tax reporting, and account settings.
+ */
 const ITEMS = [
-  {
-    href: "/budgets",
-    label: "Budgets",
-    description: "Income & fixed expenses, editable.",
-    icon: Wallet,
-  },
   {
     href: "/transactions",
     label: "Transactions",
@@ -37,30 +34,10 @@ const ITEMS = [
     icon: History,
   },
   {
-    href: "/accounts",
-    label: "Accounts",
-    description: "Banks, cards, cash — balances and where money lives.",
-    icon: Landmark,
-  },
-  {
-    href: "/recurring",
-    label: "Recurring",
-    description:
-      "Every recurring template, including transfers — the full list behind Budgets.",
-    icon: Repeat,
-  },
-  {
     href: "/net-worth",
     label: "Net worth",
     description: "Everything you own minus everything you owe.",
     icon: TrendingUp,
-  },
-  {
-    href: "/imports",
-    label: "Imports",
-    description:
-      "Upload a credit card statement PDF — parsed and saved automatically.",
-    icon: Upload,
   },
   {
     href: "/merchants",

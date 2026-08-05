@@ -2,9 +2,28 @@ import { describe, expect, it } from "vitest";
 
 import {
   computeNextOccurrence,
+  isDueInCycle,
   occurrencesUpTo,
   setDayOfMonth,
 } from "./recurrence";
+
+describe("isDueInCycle", () => {
+  it("is due when the next occurrence's month equals the cycle", () => {
+    expect(isDueInCycle("2026-08-05", "2026-08")).toBe(true);
+  });
+
+  it("stays due when the next occurrence is behind the cycle (not yet caught up)", () => {
+    expect(isDueInCycle("2026-01-01", "2026-08")).toBe(true);
+  });
+
+  it("is not due when the next occurrence is ahead of the cycle", () => {
+    expect(isDueInCycle("2026-11-05", "2026-08")).toBe(false);
+  });
+
+  it("becomes due once its due month arrives", () => {
+    expect(isDueInCycle("2026-11-05", "2026-11")).toBe(true);
+  });
+});
 
 describe("setDayOfMonth", () => {
   it("replaces the day, keeping year and month", () => {

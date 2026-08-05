@@ -2,8 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createAccount } from "@/services/AccountService";
+import {
+  createAccount,
+  correctAccountBalance,
+} from "@/services/AccountService";
 import { createAccountInputSchema } from "@/features/accounts/schemas";
+import { zMoney } from "@/lib/money";
 
 export interface CreateAccountFormState {
   error?: string;
@@ -59,4 +63,42 @@ export async function createAccountAction(
 
   revalidatePath("/accounts");
   return {};
+}
+
+export interface CorrectAccountBalanceFormState {
+  error?: string;
+  success?: boolean;
+  /** Set on success so the panel can show what it logged without a full page reload. */
+  delta?: string;
+}
+
+export async function correctAccountBalanceAction(
+  _prevState: CorrectAccountBalanceFormState,
+  formData: FormData,
+): Promise<CorrectAccountBalanceFormState> {
+  const accountId = formValue(formData, "accountId");
+  const actualBalanceRaw = formValue(formData, "actualBalance");
+
+  if (!accountId || !actualBalanceRaw) {
+    return { error: "Missing account or balance" };
+  }
+
+  const parsedBalance = zMoney.safeParse(actualBalanceRaw);
+  if (!parsedBalance.success) {
+    return {
+      error: parsedBalance.error.issues[0]?.message ?? "Invalid amount",
+    };
+  }
+
+  try {
+    const result = await correctAccountBalance(accountId, parsedBalance.data);
+    revalidatePath("/accounts");
+    revalidatePath("/log");
+    revalidatePath("/transactions");
+    return { success: true, delta: result.delta };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Something went wrong",
+    };
+  }
 }

@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 
 import {
+  applyCycleTags,
   createRecurringTransaction,
   deleteRecurringTransaction,
   generateDueTransactions,
   tagRecurringToCycle,
+  untagRecurringFromCycle,
   updateRecurringTransaction,
 } from "@/services/RecurringTransactionService";
 import {
@@ -185,6 +187,87 @@ export async function tagRecurringToCycleAction(
   revalidatePath("/budgets");
   revalidatePath("/recurring");
   revalidatePath("/dashboard");
+  revalidatePath("/transactions");
+  return { success: true };
+}
+
+export interface ApplyCycleTagsFormState {
+  error?: string;
+  message?: string;
+}
+
+/**
+ * v2.1: the bulk "Apply" behind Recurring's cycle-tagging UI — see
+ * applyCycleTags's own comment (RecurringTransactionService) for the
+ * reconciliation logic. desiredTemplateIds/candidateTemplateIds arrive as
+ * repeated same-named form fields (one hidden input per checkbox), read
+ * via formData.getAll rather than formValue's single-value helper.
+ */
+export async function applyCycleTagsAction(
+  _prevState: ApplyCycleTagsFormState,
+  formData: FormData,
+): Promise<ApplyCycleTagsFormState> {
+  const cycleMonth = formValue(formData, "cycleMonth");
+  if (!cycleMonth) {
+    return { error: "Missing cycle month" };
+  }
+
+  const desiredTemplateIds = formData.getAll("desiredTemplateIds").map(String);
+  const candidateTemplateIds = formData
+    .getAll("candidateTemplateIds")
+    .map(String);
+
+  try {
+    const result = await applyCycleTags({
+      cycleMonth,
+      desiredTemplateIds,
+      candidateTemplateIds,
+    });
+    revalidatePath("/recurring");
+    revalidatePath("/log");
+    revalidatePath("/dashboard");
+    revalidatePath("/budgets");
+    revalidatePath("/transactions");
+
+    const parts: string[] = [];
+    if (result.tagged > 0) parts.push(`tagged ${result.tagged}`);
+    if (result.untagged > 0) parts.push(`untagged ${result.untagged}`);
+    return {
+      message: parts.length > 0 ? parts.join(", ") + "." : "No changes.",
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Something went wrong",
+    };
+  }
+}
+
+export interface UntagCycleFormState {
+  error?: string;
+  success?: boolean;
+}
+
+export async function untagRecurringFromCycleAction(
+  _prevState: UntagCycleFormState,
+  formData: FormData,
+): Promise<UntagCycleFormState> {
+  const transactionId = formValue(formData, "transactionId");
+  if (!transactionId) {
+    return { error: "Missing transaction id" };
+  }
+
+  try {
+    await untagRecurringFromCycle(transactionId);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Something went wrong",
+    };
+  }
+
+  revalidatePath("/recurring");
+  revalidatePath("/log");
+  revalidatePath("/dashboard");
+  revalidatePath("/budgets");
   revalidatePath("/transactions");
   return { success: true };
 }

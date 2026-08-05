@@ -4,9 +4,9 @@ import { listAccounts, getAccountBalance } from "@/services/AccountService";
 import { listInstitutions } from "@/services/InstitutionService";
 import { getUserSettings } from "@/services/UserSettingsService";
 import { requireUser } from "@/lib/auth/require-user";
-import { formatMoneyDisplay, isNegativeMoney } from "@/lib/money";
 import { Hero } from "@/components/ui/hero";
 import { CreateAccountForm } from "@/features/accounts/components/CreateAccountForm";
+import { AccountBalanceRow } from "@/features/accounts/components/AccountBalanceRow";
 import { CreateInstitutionForm } from "@/features/institutions/components/CreateInstitutionForm";
 
 export const metadata: Metadata = {
@@ -59,24 +59,14 @@ export default async function AccountsPage() {
             </h2>
             <ul className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
               {rows.map(({ account, balance }) => (
-                <li
+                <AccountBalanceRow
                   key={account.id}
-                  className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-3.5 last:border-b-0"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-ink">
-                      {account.name}
-                    </p>
-                    <p className="text-xs capitalize text-ink-faint">
-                      {account.accountType.replace("_", " ")}
-                    </p>
-                  </div>
-                  <p
-                    className={`whitespace-nowrap font-display text-[15px] font-bold ${isNegativeMoney(balance) ? "text-negative" : "text-ink"}`}
-                  >
-                    {formatMoneyDisplay(balance, account.currencyCode)}
-                  </p>
-                </li>
+                  accountId={account.id}
+                  name={account.name}
+                  typeLabel={account.accountType.replace("_", " ")}
+                  balance={balance}
+                  currencyCode={account.currencyCode}
+                />
               ))}
             </ul>
           </section>
