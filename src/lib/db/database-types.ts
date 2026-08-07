@@ -1060,6 +1060,59 @@ export type Database = {
         };
         Relationships: [];
       };
+      // Hand-added (v2.2.0) the same way calendar_events/trips were —
+      // see this file's header disclaimer. Matches
+      // supabase/migrations/20260807000100_create_recurring_calendar_events.sql;
+      // smallint[] -> number[], time -> string, matching this file's
+      // existing numeric/bigint -> number convention.
+      recurring_calendar_events: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          people: string[];
+          mode: string | null;
+          days_of_week: number[];
+          start_time: string;
+          end_time: string;
+          start_date: string;
+          end_date: string;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          title: string;
+          people?: string[];
+          mode?: string | null;
+          days_of_week: number[];
+          start_time: string;
+          end_time: string;
+          start_date: string;
+          end_date: string;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string;
+          people?: string[];
+          mode?: string | null;
+          days_of_week?: number[];
+          start_time?: string;
+          end_time?: string;
+          start_date?: string;
+          end_date?: string;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       credit_card_statements: {
         Row: {
           id: string;

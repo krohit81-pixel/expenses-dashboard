@@ -26,6 +26,28 @@ export function isInMonth(dateISO: string, month: string): boolean {
   return dateISO.startsWith(month);
 }
 
+/**
+ * The 7 dates (Monday–Sunday) of the week containing `referenceDateISO`
+ * (defaults to today) — added for RecurringWeekGrid (v2.2.0), which
+ * needs a single week's dates rather than a 6-week grid. Same
+ * Monday-start, UTC-based convention as getMonthGridDates so a day never
+ * shifts under a browser's local timezone.
+ */
+export function getWeekDates(referenceDateISO?: string): string[] {
+  const ref = referenceDateISO
+    ? new Date(`${referenceDateISO}T00:00:00Z`)
+    : new Date(`${todayISODate()}T00:00:00Z`);
+  const daysSinceMonday = (ref.getUTCDay() + 6) % 7;
+  const monday = new Date(ref);
+  monday.setUTCDate(ref.getUTCDate() - daysSinceMonday);
+
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setUTCDate(monday.getUTCDate() + i);
+    return d.toISOString().slice(0, 10);
+  });
+}
+
 /** Today's date as "YYYY-MM-DD", UTC-based like the rest of this file. */
 export function todayISODate(): string {
   return new Date().toISOString().slice(0, 10);

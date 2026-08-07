@@ -22,10 +22,12 @@ import {
   type VisibilityFilter,
 } from "@/features/travel/detailed-list";
 import type { SchoolCalendarItem } from "@/features/travel/school-items";
+import type { RecurringOccurrence } from "@/lib/dates/recurring-calendar-events";
 import type { CalendarEvent } from "@/services/CalendarEventService";
 import type { Trip } from "@/services/TripService";
 
 const TRAVEL_STYLE = "bg-teal text-white";
+const RECURRING_STYLE = "bg-accent text-white";
 const MAX_CHIPS_PER_DAY = 3;
 const PERSON_NAME = { ahaana: "Ahaana", rohana: "Rohana" } as const;
 /** Chips are ~9px text in an 84px-tall day cell — three stacked dots is
@@ -58,13 +60,15 @@ function PersonDots({ names }: { names: string[] }) {
 type Chip =
   | { kind: "school"; key: string; item: SchoolCalendarItem }
   | { kind: "trip"; key: string; trip: Trip }
-  | { kind: "manual"; key: string; event: CalendarEvent };
+  | { kind: "manual"; key: string; event: CalendarEvent }
+  | { kind: "recurring"; key: string; occurrence: RecurringOccurrence };
 
 function chipsForDate(
   dateISO: string,
   trips: Trip[],
   schoolItems: SchoolCalendarItem[],
   calendarEvents: CalendarEvent[],
+  recurringOccurrences: RecurringOccurrence[],
   visible: VisibilityFilter,
 ): Chip[] {
   const chips: Chip[] = [];
@@ -94,6 +98,18 @@ function chipsForDate(
       chips.push({ kind: "manual", key: `manual-${event.id}`, event });
     }
   }
+  // Occurrences are already single-date (expanded from a rule) — an
+  // exact match, not a range check like the others above.
+  for (const occurrence of recurringOccurrences) {
+    if (!arePeopleVisible(occurrence.people, visible)) continue;
+    if (occurrence.date === dateISO) {
+      chips.push({
+        kind: "recurring",
+        key: `recurring-${occurrence.key}`,
+        occurrence,
+      });
+    }
+  }
   return chips;
 }
 
@@ -103,20 +119,24 @@ export function TripCalendarGrid({
   trips,
   schoolItems,
   calendarEvents,
+  recurringOccurrences,
   visible,
   onDayClick,
   onTripClick,
   onEventClick,
+  onRecurringClick,
 }: {
   month: string;
   onMonthChange: (month: string) => void;
   trips: Trip[];
   schoolItems: SchoolCalendarItem[];
   calendarEvents: CalendarEvent[];
+  recurringOccurrences: RecurringOccurrence[];
   visible: VisibilityFilter;
   onDayClick: (dateISO: string) => void;
   onTripClick: (tripId: string) => void;
   onEventClick: (eventId: string) => void;
+  onRecurringClick: (ruleId: string) => void;
 }) {
   const dates = getMonthGridDates(month);
   const today = todayISODate();
@@ -165,6 +185,7 @@ export function TripCalendarGrid({
             trips,
             schoolItems,
             calendarEvents,
+            recurringOccurrences,
             visible,
           );
           const shown = chips.slice(0, MAX_CHIPS_PER_DAY);
@@ -233,6 +254,28 @@ export function TripCalendarGrid({
                       )}
                     >
                       <PersonDots names={chip.event.people} />
+                      <span className="min-w-0 truncate">{label}</span>
+                    </button>
+                  );
+                }
+
+                if (chip.kind === "recurring") {
+                  const label = truncate(chip.occurrence.title, 15);
+                  return (
+                    <button
+                      type="button"
+                      key={chip.key}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRecurringClick(chip.occurrence.ruleId);
+                      }}
+                      title={`${chip.occurrence.title} · ${chip.occurrence.startTime}–${chip.occurrence.endTime}${chip.occurrence.people.length > 0 ? ` — ${chip.occurrence.people.join(", ")}` : ""}`}
+                      className={cn(
+                        "flex items-center gap-1 rounded-full px-1 py-[1.5px] font-display text-[9px] font-bold",
+                        RECURRING_STYLE,
+                      )}
+                    >
+                      <PersonDots names={chip.occurrence.people} />
                       <span className="min-w-0 truncate">{label}</span>
                     </button>
                   );
@@ -307,10 +350,12 @@ export function TripCalendarGrid({
           />
         ))}
         <LegendItem className={TRAVEL_STYLE} label="Booked travel" icon />
+        <LegendItem className={RECURRING_STYLE} label="Recurring" />
       </div>
       <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
         Tap a day with a trip or event to edit it; tap an empty day to add a
-        trip. Use &quot;+ Add an event&quot; below for anything else.
+        trip. Use &quot;+ Add an event&quot; or &quot;+ Add recurring
+        event&quot; below for anything else.
       </p>
     </div>
   );

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getMonthGridDates, isInMonth } from "./calendar-grid";
+import { getMonthGridDates, getWeekDates, isInMonth } from "./calendar-grid";
 
 describe("getMonthGridDates", () => {
   it("returns 42 dates", () => {
@@ -47,5 +47,30 @@ describe("isInMonth", () => {
 
   it("false for a date outside the month", () => {
     expect(isInMonth("2026-08-01", "2026-07")).toBe(false);
+  });
+});
+
+describe("getWeekDates", () => {
+  it("returns 7 consecutive dates", () => {
+    expect(getWeekDates("2026-08-12")).toHaveLength(7);
+  });
+
+  it("starts on the Monday on/before the reference date — 2026-08-12 is a Wednesday", () => {
+    const dates = getWeekDates("2026-08-12");
+    expect(dates[0]).toBe("2026-08-10");
+    expect(dates[6]).toBe("2026-08-16");
+  });
+
+  it("stays put when the reference date is already a Monday", () => {
+    // 2026-08-10 is a Monday.
+    const dates = getWeekDates("2026-08-10");
+    expect(dates[0]).toBe("2026-08-10");
+  });
+
+  it("rolls correctly across a month boundary", () => {
+    // 2026-08-31 is a Monday.
+    const dates = getWeekDates("2026-08-31");
+    expect(dates[0]).toBe("2026-08-31");
+    expect(dates[6]).toBe("2026-09-06");
   });
 });

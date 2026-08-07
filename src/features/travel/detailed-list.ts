@@ -16,6 +16,7 @@ import type {
 } from "@/features/travel/school-items";
 import type { CalendarEvent } from "@/services/CalendarEventService";
 import type { Trip } from "@/services/TripService";
+import type { RecurringOccurrence } from "@/lib/dates/recurring-calendar-events";
 
 export type DetailedItem =
   | {
@@ -46,6 +47,19 @@ export type DetailedItem =
       title: string;
       tag: Exclude<EventTag, "trip">;
       people: string[];
+      notes: string | null;
+      startDate: string;
+      endDate: string;
+    }
+  | {
+      kind: "recurring";
+      key: string;
+      ruleId: string;
+      title: string;
+      people: string[];
+      mode: string | null;
+      startTime: string;
+      endTime: string;
       notes: string | null;
       startDate: string;
       endDate: string;
@@ -130,6 +144,7 @@ export function buildDetailedGroups(
   schoolItems: SchoolCalendarItem[],
   visible: VisibilityFilter,
   calendarEvents: CalendarEvent[] = [],
+  recurringOccurrences: RecurringOccurrence[] = [],
 ): DetailedGroup[] {
   const items: DetailedItem[] = [
     ...schoolItems
@@ -172,6 +187,26 @@ export function buildDetailedGroups(
         notes: event.notes,
         startDate: event.startDate,
         endDate: event.endDate,
+      })),
+    // Each entry here is one already-expanded occurrence (one date), not
+    // a rule — see expandRecurringOccurrences. Same person-filter
+    // treatment as manual events: an untagged rule is never hidden by
+    // the person chips, a tagged one hides only if none of its tagged
+    // people are currently visible.
+    ...recurringOccurrences
+      .filter((occurrence) => arePeopleVisible(occurrence.people, visible))
+      .map((occurrence): DetailedItem => ({
+        kind: "recurring",
+        key: `recurring-${occurrence.key}`,
+        ruleId: occurrence.ruleId,
+        title: occurrence.title,
+        people: occurrence.people,
+        mode: occurrence.mode,
+        startTime: occurrence.startTime,
+        endTime: occurrence.endTime,
+        notes: occurrence.notes,
+        startDate: occurrence.date,
+        endDate: occurrence.date,
       })),
   ];
 

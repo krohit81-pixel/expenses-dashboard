@@ -15,10 +15,15 @@ import {
   travelerInitials,
 } from "@/features/travel/travelers";
 import type { SchoolCalendarItem } from "@/features/travel/school-items";
+import {
+  formatTimeRange,
+  type RecurringOccurrence,
+} from "@/lib/dates/recurring-calendar-events";
 import type { CalendarEvent } from "@/services/CalendarEventService";
 import type { Trip } from "@/services/TripService";
 
 const TRAVEL_STYLE = "bg-teal-soft text-teal";
+const RECURRING_STYLE = "bg-accent-soft text-accent";
 const PERSON_NAME = { ahaana: "Ahaana", rohana: "Rohana" } as const;
 
 /** The day-number column shared by every row kind — pulled out once (v1.1.7) instead of repeating the same three-way markup at each of the three item-kind render sites below. */
@@ -76,16 +81,20 @@ export function TripDetailedList({
   trips,
   schoolItems,
   calendarEvents,
+  recurringOccurrences,
   visible,
   onTripClick,
   onEventClick,
+  onRecurringClick,
 }: {
   trips: Trip[];
   schoolItems: SchoolCalendarItem[];
   calendarEvents: CalendarEvent[];
+  recurringOccurrences: RecurringOccurrence[];
   visible: VisibilityFilter;
   onTripClick: (tripId: string) => void;
   onEventClick: (eventId: string) => void;
+  onRecurringClick: (ruleId: string) => void;
 }) {
   const [collapsed, setCollapsed] = useState(true);
   const groups = buildDetailedGroups(
@@ -93,6 +102,7 @@ export function TripDetailedList({
     schoolItems,
     visible,
     calendarEvents,
+    recurringOccurrences,
   );
   const totalCount = groups.reduce((sum, g) => sum + g.items.length, 0);
 
@@ -109,7 +119,8 @@ export function TripDetailedList({
             Detailed calendar events
           </h2>
           <p className="mt-0.5 text-[11.5px] text-ink-faint">
-            Exams, vacations, holidays and travel — chronological
+            Exams, vacations, holidays, travel, and recurring classes —
+            chronological
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -203,6 +214,38 @@ export function TripDetailedList({
                             )}
                           >
                             {TAG_LABELS[item.tag]}
+                          </span>
+                          <PersonAvatars names={item.people} />
+                        </div>
+                      </li>
+                    );
+                  }
+
+                  if (item.kind === "recurring") {
+                    return (
+                      <li
+                        key={item.key}
+                        onClick={() => onRecurringClick(item.ruleId)}
+                        className="flex cursor-pointer items-start gap-3 border-b border-line px-[18px] py-3 last:border-b-0 hover:bg-bg"
+                      >
+                        <DayBadgeCell badge={badge} />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[13px] font-semibold text-ink">
+                            {item.title}
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-ink-faint">
+                            {formatTimeRange(item.startTime, item.endTime)}
+                            {item.mode ? ` · ${item.mode}` : ""}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 flex-col items-end gap-1.5">
+                          <span
+                            className={cn(
+                              "whitespace-nowrap rounded-full px-2 py-1 font-display text-[9.5px] font-extrabold uppercase tracking-wide",
+                              RECURRING_STYLE,
+                            )}
+                          >
+                            Recurring
                           </span>
                           <PersonAvatars names={item.people} />
                         </div>

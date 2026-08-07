@@ -4,6 +4,7 @@ import { buildDetailedGroups, type VisibilityFilter } from "./detailed-list";
 import type { SchoolCalendarItem } from "./school-items";
 import type { CalendarEvent } from "@/services/CalendarEventService";
 import type { Trip } from "@/services/TripService";
+import type { RecurringOccurrence } from "@/lib/dates/recurring-calendar-events";
 
 const ALL_VISIBLE: VisibilityFilter = {
   ahaana: true,
@@ -237,6 +238,63 @@ describe("buildDetailedGroups", () => {
       [],
       { ...ALL_VISIBLE, rohit: false },
       calendarEvents,
+    );
+    expect(groups.flatMap((g) => g.items)).toHaveLength(0);
+  });
+
+  it("merges recurring occurrences in, carrying time/mode through", () => {
+    const recurringOccurrences: RecurringOccurrence[] = [
+      {
+        key: "rule-1-2026-08-11",
+        ruleId: "rule-1",
+        title: "Calculus",
+        people: ["Rohana"],
+        mode: "Offline",
+        date: "2026-08-11",
+        startTime: "08:00",
+        endTime: "09:30",
+        notes: null,
+      },
+    ];
+    const groups = buildDetailedGroups(
+      [],
+      [],
+      ALL_VISIBLE,
+      [],
+      recurringOccurrences,
+    );
+    const allItems = groups.flatMap((g) => g.items);
+    expect(allItems).toHaveLength(1);
+    expect(allItems[0]).toMatchObject({
+      kind: "recurring",
+      title: "Calculus",
+      mode: "Offline",
+      startTime: "08:00",
+      endTime: "09:30",
+      startDate: "2026-08-11",
+    });
+  });
+
+  it("hides a recurring occurrence tagged only to a hidden person, same as a manual event", () => {
+    const recurringOccurrences: RecurringOccurrence[] = [
+      {
+        key: "rule-1-2026-08-11",
+        ruleId: "rule-1",
+        title: "Calculus",
+        people: ["Rohana"],
+        mode: "Offline",
+        date: "2026-08-11",
+        startTime: "08:00",
+        endTime: "09:30",
+        notes: null,
+      },
+    ];
+    const groups = buildDetailedGroups(
+      [],
+      [],
+      { ...ALL_VISIBLE, rohana: false },
+      [],
+      recurringOccurrences,
     );
     expect(groups.flatMap((g) => g.items)).toHaveLength(0);
   });

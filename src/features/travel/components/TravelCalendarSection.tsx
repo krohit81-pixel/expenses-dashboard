@@ -1,12 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarPlus, Plane, Upload } from "lucide-react";
+import { CalendarClock, CalendarPlus, Plane, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { currentMonth } from "@/lib/dates/month";
 import { AddEventModal } from "@/features/calendar/components/AddEventModal";
+import { AddRecurringEventModal } from "@/features/calendar/components/AddRecurringEventModal";
+import { RecurringEventsList } from "@/features/calendar/components/RecurringEventsList";
 import { GoodTravelWindows } from "@/features/travel/components/GoodTravelWindows";
+import { RecurringWeekGrid } from "@/features/travel/components/RecurringWeekGrid";
 import { TripCalendarGrid } from "@/features/travel/components/TripCalendarGrid";
 import { TripDetailedList } from "@/features/travel/components/TripDetailedList";
 import { AddTripModal } from "@/features/travel/components/AddTripModal";
@@ -14,7 +17,9 @@ import { travelerColorClass } from "@/features/travel/travelers";
 import type { VisibilityFilter } from "@/features/travel/detailed-list";
 import type { PersonTravelWindow } from "@/features/travel/travel-windows";
 import type { SchoolCalendarItem } from "@/features/travel/school-items";
+import type { RecurringOccurrence } from "@/lib/dates/recurring-calendar-events";
 import type { CalendarEvent } from "@/services/CalendarEventService";
+import type { RecurringCalendarEvent } from "@/services/RecurringCalendarEventService";
 import type { Trip } from "@/services/TripService";
 
 type Visibility = VisibilityFilter;
@@ -67,11 +72,15 @@ export function TravelCalendarSection({
   trips,
   schoolItems,
   calendarEvents,
+  recurringRules,
+  recurringOccurrences,
   travelWindows,
 }: {
   trips: Trip[];
   schoolItems: SchoolCalendarItem[];
   calendarEvents: CalendarEvent[];
+  recurringRules: RecurringCalendarEvent[];
+  recurringOccurrences: RecurringOccurrence[];
   travelWindows: PersonTravelWindow[];
 }) {
   const [month, setMonth] = useState(currentMonth());
@@ -101,6 +110,13 @@ export function TravelCalendarSection({
   const [eventModalInitialDate, setEventModalInitialDate] = useState<
     string | undefined
   >();
+
+  // A recurring rule isn't a single date the way a trip/manual event is
+  // (see RecurringEventsList's comment), so it gets its own independent
+  // open/editing state too, same reasoning as eventModalOpen above.
+  const [recurringModalOpen, setRecurringModalOpen] = useState(false);
+  const [editingRecurringRule, setEditingRecurringRule] =
+    useState<RecurringCalendarEvent | null>(null);
 
   function toggleFilter(key: keyof Visibility) {
     setVisible((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -135,6 +151,18 @@ export function TravelCalendarSection({
     setEventModalOpen(true);
   }
 
+  function openAddRecurringModal() {
+    setEditingRecurringRule(null);
+    setRecurringModalOpen(true);
+  }
+
+  function openEditRecurringModal(ruleId: string) {
+    const rule = recurringRules.find((r) => r.id === ruleId);
+    if (!rule) return;
+    setEditingRecurringRule(rule);
+    setRecurringModalOpen(true);
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-2">
@@ -159,25 +187,36 @@ export function TravelCalendarSection({
 
       <GoodTravelWindows windows={travelWindows} visible={visible} />
 
+      <RecurringWeekGrid rules={recurringRules} visible={visible} />
+
       <TripCalendarGrid
         month={month}
         onMonthChange={setMonth}
         trips={trips}
         schoolItems={schoolItems}
         calendarEvents={calendarEvents}
+        recurringOccurrences={recurringOccurrences}
         visible={visible}
         onDayClick={(dateISO) => openAddModal(dateISO)}
         onTripClick={openEditModal}
         onEventClick={openEditEventModal}
+        onRecurringClick={openEditRecurringModal}
       />
 
       <TripDetailedList
         trips={trips}
         schoolItems={schoolItems}
         calendarEvents={calendarEvents}
+        recurringOccurrences={recurringOccurrences}
         visible={visible}
         onTripClick={openEditModal}
         onEventClick={openEditEventModal}
+        onRecurringClick={openEditRecurringModal}
+      />
+
+      <RecurringEventsList
+        rules={recurringRules}
+        onEdit={openEditRecurringModal}
       />
 
       <section className="rounded-[20px] bg-surface p-5 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
@@ -238,6 +277,31 @@ export function TravelCalendarSection({
         </Button>
       </section>
 
+      <section className="rounded-[20px] bg-surface p-5 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+        <div className="flex items-center gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-[11px] bg-accent-soft text-accent">
+            <CalendarClock className="size-4.5" />
+          </div>
+          <div>
+            <div className="font-display text-[14.5px] font-extrabold text-ink">
+              Add a recurring event
+            </div>
+            <div className="mt-0.5 text-[11.5px] text-ink-faint">
+              Something that repeats weekly — a class, a standing appointment
+            </div>
+          </div>
+        </div>
+        <p className="my-3.5 text-[11px] leading-relaxed text-ink-faint">
+          Pick one or more days of the week, a time, and how long it should run
+          for (e.g. a semester&apos;s instructional weeks) — it shows up every
+          matching week above and in the day-by-day list, and stops appearing on
+          its own once it ends.
+        </p>
+        <Button variant="outline" onClick={openAddRecurringModal}>
+          <CalendarClock className="size-4" /> + Add recurring event
+        </Button>
+      </section>
+
       <AddTripModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -251,6 +315,12 @@ export function TravelCalendarSection({
         onClose={() => setEventModalOpen(false)}
         editingEvent={editingEvent}
         initialDate={eventModalInitialDate}
+      />
+
+      <AddRecurringEventModal
+        open={recurringModalOpen}
+        onClose={() => setRecurringModalOpen(false)}
+        editingRule={editingRecurringRule}
       />
     </div>
   );

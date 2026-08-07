@@ -5,7 +5,12 @@ import { ROHANA_TBC_HOLIDAYS } from "@/features/calendar/data";
 import { TravelCalendarSection } from "@/features/travel/components/TravelCalendarSection";
 import { buildSchoolCalendarItems } from "@/features/travel/school-items";
 import { buildTravelWindows } from "@/features/travel/travel-windows";
+import {
+  expandRecurringOccurrences,
+  widestRuleRange,
+} from "@/lib/dates/recurring-calendar-events";
 import { listCalendarEvents } from "@/services/CalendarEventService";
+import { listRecurringCalendarEvents } from "@/services/RecurringCalendarEventService";
 import { listTrips } from "@/services/TripService";
 
 export const metadata: Metadata = {
@@ -29,14 +34,30 @@ export const metadata: Metadata = {
  * (a hardcoded Diwali date that would silently go stale) and the
  * "Family overlap" prose card (redundant with, and less legible than,
  * the windows strip + grid below it).
+ *
+ * v2.2.0: added recurring calendar events (finance.recurring_calendar_events)
+ * — weekly-repeating rules, e.g. a class timetable. Occurrences are
+ * expanded here, once, over the widest range any rule can ever produce
+ * (widestRuleRange — each rule is bounded by its own start/end date, see
+ * that migration's comment), then handed down as a flat list alongside
+ * trips/calendarEvents; RecurringWeekGrid separately re-expands just the
+ * current week client-side so it stays live without a reload as days
+ * pass. See docs/00-current-state.md's "v2.0/v2.1 revamp" note — this is
+ * unrelated to that finance-side Recurring page (recurring
+ * transactions); same word, two independent features.
  */
 export default async function CalendarPage() {
-  const [trips, calendarEvents] = await Promise.all([
+  const [trips, calendarEvents, recurringRules] = await Promise.all([
     listTrips(),
     listCalendarEvents(),
+    listRecurringCalendarEvents(),
   ]);
   const schoolItems = buildSchoolCalendarItems();
   const travelWindows = buildTravelWindows();
+  const ruleRange = widestRuleRange(recurringRules);
+  const recurringOccurrences = ruleRange
+    ? expandRecurringOccurrences(recurringRules, ruleRange.start, ruleRange.end)
+    : [];
 
   return (
     <div>
@@ -47,6 +68,8 @@ export default async function CalendarPage() {
           trips={trips}
           schoolItems={schoolItems}
           calendarEvents={calendarEvents}
+          recurringRules={recurringRules}
+          recurringOccurrences={recurringOccurrences}
           travelWindows={travelWindows}
         />
 
