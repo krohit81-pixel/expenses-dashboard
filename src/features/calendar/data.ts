@@ -10,6 +10,15 @@
  * dates that matter for travel planning and avoiding conflicts: recess/
  * reading weeks, examination periods, vacation windows, public holidays,
  * and Special Term boundaries — not every individual instructional week.
+ *
+ * Ahaana's CA (Continuous Assessment) 1 & 2 subject-by-subject test dates
+ * added from CNS's circular 2026/27/LS/CIR008 (Grade 8 – Term 1 & 2 CA
+ * Schedule, 29 Jul 2026) — every single-subject CA date from that circular
+ * is its own "exam" entry below (Aug–Oct 2026); the circular's non-test
+ * markers ("CA 1 - Begins" on 9 Aug, "CA 1 & CA 2 ENDS" on 9 Oct, the "ART
+ * CA" footnotes with no specific date) were left out as not actual test
+ * days. Holidays/events already in this file from the main school calendar
+ * PDF weren't duplicated even where the CA circular also lists them.
  */
 
 export type EventTag = "vacation" | "holiday" | "exam" | "event" | "trip";
@@ -72,6 +81,18 @@ export const TAG_STYLES: Record<EventTag, string> = {
   trip: "bg-teal text-white",
 };
 
+/** Same colors as TAG_STYLES, without the white-text pairing — for the
+ * "bold top bar" chip style (v2.5.0, validated in the month/week-view
+ * prototype): a solid color strip across the top of a pale chip, rather
+ * than a solid-color pill. Needs just the background class on its own. */
+export const TAG_BAR_STYLES: Record<EventTag, string> = {
+  vacation: "bg-cal-vacation",
+  holiday: "bg-cal-holiday",
+  exam: "bg-cal-exam",
+  event: "bg-cal-event",
+  trip: "bg-teal",
+};
+
 export const TAG_LABELS: Record<EventTag, string> = {
   vacation: "Vacation",
   holiday: "Holiday",
@@ -131,6 +152,14 @@ export const AHAANA_CALENDAR: MonthGroup[] = [
         title: "CNS Mumbai 10th Year Celebration",
         tag: "event",
       },
+      { date: "10", day: "Mon", title: "CA 1 – Mathematics", tag: "exam" },
+      { date: "12", day: "Wed", title: "CA 1 – Chemistry", tag: "exam" },
+      {
+        date: "14",
+        day: "Fri",
+        title: "CA 1 – Global Perspectives",
+        tag: "exam",
+      },
       {
         date: "15",
         day: "Sat",
@@ -138,12 +167,17 @@ export const AHAANA_CALENDAR: MonthGroup[] = [
         tag: "holiday",
       },
       { date: "16", day: "Sun", title: "Parsi New Year", tag: "holiday" },
+      { date: "17", day: "Mon", title: "CA 1 – Geography", tag: "exam" },
+      { date: "19", day: "Wed", title: "CA 1 – Computing", tag: "exam" },
+      { date: "21", day: "Fri", title: "CA 1 – Physics", tag: "exam" },
       {
         date: "22",
         day: "Sat",
         title: "Meet & Greet HRTs, Grades 6–10",
         tag: "event",
       },
+      { date: "24", day: "Mon", title: "CA 1 – Marathi", tag: "exam" },
+      { date: "25", day: "Tue", title: "CA 1 – History", tag: "exam" },
       { date: "26", day: "Wed", title: "Eid-E-Milad", tag: "holiday" },
       { date: "27", day: "Thu", title: "School-wide holiday", tag: "holiday" },
       {
@@ -159,20 +193,41 @@ export const AHAANA_CALENDAR: MonthGroup[] = [
     month: "September 2026",
     events: [
       {
+        date: "1",
+        day: "Tue",
+        title: "CA 1 – Second Language",
+        tag: "exam",
+      },
+      { date: "4", day: "Fri", title: "CA 1 – English", tag: "exam" },
+      {
         date: "5",
         day: "Sat",
         title: "Dahi Handi / Teacher's Day",
         tag: "holiday",
       },
+      { date: "9", day: "Wed", title: "CA 1 – Biology", tag: "exam" },
+      { date: "10", day: "Thu", title: "CA 2 – English", tag: "exam" },
       {
         date: "11",
         day: "Fri",
         title: "Grandparents Day (whole school)",
         tag: "event",
       },
+      { date: "11", day: "Fri", title: "CA 2 – Chemistry", tag: "exam" },
       { date: "14", day: "Mon", title: "Ganesh Chaturthi", tag: "holiday" },
+      {
+        date: "15",
+        day: "Tue",
+        title: "CA 2 – Global Perspectives",
+        tag: "exam",
+      },
+      { date: "17", day: "Thu", title: "CA 2 – Geography", tag: "exam" },
       { date: "18", day: "Fri", title: "Gauri Pooja", tag: "holiday" },
       { date: "19", day: "Sat", title: "Gauri Visarjan", tag: "holiday" },
+      { date: "21", day: "Mon", title: "CA 2 – Physics", tag: "exam" },
+      { date: "22", day: "Tue", title: "CA 2 – Computing", tag: "exam" },
+      { date: "23", day: "Wed", title: "CA 2 – History", tag: "exam" },
+      { date: "24", day: "Thu", title: "CA 2 – Marathi", tag: "exam" },
       { date: "25", day: "Fri", title: "Anant Chaturdashi", tag: "holiday" },
       {
         date: "30",
@@ -192,6 +247,14 @@ export const AHAANA_CALENDAR: MonthGroup[] = [
         title: "Mahatma Gandhi Jayanti",
         tag: "holiday",
       },
+      {
+        date: "6",
+        day: "Tue",
+        title: "CA 2 – Second Language",
+        tag: "exam",
+      },
+      { date: "7", day: "Wed", title: "CA 2 – Biology", tag: "exam" },
+      { date: "8", day: "Thu", title: "CA 2 – Mathematics", tag: "exam" },
       {
         date: "9",
         day: "Fri",

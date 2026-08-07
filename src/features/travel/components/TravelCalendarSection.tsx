@@ -8,7 +8,6 @@ import { AddEventModal } from "@/features/calendar/components/AddEventModal";
 import { AddRecurringEventModal } from "@/features/calendar/components/AddRecurringEventModal";
 import { LoggingSection } from "@/features/calendar/components/LoggingSection";
 import { RecurringEventsList } from "@/features/calendar/components/RecurringEventsList";
-import { DayViewModal } from "@/features/travel/components/DayViewModal";
 import { GoodTravelWindows } from "@/features/travel/components/GoodTravelWindows";
 import { TripCalendarGrid } from "@/features/travel/components/TripCalendarGrid";
 import { TripDetailedList } from "@/features/travel/components/TripDetailedList";
@@ -83,10 +82,14 @@ const FILTER_CHIPS: {
  * pill tab switcher below the person filter chips, which stay visible
  * across all three since they affect every section's content. Replaces
  * the earlier "one long collapsed-by-default scroll" layout from
- * v2.3.0. "This week's schedule" also now merges what used to be two
- * separate widgets (a visual timetable for recurring items only, and a
- * text day-by-day list for everything) into one: an all-day band for
- * trips/school items/manual events above the same hourly grid.
+ * v2.3.0.
+ *
+ * v2.5.0: DayViewModal (a full-screen Outlook-style day view) is gone —
+ * both TripCalendarGrid and WeekScheduleGrid now expand DayDetailCard
+ * inline, right below whichever day/week row was tapped, so there's no
+ * modal state to own here anymore. WeekScheduleGrid also stopped being
+ * pinned to the current week; it owns its own week-offset state and
+ * pages independently.
  */
 export function TravelCalendarSection({
   trips,
@@ -133,11 +136,6 @@ export function TravelCalendarSection({
   const [editingRecurringRule, setEditingRecurringRule] =
     useState<RecurringCalendarEvent | null>(null);
 
-  // Day View (v2.3.0) — the month grid's only interaction now; it owns
-  // just which date is showing, not any editing state of its own.
-  const [dayViewOpen, setDayViewOpen] = useState(false);
-  const [dayViewDate, setDayViewDate] = useState<string | null>(null);
-
   function toggleFilter(key: keyof Visibility) {
     setVisible((prev) => ({ ...prev, [key]: !prev[key] }));
   }
@@ -177,27 +175,6 @@ export function TravelCalendarSection({
     if (!rule) return;
     setEditingRecurringRule(rule);
     setRecurringModalOpen(true);
-  }
-
-  function openDayView(dateISO: string) {
-    setDayViewDate(dateISO);
-    setDayViewOpen(true);
-  }
-
-  // Day View hands off to the same edit modals everything else on this
-  // page uses — closing it first keeps only one overlay on screen at a
-  // time rather than stacking two fixed-inset panels.
-  function handleDayViewTripClick(tripId: string) {
-    setDayViewOpen(false);
-    openEditModal(tripId);
-  }
-  function handleDayViewEventClick(eventId: string) {
-    setDayViewOpen(false);
-    openEditEventModal(eventId);
-  }
-  function handleDayViewRecurringClick(ruleId: string) {
-    setDayViewOpen(false);
-    openEditRecurringModal(ruleId);
   }
 
   return (
@@ -253,7 +230,9 @@ export function TravelCalendarSection({
             calendarEvents={calendarEvents}
             recurringOccurrences={recurringOccurrences}
             visible={visible}
-            onDayClick={openDayView}
+            onTripClick={openEditModal}
+            onEventClick={openEditEventModal}
+            onRecurringClick={openEditRecurringModal}
           />
 
           <WeekScheduleGrid
@@ -299,20 +278,6 @@ export function TravelCalendarSection({
           onAddRecurring={openAddRecurringModal}
         />
       )}
-
-      <DayViewModal
-        open={dayViewOpen}
-        onClose={() => setDayViewOpen(false)}
-        date={dayViewDate}
-        trips={trips}
-        schoolItems={schoolItems}
-        calendarEvents={calendarEvents}
-        recurringOccurrences={recurringOccurrences}
-        visible={visible}
-        onTripClick={handleDayViewTripClick}
-        onEventClick={handleDayViewEventClick}
-        onRecurringClick={handleDayViewRecurringClick}
-      />
 
       <AddTripModal
         open={modalOpen}

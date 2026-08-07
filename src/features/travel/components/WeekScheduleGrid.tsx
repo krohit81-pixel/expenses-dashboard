@@ -1,77 +1,48 @@
 "use client";
 
+import { useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
 import { cn } from "@/lib/utils";
-import { getWeekDates, todayISODate } from "@/lib/dates/calendar-grid";
 import {
-  expandRecurringOccurrences,
-  formatHourLabel,
-  formatTimeRange,
-  minutesOfDay,
-  type RecurringOccurrence,
-} from "@/lib/dates/recurring-calendar-events";
-import { TAG_STYLES } from "@/features/calendar/data";
+  getWeekDates,
+  shiftDate,
+  todayISODate,
+} from "@/lib/dates/calendar-grid";
+import { expandRecurringOccurrences } from "@/lib/dates/recurring-calendar-events";
 import {
-  chipsForDate,
-  PersonDots,
-  type Chip,
+  compactChipsForDate,
+  type DisplayChip,
 } from "@/features/travel/components/TripCalendarGrid";
+import { ChipBadge } from "@/features/travel/components/ChipBadge";
+import { DayDetailCard } from "@/features/travel/components/DayDetailCard";
 import {
   arePeopleVisible,
   type VisibilityFilter,
 } from "@/features/travel/detailed-list";
-import { travelerColorClass } from "@/features/travel/travelers";
 import type { SchoolCalendarItem } from "@/features/travel/school-items";
 import type { CalendarEvent } from "@/services/CalendarEventService";
 import type { RecurringCalendarEvent } from "@/services/RecurringCalendarEventService";
 import type { Trip } from "@/services/TripService";
 
-const ROW_HEIGHT_PX = 40;
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const TRAVEL_STYLE = "bg-teal text-white";
-const MAX_ALL_DAY_CHIPS = 2;
-
-// Everything but "recurring" — the only kinds the all-day band ever
-// holds, since recurring occurrences are the sole kind with a real
-// time of day (see the split below). A named Extract, not just `Chip`,
-// so chipLabel/chipStyle/chipPeople's if/else chains are exhaustive
-// without needing to handle a "recurring" case that can't occur here.
-type AllDayChip = Extract<Chip, { kind: "school" | "trip" | "manual" }>;
-
-function chipLabel(chip: AllDayChip): string {
-  if (chip.kind === "trip") return chip.trip.destination;
-  if (chip.kind === "school") return chip.item.title;
-  return chip.event.title;
-}
-
-function chipStyle(chip: AllDayChip): string {
-  if (chip.kind === "trip") return TRAVEL_STYLE;
-  return TAG_STYLES[chip.kind === "school" ? chip.item.tag : chip.event.tag];
-}
-
-function chipPeople(chip: AllDayChip): string[] {
-  if (chip.kind === "trip") return chip.trip.travelerNames;
-  if (chip.kind === "school")
-    return [chip.item.person === "ahaana" ? "Ahaana" : "Rohana"];
-  return chip.event.people;
-}
+const DAY_LABELS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
 /**
- * "This week's schedule" (v2.4.0) — merges what used to be two separate
- * widgets (RecurringWeekGrid's hourly timetable + WeekAgenda's "day by
- * day" text list) into one visual view: an "all day" band per column for
- * trips/school items/manual events (none of which carry a time of day),
- * and the hourly grid below it for recurring occurrences (the only kind
- * with a real start/end time) — same all-day/timed split DayViewModal
- * uses, just laid out across 7 columns instead of one. Lives in the
- * Dashboard section, always expanded (not collapsed by default) since
- * it's meant to be the at-a-glance view alongside the month grid.
+ * "This week's schedule" (v2.5.0) — rebuilt as a day-list matching the
+ * month/week-view prototype: each day is a row (weekday + number on the
+ * left), its items as wrapped "bold top bar" chips (ChipBadge) on the
+ * right, tapping a row expands the same DayDetailCard the month grid
+ * uses right below it. Replaces the earlier hourly-timeline + all-day-
+ * band layout entirely — that version couldn't move off the current
+ * week, which is the one thing this rebuild specifically adds: `weekOffset`
+ * shifts the whole 7-day window by ±7 days per tap, with a "This week"
+ * button to jump back once you've navigated away.
  *
- * Recurring occurrences are re-expanded here client-side against *this
- * actual week* (not the server-computed range in props) so it stays
- * correct without a reload as days pass — same reasoning the old
- * RecurringWeekGrid had. Trips/school items/manual events don't have
- * that "goes stale at midnight" concern, so they're read straight from
- * the props the server already passed down.
+ * Recurring occurrences are expanded here client-side against whichever
+ * week is showing (not the server-computed range in props) so paging
+ * through weeks doesn't depend on the server range happening to cover
+ * them — same reasoning the pre-v2.5.0 version had for the current week
+ * specifically, just generalized to any week now.
  */
 export function WeekScheduleGrid({
   rules,
@@ -92,8 +63,12 @@ export function WeekScheduleGrid({
   onEventClick: (eventId: string) => void;
   onRecurringClick: (ruleId: string) => void;
 }) {
-  const weekDates = getWeekDates();
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const today = todayISODate();
+  const referenceDate = shiftDate(today, weekOffset * 7);
+  const weekDates = getWeekDates(referenceDate);
+
   const visibleRules = rules.filter((rule) =>
     arePeopleVisible(rule.people, visible),
   );
@@ -103,202 +78,140 @@ export function WeekScheduleGrid({
     weekDates[6],
   );
 
-  const byDate = new Map<
-    string,
-    { allDay: AllDayChip[]; timed: RecurringOccurrence[] }
-  >();
-  for (const date of weekDates) {
-    const chips = chipsForDate(
-      date,
-      trips,
-      schoolItems,
-      calendarEvents,
-      occurrences,
-      visible,
-    );
-    byDate.set(date, {
-      allDay: chips.filter((c): c is AllDayChip => c.kind !== "recurring"),
-      timed: chips
-        .filter(
-          (c): c is Extract<Chip, { kind: "recurring" }> =>
-            c.kind === "recurring",
-        )
-        .map((c) => c.occurrence),
-    });
+  function goToWeek(delta: number) {
+    setWeekOffset((w) => w + delta);
+    setSelectedDate(null);
+  }
+  function goToThisWeek() {
+    setWeekOffset(0);
+    setSelectedDate(null);
   }
 
-  const hasAnything = weekDates.some((date) => {
-    const day = byDate.get(date);
-    return (day?.allDay.length ?? 0) > 0 || (day?.timed.length ?? 0) > 0;
-  });
-
-  const startMinutes = occurrences.map((o) => minutesOfDay(o.startTime));
-  const endMinutes = occurrences.map((o) => minutesOfDay(o.endTime));
-  const minHour =
-    occurrences.length > 0 ? Math.floor(Math.min(...startMinutes) / 60) : 0;
-  const maxHour =
-    occurrences.length > 0 ? Math.ceil(Math.max(...endMinutes) / 60) : 0;
-  const hours = Array.from(
-    { length: maxHour - minHour },
-    (_, i) => minHour + i,
-  );
-  const gridHeight = hours.length * ROW_HEIGHT_PX;
-
-  function handleClick(chip: Chip) {
-    if (chip.kind === "trip") onTripClick(chip.trip.id);
-    else if (chip.kind === "manual") onEventClick(chip.event.id);
-  }
+  const rangeLabel = `${weekDates[0].slice(8, 10)}–${weekDates[6].slice(8, 10)} ${new Date(
+    `${weekDates[6]}T00:00:00Z`,
+  ).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })}`;
 
   return (
     <section>
-      <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="font-display text-[15px] font-bold text-ink">
-          This week&apos;s schedule
-        </h2>
-        <span className="text-[10.5px] text-ink-faint">
-          {weekDates[0].slice(8, 10)}–{weekDates[6].slice(8, 10)}{" "}
-          {new Date(`${weekDates[6]}T00:00:00Z`).toLocaleDateString("en-US", {
-            month: "short",
-            timeZone: "UTC",
-          })}
-        </span>
-      </div>
-      <div className="rounded-[20px] bg-surface p-3.5 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-        <div className="flex">
-          <div className="w-8 shrink-0" />
-          {weekDates.map((date, i) => (
-            <div
-              key={date}
-              className={cn(
-                "flex-1 pb-2 text-center font-display text-[10px] font-bold uppercase tracking-wide text-ink-faint",
-                date === today && "text-accent",
-              )}
-            >
-              {DAY_LABELS[i]}
-            </div>
-          ))}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div>
+          <h2 className="font-display text-[15px] font-bold text-ink">
+            This week&apos;s schedule
+          </h2>
+          <span className="text-[10.5px] text-ink-faint">{rangeLabel}</span>
         </div>
+        <div className="flex items-center gap-1.5">
+          {weekOffset !== 0 && (
+            <button
+              type="button"
+              onClick={goToThisWeek}
+              className="rounded-full px-2.5 py-1.5 font-display text-[10.5px] font-bold text-accent"
+            >
+              This week
+            </button>
+          )}
+          <button
+            type="button"
+            aria-label="Previous week"
+            onClick={() => goToWeek(-1)}
+            className="flex size-8 items-center justify-center rounded-full border border-line text-ink-soft hover:bg-bg"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Next week"
+            onClick={() => goToWeek(1)}
+            className="flex size-8 items-center justify-center rounded-full border border-line text-ink-soft hover:bg-bg"
+          >
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+      </div>
 
-        {!hasAnything && (
-          <p className="pb-1 text-center text-[11.5px] text-ink-faint">
-            Nothing scheduled this week
-          </p>
-        )}
-
-        {hasAnything && (
-          <div className="flex border-b border-line pb-2">
-            <div className="w-8 shrink-0" />
-            {weekDates.map((date) => {
-              const allDay = byDate.get(date)?.allDay ?? [];
-              const shown = allDay.slice(0, MAX_ALL_DAY_CHIPS);
-              const overflow = allDay.length - shown.length;
-              return (
+      <div className="rounded-[20px] bg-surface p-3.5 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+        <div className="space-y-[3px]">
+          {weekDates.map((date, i) => {
+            const chips: DisplayChip[] = compactChipsForDate(
+              date,
+              trips,
+              schoolItems,
+              calendarEvents,
+              occurrences,
+              visible,
+            );
+            const isToday = date === today;
+            return (
+              <div key={date}>
                 <div
-                  key={date}
-                  className="min-w-0 flex-1 space-y-[3px] px-[1px]"
-                >
-                  {shown.map((chip) => {
-                    const clickable = chip.kind !== "school";
-                    return (
-                      <button
-                        key={chip.key}
-                        type="button"
-                        disabled={!clickable}
-                        onClick={() => clickable && handleClick(chip)}
-                        title={chipLabel(chip)}
-                        className={cn(
-                          "flex w-full items-center gap-[3px] overflow-hidden rounded-full px-1 py-[1.5px] font-display text-[7.5px] font-bold leading-tight",
-                          chipStyle(chip),
-                        )}
-                      >
-                        <PersonDots names={chipPeople(chip)} />
-                        <span className="min-w-0 truncate">
-                          {chipLabel(chip)}
-                        </span>
-                      </button>
-                    );
-                  })}
-                  {overflow > 0 && (
-                    <div className="text-center text-[7px] font-semibold text-ink-faint">
-                      +{overflow}
-                    </div>
+                  role="button"
+                  tabIndex={0}
+                  onClick={() =>
+                    setSelectedDate((d) => (d === date ? null : date))
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelectedDate((d) => (d === date ? null : date));
+                    }
+                  }}
+                  className={cn(
+                    "flex items-start gap-2.5 rounded-[14px] bg-bg p-2.5 text-left",
+                    date === selectedDate && "ring-[1.5px] ring-inset ring-ink",
                   )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {occurrences.length > 0 && (
-          <div className="flex pt-2">
-            <div className="w-8 shrink-0">
-              {hours.map((hour) => (
-                <div
-                  key={hour}
-                  style={{ height: ROW_HEIGHT_PX }}
-                  className="-translate-y-1.5 text-right text-[9.5px] font-semibold text-ink-faint"
                 >
-                  {formatHourLabel(hour)}
-                </div>
-              ))}
-            </div>
-            {weekDates.map((date) => (
-              <div
-                key={date}
-                style={{ height: gridHeight }}
-                className="relative flex-1 border-l border-line"
-              >
-                {hours.slice(1).map((hour) => (
-                  <div
-                    key={hour}
-                    style={{ top: (hour - minHour) * ROW_HEIGHT_PX }}
-                    className="absolute inset-x-0 h-px bg-line"
-                  />
-                ))}
-                {byDate.get(date)?.timed.map((occurrence) => {
-                  const top =
-                    ((minutesOfDay(occurrence.startTime) - minHour * 60) / 60) *
-                    ROW_HEIGHT_PX;
-                  const height =
-                    ((minutesOfDay(occurrence.endTime) -
-                      minutesOfDay(occurrence.startTime)) /
-                      60) *
-                    ROW_HEIGHT_PX;
-                  const color =
-                    occurrence.people.length > 0
-                      ? travelerColorClass(occurrence.people[0])
-                      : "bg-accent";
-                  return (
-                    <button
-                      key={occurrence.key}
-                      type="button"
-                      onClick={() => onRecurringClick(occurrence.ruleId)}
-                      style={{ top, height }}
-                      title={`${occurrence.title} · ${formatTimeRange(occurrence.startTime, occurrence.endTime)}${occurrence.mode ? ` · ${occurrence.mode}` : ""}`}
+                  <div className="w-9 shrink-0 pt-0.5 text-center">
+                    <div
                       className={cn(
-                        "absolute inset-x-[1px] overflow-hidden rounded-[6px] px-1 py-0.5 text-left text-[8.5px] font-extrabold leading-tight text-white",
-                        color,
+                        "font-display text-[8.5px] font-extrabold uppercase tracking-wide",
+                        isToday ? "text-accent" : "text-ink-faint",
                       )}
                     >
-                      <span className="flex min-w-0 items-center gap-[3px] truncate">
-                        <PersonDots names={occurrence.people} />
-                        <span className="min-w-0 truncate">
-                          {occurrence.title}
-                        </span>
-                      </span>
-                      <span className="block truncate text-[7.5px] font-bold opacity-85">
-                        {formatTimeRange(
-                          occurrence.startTime,
-                          occurrence.endTime,
-                        )}
-                      </span>
-                    </button>
-                  );
-                })}
+                      {DAY_LABELS[i]}
+                    </div>
+                    <div
+                      className={cn(
+                        "font-display text-[15px] font-extrabold",
+                        isToday ? "text-accent" : "text-ink",
+                      )}
+                    >
+                      {Number(date.slice(8, 10))}
+                    </div>
+                  </div>
+                  <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+                    {chips.length === 0 ? (
+                      <p className="pt-1.5 text-[11px] text-ink-faint">
+                        Nothing scheduled
+                      </p>
+                    ) : (
+                      chips.map((chip) => (
+                        <ChipBadge
+                          key={chip.key}
+                          label={chip.label}
+                          barColorClass={chip.barColorClass}
+                          size="lg"
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
+                {date === selectedDate && (
+                  <DayDetailCard
+                    date={date}
+                    trips={trips}
+                    schoolItems={schoolItems}
+                    calendarEvents={calendarEvents}
+                    recurringOccurrences={occurrences}
+                    visible={visible}
+                    onTripClick={onTripClick}
+                    onEventClick={onEventClick}
+                    onRecurringClick={onRecurringClick}
+                  />
+                )}
               </div>
-            ))}
-          </div>
-        )}
+            );
+          })}
+        </div>
       </div>
     </section>
   );

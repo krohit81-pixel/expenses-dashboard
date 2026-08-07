@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ChevronLeft, ChevronRight, Plane } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -11,10 +12,13 @@ import {
 import { monthLabel, shiftMonth } from "@/lib/dates/month";
 import { truncate } from "@/lib/text";
 import {
+  TAG_BAR_STYLES,
   TAG_LABELS,
   TAG_STYLES,
-  type EventTag,
 } from "@/features/calendar/data";
+import type { EventTag } from "@/features/calendar/data";
+import { ChipBadge } from "@/features/travel/components/ChipBadge";
+import { DayDetailCard } from "@/features/travel/components/DayDetailCard";
 import { travelerColorClass } from "@/features/travel/travelers";
 import {
   arePeopleVisible,
@@ -27,13 +31,7 @@ import type { CalendarEvent } from "@/services/CalendarEventService";
 import type { Trip } from "@/services/TripService";
 
 const TRAVEL_STYLE = "bg-teal text-white";
-// v2.4.0: lightened from a solid "bg-accent text-white" pill — matches
-// the softer treatment TripDetailedList's own RECURRING tag already
-// used, now applied consistently everywhere "Recurring" is a label
-// rather than the timetable block itself (which stays person-colored).
-const RECURRING_STYLE = "bg-accent-soft text-accent";
-const MAX_CHIPS_PER_DAY = 3;
-const PERSON_NAME = { ahaana: "Ahaana", rohana: "Rohana" } as const;
+const MAX_CHIPS_PER_DAY = 2;
 /** Chips are ~9px text in an 84px-tall day cell — three stacked dots is
  * about the ceiling before they blur into a solid smear rather than
  * reading as separate people. A trip with more travellers than this
@@ -44,8 +42,8 @@ const MAX_PERSON_DOTS = 3;
  * at a glance, without opening it. Trips can have several travellers
  * (Rohit, Aradhana, a custom name, ...); school items only ever have
  * one (Ahaana or Rohana), so that case is always a single dot.
- * Exported (v2.4.0) so WeekScheduleGrid can reuse the same dots on its
- * all-day pills and hourly blocks rather than re-implementing them. */
+ * Exported (v2.4.0) so DayDetailCard can reuse the same dots on its
+ * all-day rows rather than re-implementing them. */
 export function PersonDots({ names }: { names: string[] }) {
   if (names.length === 0) return null;
   return (
@@ -63,8 +61,8 @@ export function PersonDots({ names }: { names: string[] }) {
   );
 }
 
-/** Exported (v2.2.2) so WeekAgenda and DayViewModal can build the same
- * per-day item list without re-deriving their own visibility/range
+/** Exported (v2.2.2) so DayDetailCard and WeekScheduleGrid can build the
+ * same per-day item list without re-deriving their own visibility/range
  * logic — one "what's on this date" function, shared by every calendar
  * view. */
 export type Chip =
@@ -123,14 +121,89 @@ export function chipsForDate(
   return chips;
 }
 
+/** A single ready-to-render chip for compact spaces (the month grid, the
+ * week list) — everything chipsForDate returns, except same-day
+ * recurring occurrences collapse into one "N classes" summary instead of
+ * one chip each. These compact views were never meant to be clickable
+ * per item anyway (tapping the day opens DayDetailCard, where each
+ * occurrence gets its own row and its own click target), so merging
+ * loses nothing and stops a class-heavy day from dwarfing the days
+ * around it — the exact problem the old one-chip-per-occurrence
+ * rendering had. */
+export interface DisplayChip {
+  key: string;
+  label: string;
+  barColorClass: string;
+}
+
+function tagBarColor(tag: EventTag): string {
+  return TAG_BAR_STYLES[tag];
+}
+
+export function compactChipsForDate(
+  dateISO: string,
+  trips: Trip[],
+  schoolItems: SchoolCalendarItem[],
+  calendarEvents: CalendarEvent[],
+  recurringOccurrences: RecurringOccurrence[],
+  visible: VisibilityFilter,
+): DisplayChip[] {
+  const chips = chipsForDate(
+    dateISO,
+    trips,
+    schoolItems,
+    calendarEvents,
+    recurringOccurrences,
+    visible,
+  );
+  const display: DisplayChip[] = [];
+  for (const chip of chips) {
+    if (chip.kind === "trip") {
+      display.push({
+        key: chip.key,
+        label: chip.trip.destination,
+        barColorClass: TAG_BAR_STYLES.trip,
+      });
+    } else if (chip.kind === "school") {
+      display.push({
+        key: chip.key,
+        label: chip.item.title,
+        barColorClass: tagBarColor(chip.item.tag),
+      });
+    } else if (chip.kind === "manual") {
+      display.push({
+        key: chip.key,
+        label: chip.event.title,
+        barColorClass: tagBarColor(chip.event.tag),
+      });
+    }
+  }
+  const recurring = chips.filter(
+    (c): c is Extract<Chip, { kind: "recurring" }> => c.kind === "recurring",
+  );
+  if (recurring.length > 0) {
+    const person = recurring[0].occurrence.people[0];
+    display.push({
+      key: `recurring-summary-${dateISO}`,
+      label:
+        recurring.length === 1
+          ? recurring[0].occurrence.title
+          : `${recurring.length} classes`,
+      barColorClass: person ? travelerColorClass(person) : "bg-accent",
+    });
+  }
+  return display;
+}
+
 /**
- * v2.3.0: every day cell is now clickable (not just empty ones), and
- * opens DayViewModal instead of directly adding a trip or editing a
- * single item in place. That resolves the old "which chip did I tap"
- * ambiguity for good (see the v1.2 comment this replaced below) — chips
- * are back to being plain, non-interactive labels again, same as
- * school's always were, since Day View is now the one place to actually
- * open something from the month grid.
+ * v2.5.0: tapping a day now expands DayDetailCard right below that
+ * week, instead of opening the full-screen DayViewModal (v2.3.0) — a
+ * sleeker interaction validated in the month/week-view prototype. That
+ * meant giving up the single continuous 42-cell CSS grid for six
+ * discrete week rows instead, so a card can be inserted after the right
+ * one. Chips also switched to the "bold top bar" style (ChipBadge) and
+ * same-day recurring occurrences collapse into one summary chip
+ * (compactChipsForDate) — see those for why.
  */
 export function TripCalendarGrid({
   month,
@@ -140,7 +213,9 @@ export function TripCalendarGrid({
   calendarEvents,
   recurringOccurrences,
   visible,
-  onDayClick,
+  onTripClick,
+  onEventClick,
+  onRecurringClick,
 }: {
   month: string;
   onMonthChange: (month: string) => void;
@@ -149,10 +224,16 @@ export function TripCalendarGrid({
   calendarEvents: CalendarEvent[];
   recurringOccurrences: RecurringOccurrence[];
   visible: VisibilityFilter;
-  onDayClick: (dateISO: string) => void;
+  onTripClick: (tripId: string) => void;
+  onEventClick: (eventId: string) => void;
+  onRecurringClick: (ruleId: string) => void;
 }) {
   const dates = getMonthGridDates(month);
   const today = todayISODate();
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const weeks = Array.from({ length: 6 }, (_, i) =>
+    dates.slice(i * 7, i * 7 + 7),
+  );
 
   return (
     <div className="rounded-[20px] bg-surface p-4 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)] sm:p-5">
@@ -191,135 +272,79 @@ export function TripCalendarGrid({
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-[3px]">
-        {dates.map((dateISO) => {
-          const chips = chipsForDate(
-            dateISO,
-            trips,
-            schoolItems,
-            calendarEvents,
-            recurringOccurrences,
-            visible,
-          );
-          const shown = chips.slice(0, MAX_CHIPS_PER_DAY);
-          const overflow = chips.length - shown.length;
-          const dayNumber = Number(dateISO.slice(8, 10));
+      {weeks.map((week) => (
+        <div key={week[0]} className="mb-[3px]">
+          <div className="grid grid-cols-7 gap-[3px]">
+            {week.map((dateISO) => {
+              const chips = compactChipsForDate(
+                dateISO,
+                trips,
+                schoolItems,
+                calendarEvents,
+                recurringOccurrences,
+                visible,
+              );
+              const shown = chips.slice(0, MAX_CHIPS_PER_DAY);
+              const overflow = chips.length - shown.length;
+              const dayNumber = Number(dateISO.slice(8, 10));
 
-          return (
-            <div
-              key={dateISO}
-              role="button"
-              tabIndex={0}
-              onClick={() => onDayClick(dateISO)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onDayClick(dateISO);
-                }
-              }}
-              className={cn(
-                "flex min-h-[84px] flex-col gap-[3px] rounded-[10px] bg-bg p-1 text-left",
-                !isInMonth(dateISO, month) && "opacity-30",
-                dateISO === today && "ring-[1.5px] ring-inset ring-accent",
-              )}
-            >
-              <span className="font-display text-[10.5px] font-bold text-ink-soft">
-                {dayNumber}
-              </span>
-
-              {shown.map((chip) => {
-                if (chip.kind === "manual") {
-                  const isStart = dateISO === chip.event.startDate;
-                  const isEnd = dateISO === chip.event.endDate;
-                  const label = truncate(chip.event.title, 15);
-                  return (
-                    <span
-                      key={chip.key}
-                      title={`${chip.event.title}${chip.event.people.length > 0 ? ` — ${chip.event.people.join(", ")}` : ""}`}
-                      className={cn(
-                        "flex items-center gap-1 rounded px-1 py-[1.5px] font-display text-[9px] font-bold",
-                        TAG_STYLES[chip.event.tag],
-                        isStart && "rounded-l-full",
-                        isEnd && "rounded-r-full",
-                      )}
-                    >
-                      <PersonDots names={chip.event.people} />
-                      <span className="min-w-0 truncate">{label}</span>
-                    </span>
-                  );
-                }
-
-                if (chip.kind === "recurring") {
-                  const label = truncate(chip.occurrence.title, 15);
-                  return (
-                    <span
-                      key={chip.key}
-                      title={`${chip.occurrence.title} · ${chip.occurrence.startTime}–${chip.occurrence.endTime}${chip.occurrence.people.length > 0 ? ` — ${chip.occurrence.people.join(", ")}` : ""}`}
-                      className={cn(
-                        "flex items-center gap-1 rounded-full px-1 py-[1.5px] font-display text-[9px] font-bold",
-                        RECURRING_STYLE,
-                      )}
-                    >
-                      <PersonDots names={chip.occurrence.people} />
-                      <span className="min-w-0 truncate">{label}</span>
-                    </span>
-                  );
-                }
-
-                if (chip.kind === "trip") {
-                  const isStart = dateISO === chip.trip.startDate;
-                  const isEnd = dateISO === chip.trip.endDate;
-                  const label = truncate(
-                    `${chip.trip.destination}${chip.trip.flight ? ` · ${chip.trip.flight}` : ""}`,
-                    15,
-                  );
-                  return (
-                    <span
-                      key={chip.key}
-                      title={`${chip.trip.destination}${chip.trip.flight ? ` · ${chip.trip.flight}` : ""}${chip.trip.travelerNames.length > 0 ? ` — ${chip.trip.travelerNames.join(", ")}` : ""}`}
-                      className={cn(
-                        "flex items-center gap-1 rounded px-1 py-[1.5px] font-display text-[9px] font-bold",
-                        TRAVEL_STYLE,
-                        isStart && "rounded-l-full",
-                        isEnd && "rounded-r-full",
-                      )}
-                    >
-                      <PersonDots names={chip.trip.travelerNames} />
-                      <span className="min-w-0 truncate">{label}</span>
-                    </span>
-                  );
-                }
-
-                const isStart = dateISO === chip.item.startDate;
-                const isEnd = dateISO === chip.item.endDate;
-                const label = truncate(chip.item.title, 15);
-                const personName = PERSON_NAME[chip.item.person];
-                return (
-                  <span
-                    key={chip.key}
-                    title={`${chip.item.title} (${personName})`}
-                    className={cn(
-                      "flex items-center gap-1 rounded px-1 py-[1.5px] font-display text-[9px] font-bold",
-                      TAG_STYLES[chip.item.tag],
-                      isStart && "rounded-l-full",
-                      isEnd && "rounded-r-full",
-                    )}
-                  >
-                    <PersonDots names={[personName]} />
-                    <span className="min-w-0 truncate">{label}</span>
+              return (
+                <div
+                  key={dateISO}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() =>
+                    setSelectedDate((d) => (d === dateISO ? null : dateISO))
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelectedDate((d) => (d === dateISO ? null : dateISO));
+                    }
+                  }}
+                  className={cn(
+                    "flex min-h-[84px] flex-col gap-[3px] rounded-[10px] bg-bg p-1 text-left",
+                    !isInMonth(dateISO, month) && "opacity-30",
+                    dateISO === today && "ring-[1.5px] ring-inset ring-accent",
+                    dateISO === selectedDate &&
+                      "ring-[1.5px] ring-inset ring-ink",
+                  )}
+                >
+                  <span className="font-display text-[10.5px] font-bold text-ink-soft">
+                    {dayNumber}
                   </span>
-                );
-              })}
-
-              {overflow > 0 && (
-                <span className="text-[8px] font-semibold text-ink-faint">
-                  +{overflow} more
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                  {shown.map((chip) => (
+                    <ChipBadge
+                      key={chip.key}
+                      label={truncate(chip.label, 12)}
+                      barColorClass={chip.barColorClass}
+                      size="sm"
+                    />
+                  ))}
+                  {overflow > 0 && (
+                    <span className="text-[8px] font-semibold text-ink-faint">
+                      +{overflow} more
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {selectedDate && week.includes(selectedDate) && (
+            <DayDetailCard
+              date={selectedDate}
+              trips={trips}
+              schoolItems={schoolItems}
+              calendarEvents={calendarEvents}
+              recurringOccurrences={recurringOccurrences}
+              visible={visible}
+              onTripClick={onTripClick}
+              onEventClick={onEventClick}
+              onRecurringClick={onRecurringClick}
+            />
+          )}
+        </div>
+      ))}
 
       <div className="mt-3.5 flex flex-wrap gap-x-4 gap-y-1.5">
         {(["vacation", "holiday", "exam", "event"] as EventTag[]).map((tag) => (
@@ -330,11 +355,14 @@ export function TripCalendarGrid({
           />
         ))}
         <LegendItem className={TRAVEL_STYLE} label="Booked travel" icon />
-        <LegendItem className={RECURRING_STYLE} label="Recurring" />
+        <LegendItem
+          className="bg-sky text-white"
+          label="Recurring (by person)"
+        />
       </div>
       <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
-        Tap any day to see it in full, hour by hour. Add a trip, event, or
-        recurring item from Logging below.
+        Tap any day to see it in full, right below that week. Add a trip, event,
+        or recurring item from Logging below.
       </p>
     </div>
   );

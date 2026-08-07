@@ -54,9 +54,12 @@ export function todayISODate(): string {
 }
 
 /** `dateISO` shifted by `days` (negative to go back) — the single-day
- * equivalent of month.ts's shiftMonth, added for DayViewModal's
- * prev/next day navigation (v2.3.0). Same UTC-based convention as the
- * rest of this file. */
+ * equivalent of month.ts's shiftMonth. Added for DayViewModal's
+ * prev/next day navigation (v2.3.0); DayViewModal is gone as of v2.5.0
+ * (superseded by DayDetailCard, an inline panel rather than a modal),
+ * but this is now also how WeekScheduleGrid pages between weeks
+ * (`shiftDate(today, weekOffset * 7)`). Same UTC-based convention as
+ * the rest of this file. */
 export function shiftDate(dateISO: string, days: number): string {
   const d = new Date(`${dateISO}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
