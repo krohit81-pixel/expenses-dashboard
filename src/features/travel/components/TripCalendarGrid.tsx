@@ -57,9 +57,10 @@ function PersonDots({ names }: { names: string[] }) {
   );
 }
 
-/** Exported (v2.2.2) so WeekAgenda can build the same per-day item list
- * without re-deriving its own visibility/range logic — one "what's on
- * this date" function, shared by the month grid and the week agenda. */
+/** Exported (v2.2.2) so WeekAgenda and DayViewModal can build the same
+ * per-day item list without re-deriving their own visibility/range
+ * logic — one "what's on this date" function, shared by every calendar
+ * view. */
 export type Chip =
   | { kind: "school"; key: string; item: SchoolCalendarItem }
   | { kind: "trip"; key: string; trip: Trip }
@@ -116,6 +117,15 @@ export function chipsForDate(
   return chips;
 }
 
+/**
+ * v2.3.0: every day cell is now clickable (not just empty ones), and
+ * opens DayViewModal instead of directly adding a trip or editing a
+ * single item in place. That resolves the old "which chip did I tap"
+ * ambiguity for good (see the v1.2 comment this replaced below) — chips
+ * are back to being plain, non-interactive labels again, same as
+ * school's always were, since Day View is now the one place to actually
+ * open something from the month grid.
+ */
 export function TripCalendarGrid({
   month,
   onMonthChange,
@@ -125,9 +135,6 @@ export function TripCalendarGrid({
   recurringOccurrences,
   visible,
   onDayClick,
-  onTripClick,
-  onEventClick,
-  onRecurringClick,
 }: {
   month: string;
   onMonthChange: (month: string) => void;
@@ -137,9 +144,6 @@ export function TripCalendarGrid({
   recurringOccurrences: RecurringOccurrence[];
   visible: VisibilityFilter;
   onDayClick: (dateISO: string) => void;
-  onTripClick: (tripId: string) => void;
-  onEventClick: (eventId: string) => void;
-  onRecurringClick: (ruleId: string) => void;
 }) {
   const dates = getMonthGridDates(month);
   const today = todayISODate();
@@ -195,36 +199,18 @@ export function TripCalendarGrid({
           const overflow = chips.length - shown.length;
           const dayNumber = Number(dateISO.slice(8, 10));
 
-          const isEmpty = chips.length === 0;
-
-          // v1.2: this used to be one <button> around the whole cell,
-          // with a click handler that always resolved to the *first*
-          // trip (or first manual event) via .find() — tapping the
-          // second or third chip on a busy day silently opened the
-          // first one instead, which is exactly what got reported.
-          // A <button> also can't correctly contain other interactive
-          // elements, so the fix is: the cell itself is a <div> (only
-          // clickable, as "add a trip here", when it has no chips at
-          // all), and every trip/manual chip is its own button that
-          // stops the click from reaching the cell. School chips stay
-          // non-interactive spans — they're read-only static data, same
-          // as before.
           return (
             <div
               key={dateISO}
-              role={isEmpty ? "button" : undefined}
-              tabIndex={isEmpty ? 0 : undefined}
-              onClick={isEmpty ? () => onDayClick(dateISO) : undefined}
-              onKeyDown={
-                isEmpty
-                  ? (e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onDayClick(dateISO);
-                      }
-                    }
-                  : undefined
-              }
+              role="button"
+              tabIndex={0}
+              onClick={() => onDayClick(dateISO)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onDayClick(dateISO);
+                }
+              }}
               className={cn(
                 "flex min-h-[84px] flex-col gap-[3px] rounded-[10px] bg-bg p-1 text-left",
                 !isInMonth(dateISO, month) && "opacity-30",
@@ -241,13 +227,8 @@ export function TripCalendarGrid({
                   const isEnd = dateISO === chip.event.endDate;
                   const label = truncate(chip.event.title, 15);
                   return (
-                    <button
-                      type="button"
+                    <span
                       key={chip.key}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEventClick(chip.event.id);
-                      }}
                       title={`${chip.event.title}${chip.event.people.length > 0 ? ` — ${chip.event.people.join(", ")}` : ""}`}
                       className={cn(
                         "flex items-center gap-1 rounded px-1 py-[1.5px] font-display text-[9px] font-bold",
@@ -258,20 +239,15 @@ export function TripCalendarGrid({
                     >
                       <PersonDots names={chip.event.people} />
                       <span className="min-w-0 truncate">{label}</span>
-                    </button>
+                    </span>
                   );
                 }
 
                 if (chip.kind === "recurring") {
                   const label = truncate(chip.occurrence.title, 15);
                   return (
-                    <button
-                      type="button"
+                    <span
                       key={chip.key}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onRecurringClick(chip.occurrence.ruleId);
-                      }}
                       title={`${chip.occurrence.title} · ${chip.occurrence.startTime}–${chip.occurrence.endTime}${chip.occurrence.people.length > 0 ? ` — ${chip.occurrence.people.join(", ")}` : ""}`}
                       className={cn(
                         "flex items-center gap-1 rounded-full px-1 py-[1.5px] font-display text-[9px] font-bold",
@@ -280,7 +256,7 @@ export function TripCalendarGrid({
                     >
                       <PersonDots names={chip.occurrence.people} />
                       <span className="min-w-0 truncate">{label}</span>
-                    </button>
+                    </span>
                   );
                 }
 
@@ -292,13 +268,8 @@ export function TripCalendarGrid({
                     15,
                   );
                   return (
-                    <button
-                      type="button"
+                    <span
                       key={chip.key}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onTripClick(chip.trip.id);
-                      }}
                       title={`${chip.trip.destination}${chip.trip.flight ? ` · ${chip.trip.flight}` : ""}${chip.trip.travelerNames.length > 0 ? ` — ${chip.trip.travelerNames.join(", ")}` : ""}`}
                       className={cn(
                         "flex items-center gap-1 rounded px-1 py-[1.5px] font-display text-[9px] font-bold",
@@ -309,7 +280,7 @@ export function TripCalendarGrid({
                     >
                       <PersonDots names={chip.trip.travelerNames} />
                       <span className="min-w-0 truncate">{label}</span>
-                    </button>
+                    </span>
                   );
                 }
 
@@ -356,9 +327,8 @@ export function TripCalendarGrid({
         <LegendItem className={RECURRING_STYLE} label="Recurring" />
       </div>
       <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
-        Tap a day with a trip or event to edit it; tap an empty day to add a
-        trip. Use &quot;+ Add an event&quot; or &quot;+ Add recurring
-        event&quot; below for anything else.
+        Tap any day to see it in full, hour by hour. Add a trip, event, or
+        recurring item from Logging below.
       </p>
     </div>
   );

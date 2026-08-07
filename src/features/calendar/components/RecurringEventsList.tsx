@@ -1,5 +1,9 @@
 "use client";
 
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
+
+import { cn } from "@/lib/utils";
 import {
   formatDaysOfWeek,
   formatTimeRange,
@@ -27,6 +31,10 @@ function formatDateRange(startDate: string, endDate: string): string {
  * Tapping a row opens AddRecurringEventModal in edit mode — same
  * click-to-edit pattern as every other row on this page, Delete lives
  * inside that modal rather than as a separate inline action here.
+ *
+ * Collapsed by default (v2.3.0) — same GoodTravelWindows/TripDetailedList
+ * convention, so it doesn't push the rest of the page down on a visit
+ * that doesn't need it.
  */
 export function RecurringEventsList({
   rules,
@@ -35,56 +43,76 @@ export function RecurringEventsList({
   rules: RecurringCalendarEvent[];
   onEdit: (id: string) => void;
 }) {
+  const [collapsed, setCollapsed] = useState(true);
+
   if (rules.length === 0) return null;
 
   return (
     <section>
-      <div className="mb-3 flex items-baseline justify-between">
+      <button
+        type="button"
+        onClick={() => setCollapsed((c) => !c)}
+        className="mb-3 flex w-full items-center justify-between gap-3 text-left"
+        aria-expanded={!collapsed}
+      >
         <h2 className="font-display text-[15px] font-bold text-ink">
           Recurring events
         </h2>
-        <span className="text-[10.5px] text-ink-faint">
-          {rules.length} active
-        </span>
-      </div>
-      <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-        {rules.map((rule) => {
-          const color =
-            rule.people.length > 0
-              ? travelerColorClass(rule.people[0])
-              : "bg-accent";
-          return (
-            <button
-              key={rule.id}
-              type="button"
-              onClick={() => onEdit(rule.id)}
-              className="flex w-full items-start gap-3 border-b border-line px-[18px] py-3 text-left last:border-b-0 hover:bg-bg"
-            >
-              <span
-                className={`mt-1 size-2.5 shrink-0 rounded-full ${color}`}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-semibold text-ink">
-                  {rule.title}
-                  {rule.mode && (
-                    <span className="ml-1.5 rounded-full bg-bg px-1.5 py-0.5 align-middle font-display text-[9px] font-extrabold uppercase tracking-wide text-ink-soft">
-                      {rule.mode}
-                    </span>
-                  )}
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="text-[10.5px] text-ink-faint">
+            {rules.length} active
+          </span>
+          <ChevronDown
+            className={cn(
+              "size-4 text-ink-faint transition-transform",
+              !collapsed && "rotate-180",
+            )}
+          />
+        </div>
+      </button>
+
+      {!collapsed && (
+        <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+          {rules.map((rule) => {
+            const color =
+              rule.people.length > 0
+                ? travelerColorClass(rule.people[0])
+                : "bg-accent";
+            return (
+              <button
+                key={rule.id}
+                type="button"
+                onClick={() => onEdit(rule.id)}
+                className="flex w-full items-start gap-3 border-b border-line px-[18px] py-3 text-left last:border-b-0 hover:bg-bg"
+              >
+                <span
+                  className={`mt-1 size-2.5 shrink-0 rounded-full ${color}`}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-semibold text-ink">
+                    {rule.title}
+                    {rule.mode && (
+                      <span className="ml-1.5 rounded-full bg-bg px-1.5 py-0.5 align-middle font-display text-[9px] font-extrabold uppercase tracking-wide text-ink-soft">
+                        {rule.mode}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-ink-soft">
+                    {rule.people.length > 0
+                      ? `${rule.people.join(", ")} · `
+                      : ""}
+                    {formatDaysOfWeek(rule.daysOfWeek)} ·{" "}
+                    {formatTimeRange(rule.startTime, rule.endTime)}
+                  </div>
+                  <div className="mt-0.5 text-[10px] text-ink-faint">
+                    {formatDateRange(rule.startDate, rule.endDate)}
+                  </div>
                 </div>
-                <div className="mt-0.5 text-[11px] text-ink-soft">
-                  {rule.people.length > 0 ? `${rule.people.join(", ")} · ` : ""}
-                  {formatDaysOfWeek(rule.daysOfWeek)} ·{" "}
-                  {formatTimeRange(rule.startTime, rule.endTime)}
-                </div>
-                <div className="mt-0.5 text-[10px] text-ink-faint">
-                  {formatDateRange(rule.startDate, rule.endDate)}
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }

@@ -101,6 +101,24 @@ export function formatTimeRange(startTime: string, endTime: string): string {
   return `${fmt(startTime)}–${fmt(endTime)} ${suffix}`;
 }
 
+/** Minutes since midnight for an "HH:MM" string — the shared unit both
+ * RecurringWeekGrid and DayViewModal position occurrence blocks in. */
+export function minutesOfDay(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
+/** "8 AM" / "12 PM" / "11 PM" — an hour-of-day label for the left rail
+ * of an hourly timeline. Shared by RecurringWeekGrid (7 columns) and
+ * DayViewModal (1 column, 24 hours) so an hour reads identically in
+ * both. */
+export function formatHourLabel(hour: number): string {
+  const h = hour % 24;
+  if (h === 0) return "12 AM";
+  if (h === 12) return "12 PM";
+  return h < 12 ? `${h} AM` : `${h - 12} PM`;
+}
+
 /**
  * The widest [start, end] range that covers every rule's own bound —
  * what the /calendar Server Component passes as rangeStart/rangeEnd so

@@ -52,3 +52,13 @@ export function getWeekDates(referenceDateISO?: string): string[] {
 export function todayISODate(): string {
   return new Date().toISOString().slice(0, 10);
 }
+
+/** `dateISO` shifted by `days` (negative to go back) — the single-day
+ * equivalent of month.ts's shiftMonth, added for DayViewModal's
+ * prev/next day navigation (v2.3.0). Same UTC-based convention as the
+ * rest of this file. */
+export function shiftDate(dateISO: string, days: number): string {
+  const d = new Date(`${dateISO}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}

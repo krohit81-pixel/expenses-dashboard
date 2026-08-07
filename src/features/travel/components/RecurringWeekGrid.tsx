@@ -4,7 +4,9 @@ import { cn } from "@/lib/utils";
 import { getWeekDates, todayISODate } from "@/lib/dates/calendar-grid";
 import {
   expandRecurringOccurrences,
+  formatHourLabel,
   formatTimeRange,
+  minutesOfDay,
   type RecurringOccurrence,
 } from "@/lib/dates/recurring-calendar-events";
 import {
@@ -16,18 +18,6 @@ import type { RecurringCalendarEvent } from "@/services/RecurringCalendarEventSe
 
 const ROW_HEIGHT_PX = 40;
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-function minutesOfDay(time: string): number {
-  const [h, m] = time.split(":").map(Number);
-  return h * 60 + m;
-}
-
-function formatHour(hour: number): string {
-  const h = hour % 24;
-  if (h === 0) return "12 AM";
-  if (h === 12) return "12 PM";
-  return h < 12 ? `${h} AM` : `${h - 12} PM`;
-}
 
 /**
  * "Rohana's week" style weekly timetable widget (v2.2.0) — the "both
@@ -118,7 +108,7 @@ export function RecurringWeekGrid({
                 style={{ height: ROW_HEIGHT_PX }}
                 className="-translate-y-1.5 text-right text-[9.5px] font-semibold text-ink-faint"
               >
-                {formatHour(hour)}
+                {formatHourLabel(hour)}
               </div>
             ))}
           </div>
