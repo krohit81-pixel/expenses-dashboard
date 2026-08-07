@@ -57,13 +57,16 @@ function PersonDots({ names }: { names: string[] }) {
   );
 }
 
-type Chip =
+/** Exported (v2.2.2) so WeekAgenda can build the same per-day item list
+ * without re-deriving its own visibility/range logic — one "what's on
+ * this date" function, shared by the month grid and the week agenda. */
+export type Chip =
   | { kind: "school"; key: string; item: SchoolCalendarItem }
   | { kind: "trip"; key: string; trip: Trip }
   | { kind: "manual"; key: string; event: CalendarEvent }
   | { kind: "recurring"; key: string; occurrence: RecurringOccurrence };
 
-function chipsForDate(
+export function chipsForDate(
   dateISO: string,
   trips: Trip[],
   schoolItems: SchoolCalendarItem[],

@@ -12,6 +12,7 @@ import { GoodTravelWindows } from "@/features/travel/components/GoodTravelWindow
 import { RecurringWeekGrid } from "@/features/travel/components/RecurringWeekGrid";
 import { TripCalendarGrid } from "@/features/travel/components/TripCalendarGrid";
 import { TripDetailedList } from "@/features/travel/components/TripDetailedList";
+import { WeekAgenda } from "@/features/travel/components/WeekAgenda";
 import { AddTripModal } from "@/features/travel/components/AddTripModal";
 import { travelerColorClass } from "@/features/travel/travelers";
 import type { VisibilityFilter } from "@/features/travel/detailed-list";
@@ -188,6 +189,17 @@ export function TravelCalendarSection({
       <GoodTravelWindows windows={travelWindows} visible={visible} />
 
       <RecurringWeekGrid rules={recurringRules} visible={visible} />
+
+      <WeekAgenda
+        trips={trips}
+        schoolItems={schoolItems}
+        calendarEvents={calendarEvents}
+        recurringOccurrences={recurringOccurrences}
+        visible={visible}
+        onTripClick={openEditModal}
+        onEventClick={openEditEventModal}
+        onRecurringClick={openEditRecurringModal}
+      />
 
       <TripCalendarGrid
         month={month}
