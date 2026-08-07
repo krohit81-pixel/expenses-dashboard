@@ -34,7 +34,7 @@ they say so.
 - Single-owner app: one fixed account, an HMAC-signed access-gate cookie
   instead of sign-in, and a service-role Supabase client that bypasses RLS
   (see doc 00 for why, and what that means for how you write services).
-- Feature set as of v2.1.0: bottom nav is **Dashboard / Log / Intel /
+- Feature set as of v2.5.0: bottom nav is **Dashboard / Log / Intel /
   Calendar + More**. Dashboard shows the full cycle-wise income/expense
   breakdown (absorbed Budgets in v2.1.0). Log is a hub for Recurring (bulk
   cycle-tagging), Accounts (with inline balance correction), and Imports.
@@ -42,10 +42,13 @@ they say so.
   card statement imports (HDFC Infinia / Tata Neu Plus, Axis Horizon /
   Airtel, ICICI Amazon Pay / RuPay) feed a shared Merchant Dictionary. Intel
   has charts and a button-triggered AI insight. Calendar (school calendar +
-  trips) is the one public, gate-free route. AIS is a static Income Tax
-  summary under More. See [00 — Current state](./00-current-state.md) for
-  the full v2.0/v2.1 revamp writeup — this app moved from a
-  transaction-logging, 3-phase model to a cycle-based reporting/intel model.
+  trips + one-off events + weekly-repeating recurring events, all merged
+  into a Dashboard/Report/Log tabbed layout with a tap-to-expand day card)
+  is the one public, gate-free route — see doc 00 for the v2.2.0–v2.5.0
+  rebuild. AIS is a static Income Tax summary under More. See
+  [00 — Current state](./00-current-state.md) for the full v2.0/v2.1 revamp
+  writeup — this app moved from a transaction-logging, 3-phase model to a
+  cycle-based reporting/intel model.
 - Root `INSTALL.md` is the source of truth for setup, environment
   variables, and release history — not this folder.
 

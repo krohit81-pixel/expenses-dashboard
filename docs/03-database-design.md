@@ -99,15 +99,30 @@ the most recently generated AI insight text and its timestamp. Written
 only when the user presses "Generate commentary" (`IntelService.regenerateInsight`),
 never on page load — see doc 07.
 
-## Calendar / travel (added v1.0–v1.1)
+## Calendar / travel (added v1.0–v1.1, extended v2.2.0)
 
 `finance.trips` — user-entered booked travel (destination, date range,
 flight, `traveler_names` as a denormalized `text[]`, not a travellers
 table — there's no reasonable multi-attribute traveller entity here).
 `finance.calendar_events` (plus a later migration adding `people` to it) —
-general calendar entries. The static school calendar itself is **in-code
-data**, not a table (`src/features/calendar/data.ts`) — there's no
-reasonable write path for someone else's school calendar.
+general one-off calendar entries. The static school calendar itself is
+**in-code data**, not a table (`src/features/calendar/data.ts`) — there's
+no reasonable write path for someone else's school calendar.
+
+`finance.recurring_calendar_events` (added v2.2.0) — a weekly-repeating
+*rule*, not stored occurrences: `title`, `people text[]` (reuses the
+`trips`/`calendar_events` tagging convention), `mode` (an optional
+free-text tag, e.g. "Online"/"Offline"), `days_of_week smallint[]`
+(0=Sunday..6=Saturday, matching JS's `Date#getUTCDay()`, `check`
+constraints for non-empty + valid range), `start_time`/`end_time`
+(Postgres `time`), a required, bounded `start_date`/`end_date` (no
+"repeats forever" option), `notes`. RLS policy and the `set_updated_at`
+trigger follow the exact `calendar_events` pattern. Occurrences are
+expanded on demand — `expandRecurringOccurrences` in
+`src/lib/dates/recurring-calendar-events.ts`, a pure function shared by
+the server (once per page load, over each rule's widest possible range)
+and the client (`WeekScheduleGrid`, scoped to whichever week is
+currently showing) — never persisted as individual rows.
 
 ## Data invariants (unchanged)
 

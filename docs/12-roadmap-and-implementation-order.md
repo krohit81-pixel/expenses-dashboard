@@ -80,6 +80,41 @@
   computes the delta between the shown and typed balance and logs it as
   an ordinary income/expense transaction, since there's no stored balance
   column to overwrite.
+- **v2.2.0** — Recurring calendar events: `finance.recurring_calendar_events`
+  (a weekly-repeating *rule*, not stored occurrences — `days_of_week`,
+  `start_time`/`end_time`, a bounded `start_date`–`end_date`), a pure
+  `expandRecurringOccurrences` helper shared by server and client, and a
+  weekly timetable widget folded into the existing month grid and
+  detailed list. v2.2.1–v2.2.2 fixed a "Save" button staying stuck loading
+  after a successful add (the same pre-existing bug in three modals — a
+  stale `isSubmitting` never reset because modals stay mounted, just
+  hidden) and added the "this week, day by day" agenda view from the
+  original brainstorm prototype that hadn't shipped with v2.2.0.
+- **v2.3.0** — `/calendar` restructured so the month grid leads (was
+  buried below the weekly views and travel windows), with This
+  week/Good windows/Detailed events/Recurring events demoted to
+  collapsed-by-default sections and a new Logging section replacing three
+  always-visible add-cards. Every day cell became clickable and opened a
+  new Outlook-style `DayViewModal` (full-screen, an all-day band plus a
+  24-hour timeline) instead of adding a trip or editing a chip in place.
+- **v2.4.0** — The weekly timetable and the day-by-day text list merged
+  into one always-expanded "This week's schedule" view (all-day band +
+  hourly grid). The "Recurring" label's solid dark purple lightened to
+  match `TripDetailedList`'s existing softer treatment, `DayViewModal`'s
+  timeline blocks became person-colored, and `/calendar` split into three
+  switchable sections (Dashboard / Report / Log) behind a pill tab
+  switcher instead of one long collapsed-by-default scroll.
+- **v2.5.0** — `DayViewModal` (the full-screen day view) replaced by
+  `DayDetailCard`, an inline panel that expands right below whichever day
+  was tapped instead of a modal — validated first as an HTML prototype,
+  including a rejected "spanning bars across days" idea (reverted back to
+  one chip per day per item after review). Chips across the month grid
+  and week view switched to a "bold top bar" style (`ChipBadge`); same-day
+  recurring occurrences collapse into one "N classes" summary chip in
+  those compact views. `WeekScheduleGrid` rebuilt as a day-list (was an
+  hourly timeline) that can page ±1 week instead of only ever showing the
+  current week. Ahaana's CA1/CA2 subject-by-subject test schedule added
+  from the school's own circular.
 
 ## What was explicitly descoped or replaced along the way
 

@@ -15,7 +15,8 @@
 /(app)/accounts          # under Log. Includes inline balance-correction panel (v2.1.0).
 /(app)/imports           # under Log. Credit-card statement upload (HDFC Infinia, Axis Horizon, ICICI).
 /(app)/intel             # primary tab. Spending charts + AI insight.
-/(app)/calendar          # primary tab. School calendar (static) + trips + events — the one gate-free route.
+/(app)/calendar          # primary tab. School calendar (static) + trips + events + recurring events —
+                         # the one gate-free route. See "Calendar tab structure" below (v2.5.0).
 /(app)/transactions      # under More. Read-only historical log as of v2.0.0 — no entry forms.
 /(app)/budgets           # under More→ nowhere (unlinked, v2.1.0). Still runs; content now duplicated on Dashboard.
 /(app)/merchants         # under More. Merchant Dictionary admin (list + /merchants/[id] detail)
@@ -32,6 +33,36 @@ cookie, enforced in `src/middleware.ts` — see doc 00 and doc 11 for why
 this isn't Supabase Auth. There is no `/(auth)/sign-in` or
 `/(auth)/callback` route group; those were part of the original,
 superseded design.
+
+## Calendar tab structure (v2.5.0)
+
+`TravelCalendarSection` (`src/features/travel/components/`) owns all
+interactive state for `/calendar` and renders three switchable sections
+behind a pill tab switcher, below the person filter chips (which stay
+visible across all three since they filter every section's content):
+
+- **Dashboard** — `TripCalendarGrid` (the month grid) and
+  `WeekScheduleGrid` (a navigable day-list for "This week's schedule",
+  `±1 week` at a time via its own `weekOffset` state, with a "This week"
+  button to jump back). Both always expanded.
+- **Report** — `GoodTravelWindows`, `TripDetailedList` (the chronological
+  detailed event list), and `RecurringEventsList` (the recurring-rules
+  list) — each individually collapsed by default.
+- **Log** — `LoggingSection`, three collapsed add-cards (trip / event /
+  recurring), each opening the matching `AddTripModal`/`AddEventModal`/
+  `AddRecurringEventModal`.
+
+Tapping any day — a month-grid cell or a week-list row — expands
+`DayDetailCard` inline right below it (an "All day" section, then a
+time-sorted "Schedule" section for recurring occurrences); there is no
+full-screen day view. `chipsForDate` (`TripCalendarGrid.tsx`) is the one
+shared "what's on this date" function every view builds from, so
+visibility-filter/date-range logic never diverges between the grid, the
+week list, and the day card. `compactChipsForDate` wraps it for the
+grid/week-list's smaller "ChipBadge" rendering (a bold color bar + pale
+body), collapsing same-day recurring occurrences into one "N classes"
+summary chip — `DayDetailCard` is where each occurrence gets its own row
+and click target once expanded.
 
 ## Feature structure (unchanged, accurate)
 

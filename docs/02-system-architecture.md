@@ -120,4 +120,13 @@ in a service, not a route component.
   aggregates, card-level category breakdowns, and the button-triggered AI
   insight (`finance.intel_insights`).
 - `CalendarEventService`, `TripService`: the Calendar tab's user-entered
-  data (school calendar itself is static in-code data, not a table).
+  one-off data (school calendar itself is static in-code data, not a
+  table).
+- `RecurringCalendarEventService` (added v2.2.0): CRUD for
+  `finance.recurring_calendar_events` — weekly-repeating *rules*
+  (`days_of_week`, `start_time`/`end_time`, a bounded `start_date`–
+  `end_date`), never stored as individual occurrence rows. Occurrences are
+  expanded on demand by the pure `expandRecurringOccurrences` helper in
+  `src/lib/dates/recurring-calendar-events.ts` — server-side once per page
+  load over each rule's widest possible range, and again client-side in
+  `WeekScheduleGrid` scoped to whichever week is currently showing.

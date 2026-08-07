@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v2.1.0**
+correction layer: what's actually true today, current as of **v2.5.0**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -173,9 +173,33 @@ orient quickly.
   breakdown by billing cycle) plus a single, button-triggered AI insight
   (Anthropic or Gemini — see doc 07) that's stored, not regenerated on
   every page load.
-- **Calendar**: a static, in-code school calendar merged with user-entered
-  travel (`finance.trips`) and calendar events — the one route that
-  bypasses the access gate.
+- **Calendar**: a static, in-code school calendar (`src/features/calendar/data.ts`
+  — Ahaana's from Chatrabhuj Narsee School's official AY calendar PDF plus
+  the CA1/CA2 subject-test circular, Rohana's from NUS's academic calendar
+  PDF) merged with user-entered travel (`finance.trips`), one-off calendar
+  events (`finance.calendar_events`), and **weekly-repeating recurring
+  events** (`finance.recurring_calendar_events`, added v2.2.0 — a *rule*
+  with `days_of_week`/`start_time`/`end_time`/a bounded `start_date`–
+  `end_date`, expanded into actual occurrences by the pure
+  `expandRecurringOccurrences` helper, never stored as individual rows).
+  `/calendar` is the one route that bypasses the access gate.
+
+  As of v2.5.0, `TravelCalendarSection` renders three switchable sections
+  behind a pill tab switcher (person filter chips stay visible above all
+  three, since they filter every section's content): **Dashboard** (the
+  month grid plus a navigable "This week's schedule" day-list — both
+  always expanded), **Report** (good windows for travel, the detailed
+  chronological event list, and the recurring-rules list — each
+  individually collapsed), and **Log** (three collapsed add-cards: trip /
+  event / recurring). Tapping any day (a month-grid cell or a week-list
+  row) expands `DayDetailCard` inline right below it — an "All day"
+  section plus a time-sorted "Schedule" section — instead of opening a
+  modal; there is no more full-screen day view. Items render as
+  `ChipBadge`s (a bold saturated color bar + a pale body, not a solid
+  color pill), and same-day recurring occurrences collapse into one "N
+  classes" summary chip in the compact month-grid/week-list views —
+  `DayDetailCard` is where each occurrence gets its own row and click
+  target once expanded.
 - **Budgets** (income/fixed-expense planning, not the older category-envelope
   model the very first design had — that was deleted, not hidden, per
   `INSTALL.md`'s v0.3 history): as of v2.1.0 this is shown **on Dashboard**,
