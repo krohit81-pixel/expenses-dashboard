@@ -73,6 +73,17 @@ export function AddRecurringEventModal({
 
   useEffect(() => {
     if (!open) return;
+    // Reset submission/delete status every time the modal opens, not
+    // just the form fields below — this component stays mounted (just
+    // hidden via `if (!open) return null`) across an open/close cycle,
+    // so without this a successful save leaves isSubmitting stuck
+    // `true` forever (onClose() never reset it), silently blocking
+    // every future submit via the `if (isSubmitting) return;` guard —
+    // exactly the "Save recurring event just spins" bug this fixes.
+    setIsSubmitting(false);
+    setFormError(undefined);
+    setIsDeleting(false);
+    setDeleteError(undefined);
     if (editingRule) {
       setTitle(editingRule.title);
       setMode(editingRule.mode ?? "");

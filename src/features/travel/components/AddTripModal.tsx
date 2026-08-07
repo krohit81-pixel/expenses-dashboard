@@ -59,6 +59,20 @@ export function AddTripModal({
   // useState's initial value alone wouldn't pick up a newly-clicked trip.
   useEffect(() => {
     if (!open) return;
+    // Reset submission/delete status every time the modal opens, not
+    // just the form fields below — this component stays mounted (just
+    // hidden via `if (!open) return null`) across an open/close cycle,
+    // so without this a successful save leaves isSubmitting stuck
+    // `true` forever (onClose() never reset it), silently blocking
+    // every future submit via the `if (isSubmitting) return;` guard —
+    // the exact opposite failure mode from the triple-tap/duplicate-trip
+    // bug the comment below this effect describes, caught the same way
+    // this feature's /calendar brainstorm surfaced it for recurring
+    // events.
+    setIsSubmitting(false);
+    setFormError(undefined);
+    setIsDeleting(false);
+    setDeleteError(undefined);
     if (editingTrip) {
       setDestination(editingTrip.destination);
       setStartDate(editingTrip.startDate);

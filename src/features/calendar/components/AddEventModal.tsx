@@ -76,6 +76,16 @@ export function AddEventModal({
 
   useEffect(() => {
     if (!open) return;
+    // Reset submission/delete status every time the modal opens, not
+    // just the form fields below — this component stays mounted (just
+    // hidden via `if (!open) return null`) across an open/close cycle,
+    // so without this a successful save leaves isSubmitting stuck
+    // `true` forever (onClose() never reset it), silently blocking
+    // every future submit via the `if (isSubmitting) return;` guard.
+    setIsSubmitting(false);
+    setFormError(undefined);
+    setIsDeleting(false);
+    setDeleteError(undefined);
     if (editingEvent) {
       setTitle(editingEvent.title);
       setTag(editingEvent.tag);
