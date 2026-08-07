@@ -156,8 +156,10 @@ export function WeekScheduleGrid({
                     }
                   }}
                   className={cn(
-                    "flex items-start gap-2.5 rounded-[14px] bg-bg p-2.5 text-left",
-                    date === selectedDate && "ring-[1.5px] ring-inset ring-ink",
+                    "flex items-start gap-2.5 rounded-[14px] p-2.5 text-left transition-colors",
+                    date === selectedDate
+                      ? "bg-accent-soft ring-1 ring-inset ring-accent/50"
+                      : "bg-bg",
                   )}
                 >
                   <div className="w-9 shrink-0 pt-0.5 text-center">

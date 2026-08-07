@@ -19,7 +19,10 @@ import {
 import type { EventTag } from "@/features/calendar/data";
 import { ChipBadge } from "@/features/travel/components/ChipBadge";
 import { DayDetailCard } from "@/features/travel/components/DayDetailCard";
-import { travelerColorClass } from "@/features/travel/travelers";
+import {
+  travelerColorClass,
+  travelerTextColorClass,
+} from "@/features/travel/travelers";
 import {
   arePeopleVisible,
   isTripVisible,
@@ -32,31 +35,45 @@ import type { Trip } from "@/services/TripService";
 
 const TRAVEL_STYLE = "bg-teal text-white";
 const MAX_CHIPS_PER_DAY = 2;
-/** Chips are ~9px text in an 84px-tall day cell — three stacked dots is
- * about the ceiling before they blur into a solid smear rather than
- * reading as separate people. A trip with more travellers than this
- * still lists everyone in the chip's title tooltip. */
-const MAX_PERSON_DOTS = 3;
+/** A row only has room for so many names before it either wraps to a
+ * second line or crowds out the title next to it — two names plus a
+ * "+N" overflow reads cleanly at the day-card's compact sizes. */
+const MAX_PERSON_NAMES = 2;
 
-/** Tiny colored dot per person on a chip — who's part of this event,
- * at a glance, without opening it. Trips can have several travellers
- * (Rohit, Aradhana, a custom name, ...); school items only ever have
- * one (Ahaana or Rohana), so that case is always a single dot.
- * Exported (v2.4.0) so DayDetailCard can reuse the same dots on its
- * all-day rows rather than re-implementing them. */
-export function PersonDots({ names }: { names: string[] }) {
+/** Small, color-coded person-name tag — who's part of this event, at a
+ * glance, without opening it. Replaces the old color-only dot stack
+ * (v2.5.1): a bare dot forced you to memorize a color-to-person
+ * mapping, while this keeps the same per-person color (as text, via
+ * travelerTextColorClass) but is legible on its own. Capped at
+ * MAX_PERSON_NAMES and wrapped in a fixed-width `truncate` container so
+ * a trip with several travellers still fits on one line instead of
+ * wrapping or squeezing the title next to it. Exported (v2.4.0) so
+ * DayDetailCard can reuse it on its all-day and timed rows rather than
+ * re-implementing it. */
+export function PersonNames({
+  names,
+  className,
+}: {
+  names: string[];
+  className?: string;
+}) {
   if (names.length === 0) return null;
+  const shown = names.slice(0, MAX_PERSON_NAMES);
+  const extra = names.length - shown.length;
   return (
-    <span className="flex shrink-0 items-center -space-x-[3px]">
-      {names.slice(0, MAX_PERSON_DOTS).map((name) => (
-        <span
-          key={name}
-          className={cn(
-            "size-[6px] shrink-0 rounded-full ring-1 ring-surface",
-            travelerColorClass(name),
-          )}
-        />
+    <span
+      className={cn(
+        "max-w-[92px] shrink-0 truncate text-[9px] font-extrabold uppercase tracking-wide",
+        className,
+      )}
+    >
+      {shown.map((name, i) => (
+        <span key={name} className={travelerTextColorClass(name)}>
+          {i > 0 && <span className="text-ink-faint">, </span>}
+          {name}
+        </span>
       ))}
+      {extra > 0 && <span className="text-ink-faint"> +{extra}</span>}
     </span>
   );
 }
@@ -303,11 +320,14 @@ export function TripCalendarGrid({
                     }
                   }}
                   className={cn(
-                    "flex min-h-[84px] flex-col gap-[3px] rounded-[10px] bg-bg p-1 text-left",
+                    "flex min-h-[84px] flex-col gap-[3px] rounded-[10px] p-1 text-left transition-colors",
                     !isInMonth(dateISO, month) && "opacity-30",
-                    dateISO === today && "ring-[1.5px] ring-inset ring-accent",
-                    dateISO === selectedDate &&
-                      "ring-[1.5px] ring-inset ring-ink",
+                    dateISO === selectedDate
+                      ? "bg-accent-soft ring-1 ring-inset ring-accent/50"
+                      : "bg-bg",
+                    dateISO === today &&
+                      dateISO !== selectedDate &&
+                      "ring-[1.5px] ring-inset ring-accent",
                   )}
                 >
                   <span className="font-display text-[10.5px] font-bold text-ink-soft">

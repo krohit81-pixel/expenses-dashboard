@@ -8,10 +8,9 @@ import { formatTimeRange } from "@/lib/dates/recurring-calendar-events";
 import { TAG_BAR_STYLES } from "@/features/calendar/data";
 import {
   chipsForDate,
-  PersonDots,
+  PersonNames,
   type Chip,
 } from "@/features/travel/components/TripCalendarGrid";
-import { travelerColorClass } from "@/features/travel/travelers";
 import type { VisibilityFilter } from "@/features/travel/detailed-list";
 import type { SchoolCalendarItem } from "@/features/travel/school-items";
 import type { RecurringOccurrence } from "@/lib/dates/recurring-calendar-events";
@@ -156,10 +155,10 @@ export function DayDetailCard({
                       chipBarColor(chip),
                     )}
                   />
-                  <PersonDots names={chipPeople(chip)} />
                   <span className="min-w-0 flex-1 truncate text-[12.5px] font-bold text-ink">
                     {chipLabel(chip)}
                   </span>
+                  <PersonNames names={chipPeople(chip)} />
                   {chip.kind === "trip" && chip.trip.flight && (
                     <span className="flex shrink-0 items-center gap-1 text-[10px] font-semibold text-ink-faint">
                       <Plane className="size-2.5" />
@@ -192,17 +191,10 @@ export function DayDetailCard({
               <span className="w-[58px] shrink-0 text-[10.5px] font-bold text-ink-faint">
                 {formatTimeRange(occ.startTime, occ.endTime).split("–")[0]}
               </span>
-              <span
-                className={cn(
-                  "size-2 shrink-0 rounded-full",
-                  occ.people.length > 0
-                    ? travelerColorClass(occ.people[0])
-                    : "bg-accent",
-                )}
-              />
               <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-ink">
                 {occ.title}
               </span>
+              <PersonNames names={occ.people} />
             </button>
           ))}
         </div>
