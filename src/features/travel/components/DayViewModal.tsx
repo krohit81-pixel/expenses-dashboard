@@ -13,8 +13,10 @@ import {
 import { TAG_LABELS, TAG_STYLES } from "@/features/calendar/data";
 import {
   chipsForDate,
+  PersonDots,
   type Chip,
 } from "@/features/travel/components/TripCalendarGrid";
+import { travelerColorClass } from "@/features/travel/travelers";
 import type { VisibilityFilter } from "@/features/travel/detailed-list";
 import type { SchoolCalendarItem } from "@/features/travel/school-items";
 import type { RecurringOccurrence } from "@/lib/dates/recurring-calendar-events";
@@ -24,7 +26,11 @@ import type { Trip } from "@/services/TripService";
 const ROW_HEIGHT_PX = 48;
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const TRAVEL_STYLE = "bg-teal text-white";
-const RECURRING_STYLE = "bg-accent text-white";
+// v2.4.0: the "Recurring" tag pill (used, if ever, in the all-day band)
+// — lighter than before, matching TripCalendarGrid/TripDetailedList.
+// The timeline blocks themselves are person-colored below instead, same
+// as WeekScheduleGrid, rather than this flat purple.
+const RECURRING_STYLE = "bg-accent-soft text-accent";
 
 function chipLabel(chip: Chip): string {
   if (chip.kind === "trip") return chip.trip.destination;
@@ -256,6 +262,12 @@ export function DayViewModal({
                     minutesOfDay(chip.occurrence.startTime)) /
                     60) *
                   ROW_HEIGHT_PX;
+                // v2.4.0: person-colored, same as WeekScheduleGrid's
+                // hourly blocks — was a flat solid purple before.
+                const color =
+                  chip.occurrence.people.length > 0
+                    ? travelerColorClass(chip.occurrence.people[0])
+                    : "bg-accent";
                 return (
                   <button
                     key={chip.key}
@@ -264,11 +276,12 @@ export function DayViewModal({
                     style={{ top, height, minHeight: 22 }}
                     className={cn(
                       "absolute inset-x-1 overflow-hidden rounded-[8px] px-2 py-1 text-left text-[10.5px] font-bold leading-tight text-white",
-                      RECURRING_STYLE,
+                      color,
                     )}
                   >
-                    <span className="block truncate">
-                      {chip.occurrence.title}
+                    <span className="flex items-center gap-1 truncate">
+                      <PersonDots names={chip.occurrence.people} />
+                      <span className="truncate">{chip.occurrence.title}</span>
                     </span>
                     <span className="block truncate text-[9px] font-semibold opacity-85">
                       {formatTimeRange(

@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { currentMonth } from "@/lib/dates/month";
+import { cn } from "@/lib/utils";
 import { AddEventModal } from "@/features/calendar/components/AddEventModal";
 import { AddRecurringEventModal } from "@/features/calendar/components/AddRecurringEventModal";
 import { LoggingSection } from "@/features/calendar/components/LoggingSection";
@@ -11,7 +12,7 @@ import { DayViewModal } from "@/features/travel/components/DayViewModal";
 import { GoodTravelWindows } from "@/features/travel/components/GoodTravelWindows";
 import { TripCalendarGrid } from "@/features/travel/components/TripCalendarGrid";
 import { TripDetailedList } from "@/features/travel/components/TripDetailedList";
-import { WeekSection } from "@/features/travel/components/WeekSection";
+import { WeekScheduleGrid } from "@/features/travel/components/WeekScheduleGrid";
 import { AddTripModal } from "@/features/travel/components/AddTripModal";
 import { travelerColorClass } from "@/features/travel/travelers";
 import type { VisibilityFilter } from "@/features/travel/detailed-list";
@@ -23,6 +24,13 @@ import type { RecurringCalendarEvent } from "@/services/RecurringCalendarEventSe
 import type { Trip } from "@/services/TripService";
 
 type Visibility = VisibilityFilter;
+type SectionTab = "dashboard" | "report" | "log";
+
+const SECTION_TABS: { key: SectionTab; label: string }[] = [
+  { key: "dashboard", label: "Dashboard" },
+  { key: "report", label: "Report" },
+  { key: "log", label: "Log" },
+];
 
 /**
  * Every named person gets the same per-person color everywhere (see
@@ -60,22 +68,25 @@ const FILTER_CHIPS: {
 /**
  * Owns all interactive state for the merged Calendar + Travel tab
  * (v1.0): which grid month is showing, the Ahaana/Rohana/Travel
- * visibility filters (shared by the grid, the windows strip, and the
- * detailed list below it), and which trip (if any) the add/edit modal is
- * open for. `trips` arrives as a prop from the Calendar Server Component
- * and is used directly rather than copied into local state — after a
- * server action revalidates /calendar, Next re-renders this component
- * with a fresh `trips` prop, which is what keeps the grid/list in sync
- * after a save without a manual refetch.
+ * visibility filters (shared by every section below), and which trip
+ * (if any) the add/edit modal is open for. `trips` arrives as a prop
+ * from the Calendar Server Component and is used directly rather than
+ * copied into local state — after a server action revalidates
+ * /calendar, Next re-renders this component with a fresh `trips` prop,
+ * which is what keeps everything in sync after a save without a manual
+ * refetch.
  *
- * v2.3.0 restructure: the month grid is now the first thing shown after
- * the filter chips (was: travel windows, then the weekly views, then
- * the grid) — everything else (This week, Good windows for travel,
- * Detailed calendar events, Recurring events) is a collapsed-by-default
- * section below it, and the three "add" cards moved into one Logging
- * section. Clicking any day on the grid now opens DayViewModal (an
- * Outlook-style hour-by-hour view) instead of adding a trip or editing
- * a chip in place.
+ * v2.4.0: the page is now three switchable sections — Dashboard (month
+ * grid + this week's schedule, always expanded), Report (good windows
+ * for travel, detailed calendar events, recurring events — each still
+ * individually collapsed), and Log (the three add cards) — behind a
+ * pill tab switcher below the person filter chips, which stay visible
+ * across all three since they affect every section's content. Replaces
+ * the earlier "one long collapsed-by-default scroll" layout from
+ * v2.3.0. "This week's schedule" also now merges what used to be two
+ * separate widgets (a visual timetable for recurring items only, and a
+ * text day-by-day list for everything) into one: an all-day band for
+ * trips/school items/manual events above the same hourly grid.
  */
 export function TravelCalendarSection({
   trips,
@@ -100,6 +111,7 @@ export function TravelCalendarSection({
     rohana: true,
     travel: true,
   });
+  const [activeTab, setActiveTab] = useState<SectionTab>("dashboard");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
   const [modalDefaultTab, setModalDefaultTab] = useState<"upload" | "manual">(
@@ -210,53 +222,83 @@ export function TravelCalendarSection({
         })}
       </div>
 
-      <TripCalendarGrid
-        month={month}
-        onMonthChange={setMonth}
-        trips={trips}
-        schoolItems={schoolItems}
-        calendarEvents={calendarEvents}
-        recurringOccurrences={recurringOccurrences}
-        visible={visible}
-        onDayClick={openDayView}
-      />
+      {/* bg-ink/text-bg, not bg-ink/text-white — --ink flips near-white in
+          dark mode (see globals.css), so pairing it with --bg (its
+          deliberate opposite in both themes) is what keeps the active
+          pill readable in either theme. Same fix HomePhaseView's phase
+          switcher already needed for the same reason. */}
+      <div className="flex gap-1 rounded-full bg-line p-1">
+        {SECTION_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setActiveTab(tab.key)}
+            className={cn(
+              "flex-1 rounded-full py-2 text-center font-display text-[12.5px] font-bold transition-colors",
+              activeTab === tab.key ? "bg-ink text-bg" : "text-ink-soft",
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-      <WeekSection
-        rules={recurringRules}
-        trips={trips}
-        schoolItems={schoolItems}
-        calendarEvents={calendarEvents}
-        recurringOccurrences={recurringOccurrences}
-        visible={visible}
-        onTripClick={openEditModal}
-        onEventClick={openEditEventModal}
-        onRecurringClick={openEditRecurringModal}
-      />
+      {activeTab === "dashboard" && (
+        <div className="space-y-6">
+          <TripCalendarGrid
+            month={month}
+            onMonthChange={setMonth}
+            trips={trips}
+            schoolItems={schoolItems}
+            calendarEvents={calendarEvents}
+            recurringOccurrences={recurringOccurrences}
+            visible={visible}
+            onDayClick={openDayView}
+          />
 
-      <GoodTravelWindows windows={travelWindows} visible={visible} />
+          <WeekScheduleGrid
+            rules={recurringRules}
+            trips={trips}
+            schoolItems={schoolItems}
+            calendarEvents={calendarEvents}
+            visible={visible}
+            onTripClick={openEditModal}
+            onEventClick={openEditEventModal}
+            onRecurringClick={openEditRecurringModal}
+          />
+        </div>
+      )}
 
-      <TripDetailedList
-        trips={trips}
-        schoolItems={schoolItems}
-        calendarEvents={calendarEvents}
-        recurringOccurrences={recurringOccurrences}
-        visible={visible}
-        onTripClick={openEditModal}
-        onEventClick={openEditEventModal}
-        onRecurringClick={openEditRecurringModal}
-      />
+      {activeTab === "report" && (
+        <div className="space-y-6">
+          <GoodTravelWindows windows={travelWindows} visible={visible} />
 
-      <RecurringEventsList
-        rules={recurringRules}
-        onEdit={openEditRecurringModal}
-      />
+          <TripDetailedList
+            trips={trips}
+            schoolItems={schoolItems}
+            calendarEvents={calendarEvents}
+            recurringOccurrences={recurringOccurrences}
+            visible={visible}
+            onTripClick={openEditModal}
+            onEventClick={openEditEventModal}
+            onRecurringClick={openEditRecurringModal}
+          />
 
-      <LoggingSection
-        onUploadTrip={() => openAddModal("upload")}
-        onManualTrip={() => openAddModal("manual")}
-        onAddEvent={openAddEventModal}
-        onAddRecurring={openAddRecurringModal}
-      />
+          <RecurringEventsList
+            rules={recurringRules}
+            onEdit={openEditRecurringModal}
+          />
+        </div>
+      )}
+
+      {activeTab === "log" && (
+        <LoggingSection
+          onUploadTrip={() => openAddModal("upload")}
+          onManualTrip={() => openAddModal("manual")}
+          onAddEvent={openAddEventModal}
+          onAddRecurring={openAddRecurringModal}
+        />
+      )}
 
       <DayViewModal
         open={dayViewOpen}

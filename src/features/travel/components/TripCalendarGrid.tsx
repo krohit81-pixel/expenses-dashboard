@@ -27,7 +27,11 @@ import type { CalendarEvent } from "@/services/CalendarEventService";
 import type { Trip } from "@/services/TripService";
 
 const TRAVEL_STYLE = "bg-teal text-white";
-const RECURRING_STYLE = "bg-accent text-white";
+// v2.4.0: lightened from a solid "bg-accent text-white" pill — matches
+// the softer treatment TripDetailedList's own RECURRING tag already
+// used, now applied consistently everywhere "Recurring" is a label
+// rather than the timetable block itself (which stays person-colored).
+const RECURRING_STYLE = "bg-accent-soft text-accent";
 const MAX_CHIPS_PER_DAY = 3;
 const PERSON_NAME = { ahaana: "Ahaana", rohana: "Rohana" } as const;
 /** Chips are ~9px text in an 84px-tall day cell — three stacked dots is
@@ -39,8 +43,10 @@ const MAX_PERSON_DOTS = 3;
 /** Tiny colored dot per person on a chip — who's part of this event,
  * at a glance, without opening it. Trips can have several travellers
  * (Rohit, Aradhana, a custom name, ...); school items only ever have
- * one (Ahaana or Rohana), so that case is always a single dot. */
-function PersonDots({ names }: { names: string[] }) {
+ * one (Ahaana or Rohana), so that case is always a single dot.
+ * Exported (v2.4.0) so WeekScheduleGrid can reuse the same dots on its
+ * all-day pills and hourly blocks rather than re-implementing them. */
+export function PersonDots({ names }: { names: string[] }) {
   if (names.length === 0) return null;
   return (
     <span className="flex shrink-0 items-center -space-x-[3px]">
