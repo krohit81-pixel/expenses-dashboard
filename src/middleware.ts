@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { createServiceClient } from "@/lib/supabase/service";
+import { withAuthTimingRetry } from "@/lib/supabase/retry";
 import { OWNER_USER_ID } from "@/lib/owner";
 import { ACCESS_COOKIE_NAME, verifyAccessToken } from "@/lib/access-gate";
 
@@ -48,12 +49,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // withAuthTimingRetry: this query runs on every gated page view, so
+  // it's the other place (besides /calendar's server-side data fetches)
+  // that can hit Supabase's transient "JWT issued at future" error on a
+  // cold first request after idle traffic — see that helper's comment.
+  // Unretried, that failure left `settings` null exactly like "no row
+  // found," which would have wrongly bounced an already-onboarded owner
+  // to /onboarding.
   const supabase = createServiceClient();
-  const { data: settings } = await supabase
-    .from("user_settings")
-    .select("user_id")
-    .eq("user_id", OWNER_USER_ID)
-    .maybeSingle();
+  const { data: settings } = await withAuthTimingRetry(() =>
+    supabase
+      .from("user_settings")
+      .select("user_id")
+      .eq("user_id", OWNER_USER_ID)
+      .maybeSingle(),
+  );
 
   if (!settings) {
     return NextResponse.redirect(new URL("/onboarding", request.url));

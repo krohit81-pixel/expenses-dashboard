@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service";
+import { withAuthTimingRetry } from "@/lib/supabase/retry";
 import { OWNER_USER_ID } from "@/lib/owner";
 import {
   createRecurringCalendarEventInputSchema,
@@ -69,11 +70,13 @@ export async function listRecurringCalendarEvents(): Promise<
   RecurringCalendarEvent[]
 > {
   const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from("recurring_calendar_events")
-    .select(RECURRING_CALENDAR_EVENT_SELECT)
-    .eq("user_id", OWNER_USER_ID)
-    .order("start_date");
+  const { data, error } = await withAuthTimingRetry(() =>
+    supabase
+      .from("recurring_calendar_events")
+      .select(RECURRING_CALENDAR_EVENT_SELECT)
+      .eq("user_id", OWNER_USER_ID)
+      .order("start_date"),
+  );
 
   if (error) {
     throw new Error(
