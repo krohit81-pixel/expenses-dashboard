@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { Hero } from "@/components/ui/hero";
+import { ThemeToggleButton } from "@/features/settings/ThemeToggle";
 import { TravelCalendarSection } from "@/features/travel/components/TravelCalendarSection";
 import { buildSchoolCalendarItems } from "@/features/travel/school-items";
 import { buildTravelWindows } from "@/features/travel/travel-windows";
@@ -60,7 +61,7 @@ export default async function CalendarPage() {
 
   return (
     <div>
-      <Hero title="Calendar" />
+      <Hero title="Calendar" topRightAction={<ThemeToggleButton />} />
 
       <div className="space-y-8 p-5 sm:p-8">
         <TravelCalendarSection

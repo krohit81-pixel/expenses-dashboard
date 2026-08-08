@@ -14,6 +14,10 @@ interface HeroProps {
   sub?: string;
   /** Extra content below the headline block — period pickers, etc. */
   children?: ReactNode;
+  /** Small control rendered top-right, before the date (v2.5.2) — e.g.
+   * the theme toggle button on the public /calendar page, where the
+   * full Appearance card on More isn't reachable without logging in. */
+  topRightAction?: ReactNode;
 }
 
 /**
@@ -41,7 +45,14 @@ interface HeroProps {
  * -> 55x65 mark — same aspect ratio, just ~25% larger) at the user's
  * request while already touching this file for the date fix below.
  */
-export function Hero({ title, label, amount, sub, children }: HeroProps) {
+export function Hero({
+  title,
+  label,
+  amount,
+  sub,
+  children,
+  topRightAction,
+}: HeroProps) {
   return (
     <header className="min-h-[190px] bg-gradient-to-br from-[hsl(var(--hero-1))] to-[hsl(var(--hero-2))] px-5 pb-6 pt-6 text-white sm:px-8">
       <div className="flex items-center justify-between gap-3">
@@ -73,9 +84,12 @@ export function Hero({ title, label, amount, sub, children }: HeroProps) {
             the "wrong timezone" report. This is computed fresh on every
             render, explicitly in India's timezone regardless of where
             the server itself runs. */}
-        <span className="shrink-0 whitespace-nowrap font-display text-[11.5px] font-semibold text-white/50">
-          {getIndiaDateLabel()}
-        </span>
+        <div className="flex shrink-0 items-center gap-2.5">
+          {topRightAction}
+          <span className="whitespace-nowrap font-display text-[11.5px] font-semibold text-white/50">
+            {getIndiaDateLabel()}
+          </span>
+        </div>
       </div>
       {title && (
         <div className="mt-3 font-display text-lg font-extrabold tracking-tight text-white sm:text-xl">
