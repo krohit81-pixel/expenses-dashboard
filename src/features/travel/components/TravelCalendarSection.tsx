@@ -26,8 +26,8 @@ type Visibility = VisibilityFilter;
 type SectionTab = "dashboard" | "report" | "log";
 
 const SECTION_TABS: { key: SectionTab; label: string }[] = [
-  { key: "dashboard", label: "Dashboard" },
-  { key: "report", label: "Report" },
+  { key: "dashboard", label: "Summary" },
+  { key: "report", label: "Details" },
   { key: "log", label: "Log" },
 ];
 
@@ -199,11 +199,11 @@ export function TravelCalendarSection({
         })}
       </div>
 
-      {/* bg-ink/text-bg, not bg-ink/text-white — --ink flips near-white in
-          dark mode (see globals.css), so pairing it with --bg (its
-          deliberate opposite in both themes) is what keeps the active
-          pill readable in either theme. Same fix HomePhaseView's phase
-          switcher already needed for the same reason. */}
+      {/* v2.5.2: was bg-ink/text-bg (a near-black pill in light mode) —
+          switched to bg-accent/text-white, the same selection color
+          used for the selected day ring elsewhere on this page, so
+          "selected" reads consistently rather than defaulting to black
+          here specifically. */}
       <div className="flex gap-1 rounded-full bg-line p-1">
         {SECTION_TABS.map((tab) => (
           <button
@@ -212,7 +212,7 @@ export function TravelCalendarSection({
             onClick={() => setActiveTab(tab.key)}
             className={cn(
               "flex-1 rounded-full py-2 text-center font-display text-[12.5px] font-bold transition-colors",
-              activeTab === tab.key ? "bg-ink text-bg" : "text-ink-soft",
+              activeTab === tab.key ? "bg-accent text-white" : "text-ink-soft",
             )}
           >
             {tab.label}

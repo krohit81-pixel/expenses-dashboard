@@ -48,9 +48,32 @@ export function getWeekDates(referenceDateISO?: string): string[] {
   });
 }
 
-/** Today's date as "YYYY-MM-DD", UTC-based like the rest of this file. */
+/**
+ * Today's date as "YYYY-MM-DD" — explicitly in India's timezone
+ * (Asia/Kolkata), not the server's or browser's local time, same
+ * reasoning as getIndiaDateLabel in lib/version.ts.
+ *
+ * v2.5.2: this used to be `new Date().toISOString().slice(0, 10)`,
+ * i.e. today in UTC — wrong for anyone opening the app in the morning
+ * IST (UTC+5:30): from midnight to 5:30am IST, UTC is still on the
+ * previous calendar day, so "today" (the grid's highlighted cell,
+ * WeekScheduleGrid's default week, DayDetailCard's "Today"/"In N days"
+ * label) silently lagged a day behind what the calendar should show.
+ * The rest of this file's Date.UTC-based grid math is unaffected by
+ * this fix — only *which* date counts as "today" changes, not how
+ * dates are computed relative to it.
+ */
 export function todayISODate(): string {
-  return new Date().toISOString().slice(0, 10);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const year = parts.find((p) => p.type === "year")?.value ?? "";
+  const month = parts.find((p) => p.type === "month")?.value ?? "";
+  const day = parts.find((p) => p.type === "day")?.value ?? "";
+  return `${year}-${month}-${day}`;
 }
 
 /** `dateISO` shifted by `days` (negative to go back) — the single-day

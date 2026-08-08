@@ -3,7 +3,6 @@
 import { Plane } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { todayISODate } from "@/lib/dates/calendar-grid";
 import { formatTimeRange } from "@/lib/dates/recurring-calendar-events";
 import { TAG_BAR_STYLES } from "@/features/calendar/data";
 import {
@@ -37,27 +36,24 @@ function chipPeople(chip: Chip): string[] {
   return chip.occurrence.people;
 }
 
+/**
+ * v2.5.2: dropped the "In N days"/"N days ago" relative label entirely
+ * (noise, not information most visits need) and combined day/month/
+ * weekday into one line instead of splitting a big standalone day
+ * number from a stacked month+relative caption — see the callers below.
+ */
 function formatHeading(dateISO: string) {
-  const weekday = new Date(`${dateISO}T00:00:00Z`).toLocaleDateString("en-US", {
-    weekday: "long",
-    timeZone: "UTC",
-  });
-  const month = new Date(`${dateISO}T00:00:00Z`).toLocaleDateString("en-US", {
+  const date = new Date(`${dateISO}T00:00:00Z`);
+  const day = Number(dateISO.slice(8, 10));
+  const month = date.toLocaleDateString("en-US", {
     month: "long",
     timeZone: "UTC",
   });
-  const diffDays = Math.round(
-    (new Date(`${dateISO}T00:00:00Z`).getTime() -
-      new Date(`${todayISODate()}T00:00:00Z`).getTime()) /
-      86400000,
-  );
-  const relative =
-    diffDays === 0
-      ? "Today"
-      : diffDays > 0
-        ? `In ${diffDays} day${diffDays === 1 ? "" : "s"}`
-        : `${-diffDays} day${diffDays === -1 ? "" : "s"} ago`;
-  return { weekday, sub: `${month} · ${relative}` };
+  const weekday = date.toLocaleDateString("en-US", {
+    weekday: "long",
+    timeZone: "UTC",
+  });
+  return { day, month, weekday };
 }
 
 /**
@@ -114,20 +110,15 @@ export function DayDetailCard({
     else if (chip.kind === "manual") onEventClick(chip.event.id);
   }
 
-  const { weekday, sub } = formatHeading(date);
+  const { day, month, weekday } = formatHeading(date);
 
   return (
     <div className="mt-1.5 rounded-[16px] bg-bg p-3.5">
-      <div className="mb-2.5 flex items-baseline gap-2.5">
-        <div className="font-display text-[26px] font-extrabold leading-none text-ink">
-          {Number(date.slice(8, 10))}
-        </div>
-        <div>
-          <div className="font-display text-[13px] font-extrabold uppercase text-ink">
-            {weekday}
-          </div>
-          <div className="text-[10.5px] text-ink-faint">{sub}</div>
-        </div>
+      <div className="mb-2.5 flex items-baseline gap-2">
+        <span className="font-display text-[17px] font-extrabold text-ink">
+          {day} {month}
+        </span>
+        <span className="text-[12.5px] font-bold text-ink-soft">{weekday}</span>
       </div>
 
       {allDay.length > 0 && (
@@ -188,8 +179,8 @@ export function DayDetailCard({
               onClick={() => onRecurringClick(occ.ruleId)}
               className="flex w-full items-center gap-2.5 rounded-[10px] px-1 py-1.5 text-left hover:bg-surface"
             >
-              <span className="w-[58px] shrink-0 text-[10.5px] font-bold text-ink-faint">
-                {formatTimeRange(occ.startTime, occ.endTime).split("–")[0]}
+              <span className="shrink-0 whitespace-nowrap text-[10px] font-bold text-ink-faint">
+                {formatTimeRange(occ.startTime, occ.endTime)}
               </span>
               <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-ink">
                 {occ.title}

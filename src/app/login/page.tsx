@@ -42,13 +42,20 @@ export default async function LoginPage({
           Enter the password to continue.
         </p>
         <LoginForm next={next ?? "/dashboard"} />
-        <p className="mt-8 text-xs text-white/40">
-          Looking for the shared calendar?{" "}
-          <a href="/calendar" className="underline">
-            No password needed
-          </a>
-          .
-        </p>
+
+        <div className="my-6 flex items-center gap-3 text-[11px] font-semibold text-white/30">
+          <span className="h-px flex-1 bg-white/15" />
+          OR
+          <span className="h-px flex-1 bg-white/15" />
+        </div>
+
+        <a
+          href="/calendar"
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-full border-[1.5px] border-white/25 font-display text-sm font-bold text-white transition-colors hover:bg-white/10"
+        >
+          View the shared calendar
+        </a>
+        <p className="mt-2.5 text-xs text-white/40">No password needed.</p>
       </div>
     </div>
   );
