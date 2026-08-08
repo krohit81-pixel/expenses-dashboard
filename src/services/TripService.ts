@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service";
+import { withAuthTimingRetry } from "@/lib/supabase/retry";
 import { OWNER_USER_ID } from "@/lib/owner";
 import {
   createTripInputSchema,
@@ -47,11 +48,13 @@ function mapRow(row: {
 /** All trips, soonest departure first — same ordering the calendar's merged detailed list and month grid both want. */
 export async function listTrips(): Promise<Trip[]> {
   const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from("trips")
-    .select(TRIP_SELECT)
-    .eq("user_id", OWNER_USER_ID)
-    .order("start_date");
+  const { data, error } = await withAuthTimingRetry(() =>
+    supabase
+      .from("trips")
+      .select(TRIP_SELECT)
+      .eq("user_id", OWNER_USER_ID)
+      .order("start_date"),
+  );
 
   if (error) {
     throw new Error(`Failed to load trips: ${error.message}`);

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service";
+import { withAuthTimingRetry } from "@/lib/supabase/retry";
 import { OWNER_USER_ID } from "@/lib/owner";
 import type { EventTag } from "@/features/calendar/data";
 import {
@@ -49,11 +50,13 @@ function mapRow(row: {
 /** All manually-added calendar events, soonest first — same ordering convention as listTrips(). */
 export async function listCalendarEvents(): Promise<CalendarEvent[]> {
   const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from("calendar_events")
-    .select(CALENDAR_EVENT_SELECT)
-    .eq("user_id", OWNER_USER_ID)
-    .order("start_date");
+  const { data, error } = await withAuthTimingRetry(() =>
+    supabase
+      .from("calendar_events")
+      .select(CALENDAR_EVENT_SELECT)
+      .eq("user_id", OWNER_USER_ID)
+      .order("start_date"),
+  );
 
   if (error) {
     throw new Error(`Failed to load calendar events: ${error.message}`);
