@@ -267,3 +267,61 @@ export async function mergeSuggestedMerchantAction(
   revalidatePath("/merchants");
   return { success: true };
 }
+
+export interface BulkMergeFormState {
+  success?: boolean;
+  mergedCount?: number;
+  error?: string;
+}
+
+/**
+ * v2.5.7: the multi-select "Merge N into…" bar on the Merchants list —
+ * at the household's request, a way to clear several unmapped merchants
+ * in one pass without a per-pair round trip through
+ * MerchantMergeSuggestions (that's still there for AI-suggested pairs;
+ * this is for when a person has already eyeballed several rows and
+ * knows they're all the same real merchant). Loops mergeMerchants()
+ * sequentially, same reasoning as every other multi-row merchant
+ * mutation in this app (RecurringTransactionService.applyCycleTags,
+ * scripts/bulk-merge-merchants.mjs): each merge fully completes before
+ * the next starts, so a failure partway through leaves a known,
+ * reportable state (mergedCount) instead of a partial, ambiguous one
+ * from a parallel Promise.all.
+ */
+export async function bulkMergeMerchantsAction(
+  _prevState: BulkMergeFormState,
+  formData: FormData,
+): Promise<BulkMergeFormState> {
+  const targetMerchantId = formData.get("targetMerchantId");
+  if (typeof targetMerchantId !== "string" || !targetMerchantId) {
+    return { error: "Choose a merchant to merge into." };
+  }
+
+  const sourceMerchantIds = formData
+    .getAll("sourceMerchantId")
+    .filter(
+      (id): id is string => typeof id === "string" && id !== targetMerchantId,
+    );
+  if (sourceMerchantIds.length === 0) {
+    return { error: "Select at least one other merchant to merge." };
+  }
+
+  let mergedCount = 0;
+  try {
+    for (const sourceMerchantId of sourceMerchantIds) {
+      await mergeMerchants({ sourceMerchantId, targetMerchantId });
+      mergedCount += 1;
+    }
+  } catch (error) {
+    return {
+      mergedCount,
+      error:
+        error instanceof Error
+          ? `Merged ${mergedCount} of ${sourceMerchantIds.length} before this failed: ${error.message}`
+          : "Failed to merge merchants.",
+    };
+  }
+
+  revalidatePath("/merchants");
+  return { success: true, mergedCount };
+}
