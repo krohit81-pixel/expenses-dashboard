@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -47,7 +46,7 @@ interface HeroProps {
  * request while already touching this file for the date fix below.
  *
  * v2.5.8: a hamburger icon, linking to /more, now sits immediately
- * left of the brand mark — the "More" tab used to be a fifth item in
+ * left of the wordmark — the "More" tab used to be a fifth item in
  * BottomNav/TopNav (see components/app-nav.tsx); the household wanted
  * it converted to a hamburger and moved up here instead, at the top
  * next to the logo, freeing BottomNav down to four evenly-spaced
@@ -55,6 +54,13 @@ interface HeroProps {
  * renders Hero (the one exception, /onboarding, is a one-time
  * first-run flow that doesn't need it), so this is a reliable, global
  * way to reach /more without inventing new overlay/drawer state.
+ *
+ * v2.5.9: the atlas-mark.png image (the ring/plane/graduation-cap icon)
+ * is gone from here, at the household's request — "just the word
+ * 'Atlas' with version is enough." The public/atlas-mark.png asset
+ * itself is untouched (still used on /login, a page outside this
+ * component). Left column is now just the hamburger + "Atlas" +
+ * version.
  */
 export function Hero({
   title,
@@ -83,14 +89,6 @@ export function Hero({
               <path d="M4 17h16" />
             </svg>
           </Link>
-          <Image
-            src="/atlas-mark.png"
-            alt=""
-            width={55}
-            height={65}
-            className="shrink-0"
-            priority
-          />
           <span className="font-display text-[26px] font-extrabold tracking-tight">
             Atlas
           </span>
