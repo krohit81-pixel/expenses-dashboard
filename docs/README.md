@@ -34,11 +34,16 @@ they say so.
 - Single-owner app: one fixed account, an HMAC-signed access-gate cookie
   instead of sign-in, and a service-role Supabase client that bypasses RLS
   (see doc 00 for why, and what that means for how you write services).
-- Feature set as of v2.5.9: bottom nav is **Dashboard / Log / Intel /
+- Feature set as of v3.0.0: bottom nav is **Dashboard / Log / Intel /
   Calendar** — four tabs, no fifth. "More" is a hamburger icon in the
   top-left of every page's header now (v2.5.8), next to the "Atlas"
   wordmark (the header's icon/logo image itself was dropped in v2.5.9 —
   wordmark + version only), not a nav tab; `/more` itself is unchanged.
+  The header itself dropped its indigo gradient background in v3.0.0 —
+  it's flush with the page background now, ink-toned text, no separate
+  colored bar (see doc 00). Dashboard's cycle prev/next pager also gained
+  a visible loading spinner in v3.0.0, matching the fix Intel's
+  card-level nav already had.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement

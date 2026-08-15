@@ -14,15 +14,11 @@ import {
   sumMoney,
 } from "@/lib/money";
 import { computeCommittedExpenseTotal } from "@/lib/budget/home-stats";
-import {
-  currentCycleMonth,
-  isValidMonth,
-  monthLabel,
-  shiftMonth,
-} from "@/lib/dates/month";
+import { currentCycleMonth, isValidMonth, monthLabel } from "@/lib/dates/month";
 import { Hero } from "@/components/ui/hero";
 import { SplitCard } from "@/components/ui/split-card";
 import { transactionDisplayTitle } from "@/features/transactions/format";
+import { DashboardMonthNav } from "@/features/dashboard/components/DashboardMonthNav";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -133,33 +129,7 @@ export default async function DashboardPage({
         amount={netDisplay}
         sub={`${formatMoneyDisplay(totalIncome, currency)} expected in − ${formatMoneyDisplay(totalExpense, currency)} expected out`}
       >
-        <div className="mt-4 flex items-center gap-2">
-          <Link
-            href={`/dashboard?month=${shiftMonth(month, -1)}`}
-            className="flex size-8 items-center justify-center rounded-full bg-white/15 text-sm text-white"
-            aria-label="Previous cycle"
-          >
-            &#8249;
-          </Link>
-          <span className="min-w-[150px] text-center font-display text-sm font-bold text-white">
-            {monthLabel(month)} cycle
-          </span>
-          <Link
-            href={`/dashboard?month=${shiftMonth(month, 1)}`}
-            className="flex size-8 items-center justify-center rounded-full bg-white/15 text-sm text-white"
-            aria-label="Next cycle"
-          >
-            &#8250;
-          </Link>
-          {!isCurrentMonth && (
-            <Link
-              href="/dashboard"
-              className="ml-1 rounded-full bg-white px-3 py-1.5 font-display text-xs font-bold text-[hsl(var(--hero-1))]"
-            >
-              Today
-            </Link>
-          )}
-        </div>
+        <DashboardMonthNav month={month} isCurrentMonth={isCurrentMonth} />
       </Hero>
 
       <div className="space-y-6 p-5 sm:p-8">

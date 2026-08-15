@@ -97,17 +97,17 @@ export default async function BudgetsPage({
         <div className="mt-4 flex items-center gap-2">
           <Link
             href={`/budgets?month=${shiftMonth(month, -1)}`}
-            className="flex size-8 items-center justify-center rounded-full bg-white/15 text-sm text-white"
+            className="flex size-8 items-center justify-center rounded-full bg-accent-soft text-sm text-accent"
             aria-label="Previous month"
           >
             &#8249;
           </Link>
-          <span className="min-w-[130px] text-center font-display text-sm font-bold text-white">
+          <span className="min-w-[130px] text-center font-display text-sm font-bold text-ink">
             {monthLabel(month)}
           </span>
           <Link
             href={`/budgets?month=${shiftMonth(month, 1)}`}
-            className="flex size-8 items-center justify-center rounded-full bg-white/15 text-sm text-white"
+            className="flex size-8 items-center justify-center rounded-full bg-accent-soft text-sm text-accent"
             aria-label="Next month"
           >
             &#8250;
@@ -115,7 +115,7 @@ export default async function BudgetsPage({
           {!isCurrentMonth && (
             <Link
               href="/budgets"
-              className="ml-1 rounded-full bg-white px-3 py-1.5 font-display text-xs font-bold text-[hsl(var(--hero-1))]"
+              className="ml-1 rounded-full bg-accent px-3 py-1.5 font-display text-xs font-bold text-white"
             >
               Today
             </Link>

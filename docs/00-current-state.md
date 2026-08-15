@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v2.5.9**
+correction layer: what's actually true today, current as of **v3.0.0**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -150,6 +150,40 @@ that expectation. Concretely:
 Full detail (exact files, function signatures) is in each version's commit
 message — `git log --oneline` — not duplicated here beyond what's needed to
 orient quickly.
+
+## v3.0.0: flat header, Dashboard cycle-nav loading indicator
+
+Two independent cosmetic/UX fixes, shipped together:
+
+- **Hero dropped its indigo gradient background.** `src/components/ui/hero.tsx`
+  (rendered at the top of every gated page) used to be a deep indigo→purple
+  gradient block (`--hero-1`/`--hero-2`) with white text. It's now flush
+  with the page's own `--bg`, ink/ink-soft/ink-faint text, and just a
+  hairline `border-line` bottom edge — no separate colored bar. The
+  headline `amount` moved to `text-accent` to keep it the visually loudest
+  element without a colored backdrop doing that job. `--hero-1`/`--hero-2`
+  themselves are untouched in `globals.css` — `/login`'s full-screen
+  background still uses them on purpose, since that's a distinct one-time
+  screen, not this header. Three pages that rendered their own
+  white-on-indigo month-nav pills inside Hero's `children` (Dashboard,
+  Budgets, Recurring) and the calendar `ThemeToggleButton`
+  (`src/features/settings/ThemeToggle.tsx`) were re-themed to
+  accent-soft/accent alongside this, plus `/intel/card-category/loading.tsx`'s
+  skeleton (it stands in for Hero before the real page renders).
+- **Dashboard's cycle prev/next/Today pager now shows an in-progress
+  spinner.** It used to be a plain `<Link>` group, same problem
+  `CardMonthNav` (Intel's card-level breakdown nav, v1.6.2) already hit and
+  fixed: nothing on screen changed while the next cycle's server data was
+  fetching, which read as "did my tap even register?" Dashboard now uses
+  `DashboardMonthNav` (`src/features/dashboard/components/DashboardMonthNav.tsx`,
+  new, mirrors `CardMonthNav`'s pattern exactly) — a client component
+  driving navigation via `useRouter().push` inside `useTransition`, so
+  `isPending` is reliably true for the whole round trip and a `Spinner`
+  renders next to the pager while it's in flight; `scroll: false` also
+  keeps the page from jumping. Budgets/Recurring's month pagers were only
+  recolored, not converted to this pattern — not asked for, and they're
+  already `<Link>`-based like Dashboard used to be, so the same fix is a
+  drop-in later if wanted.
 
 ## What's actually built
 

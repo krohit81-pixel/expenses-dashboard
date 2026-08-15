@@ -91,6 +91,11 @@ export function ThemeToggle() {
  * the same convention as most single-button theme switchers — rather
  * than the two-option segmented control, which needs more room than a
  * header action affords.
+ *
+ * v3.0.0: recolored from a white-on-indigo pill (`bg-white/15`) to
+ * `bg-ink/5`/`text-ink-soft` — this button only ever renders inside
+ * Hero's `topRightAction`, and Hero dropped its indigo gradient
+ * background in the same release (see `components/ui/hero.tsx`).
  */
 export function ThemeToggleButton({ className }: { className?: string }) {
   const { theme, choose } = useTheme();
@@ -102,7 +107,7 @@ export function ThemeToggleButton({ className }: { className?: string }) {
       aria-label={
         theme === "dark" ? "Switch to light theme" : "Switch to dark theme"
       }
-      className={`flex size-8 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition-colors hover:bg-white/25 ${className ?? ""}`}
+      className={`flex size-8 shrink-0 items-center justify-center rounded-full bg-ink/5 text-ink-soft transition-colors hover:bg-ink/10 ${className ?? ""}`}
     >
       {theme === "dark" ? (
         <Sun className="size-4" aria-hidden="true" />
