@@ -49,16 +49,6 @@ function CalendarIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
-function MoreIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" {...props}>
-      <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
-      <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
-      <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
 /**
  * v2.1.0: Dashboard / Log / Intel / Calendar, plus More — up from the
  * v2.0.0 three-tab set (Home/Calendar/Intel). Two changes, both at the
@@ -73,6 +63,11 @@ function MoreIcon(props: SVGProps<SVGSVGElement>) {
  *
  * Accounts, Recurring, and Imports move out of the More-group matcher
  * below accordingly — they're reachable from Log now, not More.
+ *
+ * v2.5.8: More itself is gone from here — it's a hamburger icon next
+ * to the logo in Hero now (components/ui/hero.tsx), not a fifth item
+ * in either nav bar. Both TopNav and BottomNav render exactly these
+ * four now; BottomNav's grid went 5 columns -> 4 accordingly.
  */
 const PRIMARY_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: HomeIcon },
@@ -81,26 +76,13 @@ const PRIMARY_ITEMS: NavItem[] = [
   { href: "/calendar", label: "Calendar", icon: CalendarIcon },
 ];
 
-const MORE_ITEM: NavItem = { href: "/more", label: "More", icon: MoreIcon };
-
 function isActive(pathname: string, href: string): boolean {
   if (href === "/log") {
     return ["/log", "/recurring", "/accounts", "/imports"].some((path) =>
       pathname.startsWith(path),
     );
   }
-  return href === "/more"
-    ? [
-        "/net-worth",
-        "/merchants",
-        "/categories",
-        "/ais",
-        "/budgets",
-        "/transactions",
-        "/settings",
-        "/more",
-      ].some((path) => pathname.startsWith(path))
-    : pathname.startsWith(href);
+  return pathname.startsWith(href);
 }
 
 /** Desktop nav, rendered inside the gradient Hero — translucent pill links on the dark background. */
@@ -112,7 +94,7 @@ export function TopNav() {
 
   return (
     <nav aria-label="Primary" className="hidden items-center gap-1.5 sm:flex">
-      {[...PRIMARY_ITEMS, MORE_ITEM].map((item) => {
+      {PRIMARY_ITEMS.map((item) => {
         const active = isActive(pathname, item.href);
         return (
           <Link
@@ -152,8 +134,8 @@ export function BottomNav() {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-[hsl(var(--line))] bg-[hsl(var(--surface))] sm:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="grid grid-cols-5">
-        {[...PRIMARY_ITEMS, MORE_ITEM].map((item) => {
+      <ul className="grid grid-cols-4">
+        {PRIMARY_ITEMS.map((item) => {
           const active = isActive(pathname, item.href);
           return (
             <li key={item.href}>
