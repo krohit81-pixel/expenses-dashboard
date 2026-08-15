@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { APP_VERSION, getIndiaDateLabel } from "@/lib/version";
@@ -44,6 +45,16 @@ interface HeroProps {
  * v1.1.6: wordmark + brand mark bumped again (22px -> 26px text, 44x52
  * -> 55x65 mark — same aspect ratio, just ~25% larger) at the user's
  * request while already touching this file for the date fix below.
+ *
+ * v2.5.8: a hamburger icon, linking to /more, now sits immediately
+ * left of the brand mark — the "More" tab used to be a fifth item in
+ * BottomNav/TopNav (see components/app-nav.tsx); the household wanted
+ * it converted to a hamburger and moved up here instead, at the top
+ * next to the logo, freeing BottomNav down to four evenly-spaced
+ * primary tabs. Plain link, not a dropdown/drawer — every page already
+ * renders Hero (the one exception, /onboarding, is a one-time
+ * first-run flow that doesn't need it), so this is a reliable, global
+ * way to reach /more without inventing new overlay/drawer state.
  */
 export function Hero({
   title,
@@ -56,7 +67,22 @@ export function Hero({
   return (
     <header className="min-h-[190px] bg-gradient-to-br from-[hsl(var(--hero-1))] to-[hsl(var(--hero-2))] px-5 pb-6 pt-6 text-white sm:px-8">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <Link
+            href="/more"
+            aria-label="More"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/10"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="size-[22px] fill-none stroke-current stroke-[1.8]"
+              strokeLinecap="round"
+            >
+              <path d="M4 7h16" />
+              <path d="M4 12h16" />
+              <path d="M4 17h16" />
+            </svg>
+          </Link>
           <Image
             src="/atlas-mark.png"
             alt=""

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { Hero } from "@/components/ui/hero";
 import { MerchantFilters } from "@/features/merchants/components/MerchantFilters";
-import { MerchantListRow } from "@/features/merchants/components/MerchantListRow";
+import { MerchantListWithSelection } from "@/features/merchants/components/MerchantListWithSelection";
 import { MerchantMergeSuggestions } from "@/features/merchants/components/MerchantMergeSuggestions";
 import {
   listAtlasCategories,
@@ -41,6 +41,15 @@ interface MerchantsPageProps {
  * which unmapped merchants are probably an existing one under different
  * wording; see MerchantMergeSuggestionService for the "advisory only,
  * never merges by itself" boundary.
+ *
+ * v2.5.7: merging moved onto this list itself — a "Merge" button next
+ * to "Edit" on every row (no detour through a merchant's own detail
+ * page), plus checkbox multi-select with a "Merge N into…" bar for
+ * clearing several unmapped merchants into one existing merchant at
+ * once. Fetches the merchant list a second time, unfiltered
+ * (allMerchants) — merge-target dropdowns need every merchant
+ * regardless of whatever filter is currently narrowing the visible
+ * list, see MerchantListWithSelection's own comment.
  */
 export default async function MerchantsPage({
   searchParams,
@@ -52,8 +61,8 @@ export default async function MerchantsPage({
   const merchantType = params.merchantType ?? "";
   const cycleMonth = params.cycleMonth ?? "";
 
-  const [categories, merchantTypes, cycleMonths, merchants] = await Promise.all(
-    [
+  const [categories, merchantTypes, cycleMonths, merchants, allMerchants] =
+    await Promise.all([
       listAtlasCategories(),
       listMerchantTypes(),
       listCreditCardCycleMonths(),
@@ -64,8 +73,8 @@ export default async function MerchantsPage({
         merchantType: merchantType || undefined,
         cycleMonth: cycleMonth || undefined,
       }),
-    ],
-  );
+      listMerchants(),
+    ]);
 
   const uncategorizedCount = merchants.filter(
     (m) => m.atlasCategoryId === null,
@@ -106,15 +115,11 @@ export default async function MerchantsPage({
             No merchants match these filters yet.
           </p>
         ) : (
-          <ul className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-            {merchants.map((merchant) => (
-              <MerchantListRow
-                key={merchant.id}
-                merchant={merchant}
-                categories={categories}
-              />
-            ))}
-          </ul>
+          <MerchantListWithSelection
+            merchants={merchants}
+            allMerchants={allMerchants}
+            categories={categories}
+          />
         )}
       </div>
     </div>
