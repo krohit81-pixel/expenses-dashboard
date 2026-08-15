@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.0.0**
+correction layer: what's actually true today, current as of **v3.1.0**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -184,6 +184,66 @@ Two independent cosmetic/UX fixes, shipped together:
   recolored, not converted to this pattern — not asked for, and they're
   already `<Link>`-based like Dashboard used to be, so the same fix is a
   drop-in later if wanted.
+
+## v3.1.0: Dashboard rebuild, header menu button moved, app-wide accent recolor
+
+The household pointed at a different app's header/dashboard (screenshots,
+not code) as a reference for "more professional finance planner" styling
+and asked to build on those lines. Real implementation, not another
+mockup round — everything below reads real Atlas data, nothing simulated.
+
+- **Global accent recolor, purple → blue.** `--accent`/`--accent-soft` in
+  `globals.css` (both themes) changed from the old indigo/purple family to
+  a flat blue (`220 82% 55%` light / `220 78% 69%` dark), at the
+  household's explicit "same colors" request. This is app-wide — every
+  `bg-accent`/`text-accent`/`border-accent` usage (buttons, active nav,
+  link cards, `CardMonthNav`, merchant-merge UI, etc.) picks it up
+  automatically since none of them hardcode a hex. **Not** touched:
+  Intel's chart color palette (`app/(app)/intel/page.tsx`) is a separate
+  hardcoded hex array for Recharts and is still the old purple family — a
+  known follow-up, not an oversight. `--hero-1`/`--hero-2` (still indigo,
+  `/login`'s background) are also untouched, same reasoning as v3.0.0.
+- **Hero's menu button moved from left to right.** Used to sit left of the
+  wordmark as a plain circular icon; now it's a bordered white
+  rounded-square button paired with the date, top-right — matching the
+  reference's header arrangement. Left side is just the wordmark, version,
+  and a new optional `subtitle` prop (a small caption under the wordmark —
+  Dashboard passes `"{month} cycle"`). `title`/`label`/`amount`/`sub`
+  still work exactly as before for every other page that uses them
+  (Accounts, Net worth, Budgets, Recurring, AIS, ...) — this was additive,
+  not a breaking change to Hero's API.
+- **Dashboard rebuilt around `src/lib/budget/cycle-compare.ts`** (new, pure
+  functions, unit-tested): the net figure moved out of Hero entirely into
+  a new **Cycle Brief** card (`CycleBriefCard`) — a deficit↔surplus
+  gradient meter, a state word (`onTrack`/`tight`/`overBudget`, from
+  `pickCycleState`), and a short factual summary paragraph
+  (`buildCycleSummary` — every sentence is derived from real snapshot
+  data, nothing invented). The old 3-stat "at a glance" row is replaced by
+  **This Cycle vs Last** (`CycleStatGrid`) — 4 real stat cards
+  (Income/Expenses/Net/Card dues) compared against the previous cycle's
+  own `getMonthlyBudgetSnapshot` (one extra call — the function already
+  takes any month, no schema change), each with a two-bar "then vs now"
+  comparison and a real percent delta. Deliberately **not** a multi-point
+  sparkline — only two real data points exist per figure (this cycle,
+  last cycle), and a curve drawn through two points would just be
+  decorating a straight line; a real trend sparkline is a plausible
+  follow-up once there's a cheap way to fetch several cycles' totals
+  without N redundant snapshot queries. **Biggest Changes**
+  (`BiggestChanges`) is new too — the largest cycle-over-cycle swings,
+  solid-color tiles reserved for real movers, flat cards otherwise.
+  `computeBiggestChanges` matches income/fixed-expense lines **by name**
+  across cycles (`SnapshotLine` has no stable cross-cycle template id —
+  its `id` is the specific transaction row tagged to that one cycle — so
+  name is the best signal available without changing
+  `BudgetSnapshotService`'s shared shape, also used by `/budgets`); card
+  dues is folded in as one synthetic aggregate line since those come from
+  one-off logging, not a named recurring template. "Logged this cycle" is
+  visually restyled (`LoggedFeedList` — pill tags instead of a plain
+  list) but reads the exact same `snapshot.oneOff` data as before. The
+  Full breakdown split-cards and the bottom Recurring/Intel link-cards are
+  unchanged. `SectionHeading` is the small numbered/colored-bar header
+  component used throughout (purely presentational — the chevron is
+  decorative, nothing collapses today).
 
 ## What's actually built
 

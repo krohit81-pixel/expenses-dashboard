@@ -13,52 +13,39 @@ import {
   negateMoney,
   sumMoney,
 } from "@/lib/money";
-import { computeCommittedExpenseTotal } from "@/lib/budget/home-stats";
-import { currentCycleMonth, isValidMonth, monthLabel } from "@/lib/dates/month";
+import {
+  computeCardDuesTotal,
+  computeCommittedExpenseTotal,
+} from "@/lib/budget/home-stats";
+import {
+  buildCycleSummary,
+  computeBiggestChanges,
+  computeCycleDelta,
+  cycleCloseLabel,
+  findLargestExpenseName,
+  meterPosition,
+  pickCycleState,
+} from "@/lib/budget/cycle-compare";
+import {
+  currentCycleMonth,
+  isValidMonth,
+  monthLabel,
+  shiftMonth,
+} from "@/lib/dates/month";
 import { Hero } from "@/components/ui/hero";
 import { SplitCard } from "@/components/ui/split-card";
-import { transactionDisplayTitle } from "@/features/transactions/format";
-import { DashboardMonthNav } from "@/features/dashboard/components/DashboardMonthNav";
+import { SectionHeading } from "@/features/dashboard/components/SectionHeading";
+import { CycleBriefCard } from "@/features/dashboard/components/CycleBriefCard";
+import {
+  CycleStatGrid,
+  type CycleStat,
+} from "@/features/dashboard/components/CycleStatGrid";
+import { BiggestChanges } from "@/features/dashboard/components/BiggestChanges";
+import { LoggedFeedList } from "@/features/dashboard/components/LoggedFeedList";
 
 export const metadata: Metadata = {
   title: "Dashboard",
 };
-
-const STAT_CARD_BG: Record<"positive" | "negative" | "accent", string> = {
-  positive: "bg-surface",
-  negative: "bg-surface",
-  accent: "bg-accent-soft",
-};
-const STAT_CARD_TEXT: Record<"positive" | "negative" | "accent", string> = {
-  positive: "text-positive",
-  negative: "text-negative",
-  accent: "text-accent",
-};
-
-function StatCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "positive" | "negative" | "accent";
-}) {
-  return (
-    <div
-      className={`rounded-2xl p-3 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)] ${STAT_CARD_BG[tone]}`}
-    >
-      <div className="font-display text-[9.5px] font-bold uppercase tracking-wide text-ink-faint">
-        {label}
-      </div>
-      <div
-        className={`mt-1 truncate font-display text-sm font-extrabold ${STAT_CARD_TEXT[tone]}`}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
 
 /**
  * v2.1: absorbs Budgets entirely — one monthly-cycle budget view instead
@@ -80,6 +67,21 @@ function StatCard({
  * as paid" anywhere — whatever's tagged to a cycle (via Recurring, see
  * Log) is assumed to happen. Editing/tagging still happens on Recurring;
  * this page is a read of that same data, not a second place to edit it.
+ *
+ * v3.1.0 rebuild: the household pointed at another app's header and
+ * dashboard for a "more professional finance planner" look — see
+ * Hero's own v3.1.0 comment for the header half, and
+ * lib/budget/cycle-compare.ts for the pure logic behind everything
+ * below. Concretely: the net figure moved out of Hero into a new
+ * "Cycle Brief" card (a deficit/surplus meter plus a real, data-only
+ * summary paragraph); the old 3-stat "at a glance" row is replaced by
+ * a 4-stat grid compared against last cycle's snapshot (one extra
+ * getMonthlyBudgetSnapshot call — the function already takes any
+ * month, no schema change needed); "Biggest Changes" is new, built
+ * from the same two snapshots; the Full breakdown split-cards and the
+ * bottom Recurring/Intel link-cards are unchanged. "Logged this
+ * cycle" is restyled (pill tags instead of a plain list) but reads
+ * the exact same snapshot.oneOff data as before.
  */
 export default async function DashboardPage({
   searchParams,
@@ -89,10 +91,12 @@ export default async function DashboardPage({
   const { month: monthParam } = await searchParams;
   const month = isValidMonth(monthParam) ? monthParam : currentCycleMonth();
   const isCurrentMonth = month === currentCycleMonth();
+  const prevMonth = shiftMonth(month, -1);
 
   const user = await requireUser();
-  const [snapshot, accounts, settings] = await Promise.all([
+  const [snapshot, prevSnapshot, accounts, settings] = await Promise.all([
     getMonthlyBudgetSnapshot(month),
+    getMonthlyBudgetSnapshot(prevMonth),
     listAccounts(),
     getUserSettings(user.id),
   ]);
@@ -100,7 +104,24 @@ export default async function DashboardPage({
   const currency = settings?.baseCurrency ?? "USD";
   const accountName = new Map(accounts.map((a) => [a.id, a.name]));
 
-  const oneOffIncome = snapshot.oneOff.filter((l) => l.kind === "income");
+  function cycleTotals(snap: typeof snapshot) {
+    const oneOffIncome = sumMoney(
+      snap.oneOff.filter((l) => l.kind === "income").map((l) => l.amount),
+    );
+    const totalIncome = addMoney(snap.incomeTotal, oneOffIncome);
+    const totalExpense = computeCommittedExpenseTotal(snap);
+    const net = addMoney(totalIncome, negateMoney(totalExpense));
+    const cardDues = computeCardDuesTotal(snap);
+    return { totalIncome, totalExpense, net, cardDues };
+  }
+
+  const current = cycleTotals(snapshot);
+  const previous = cycleTotals(prevSnapshot);
+
+  const netIsNegative = isNegativeMoney(current.net);
+  const netAbsolute = netIsNegative ? negateMoney(current.net) : current.net;
+  const netDisplay = `${netIsNegative ? "−" : "+"}${formatMoneyDisplay(netAbsolute, currency)}`;
+
   const oneOffTotal = sumMoney(
     snapshot.oneOff
       .filter(
@@ -111,56 +132,126 @@ export default async function DashboardPage({
       ),
   );
 
-  const totalIncome = addMoney(
-    snapshot.incomeTotal,
-    sumMoney(oneOffIncome.map((l) => l.amount)),
+  // Cycle Brief
+  const cycleState = pickCycleState(current.net, current.totalIncome);
+  const netDelta = computeCycleDelta(current.net, previous.net);
+  const qualifier =
+    netDelta.direction === "pos"
+      ? "Better than last cycle"
+      : netDelta.direction === "neg"
+        ? "Tighter than last cycle"
+        : "About the same as last cycle";
+  const meterPct = meterPosition(
+    current.net,
+    addMoney(current.totalIncome, current.totalExpense),
   );
-  const totalExpense = computeCommittedExpenseTotal(snapshot);
-  const netProjected = addMoney(totalIncome, negateMoney(totalExpense));
-  const netIsNegative = isNegativeMoney(netProjected);
-  const netAbsolute = netIsNegative ? negateMoney(netProjected) : netProjected;
-  const netDisplay = `${netIsNegative ? "−" : "+"}${formatMoneyDisplay(netAbsolute, currency)}`;
+  const summary = buildCycleSummary({
+    totalIncome: current.totalIncome,
+    net: current.net,
+    currency,
+    largestExpenseName: findLargestExpenseName(snapshot),
+  });
+  const closeLabel = cycleCloseLabel(month);
+
+  // This Cycle vs Last
+  const stats: CycleStat[] = (
+    [
+      {
+        label: "Income",
+        current: current.totalIncome,
+        previous: previous.totalIncome,
+        moreIsGood: true,
+      },
+      {
+        label: "Expenses",
+        current: current.totalExpense,
+        previous: previous.totalExpense,
+        moreIsGood: false,
+      },
+      {
+        label: "Net",
+        current: current.net,
+        previous: previous.net,
+        moreIsGood: true,
+      },
+      {
+        label: "Card dues",
+        current: current.cardDues,
+        previous: previous.cardDues,
+        moreIsGood: false,
+      },
+    ] as const
+  ).map(({ label, current: cur, previous: prev, moreIsGood }) => {
+    const delta = computeCycleDelta(cur, prev);
+    const curNeg = isNegativeMoney(cur);
+    const prevNeg = isNegativeMoney(prev);
+    return {
+      label,
+      valueDisplay: `${curNeg ? "−" : label === "Net" ? "+" : ""}${formatMoneyDisplay(curNeg ? negateMoney(cur) : cur, currency)}`,
+      prevDisplay: `${prevNeg ? "−" : label === "Net" ? "+" : ""}${formatMoneyDisplay(prevNeg ? negateMoney(prev) : prev, currency)}`,
+      current: cur,
+      previous: prev,
+      direction:
+        delta.direction === "flat"
+          ? "flat"
+          : (delta.direction === "pos") === moreIsGood
+            ? "pos"
+            : "neg",
+      changeLabel: delta.label ?? "No change",
+    } satisfies CycleStat;
+  });
+
+  // Biggest Changes
+  const biggestChanges = computeBiggestChanges(
+    snapshot,
+    prevSnapshot,
+    currency,
+  );
 
   return (
     <div>
-      <Hero
-        title="Dashboard"
-        label={`Projected net for ${monthLabel(month)}`}
-        amount={netDisplay}
-        sub={`${formatMoneyDisplay(totalIncome, currency)} expected in − ${formatMoneyDisplay(totalExpense, currency)} expected out`}
-      >
-        <DashboardMonthNav month={month} isCurrentMonth={isCurrentMonth} />
-      </Hero>
+      <Hero subtitle={`${monthLabel(month)} cycle`} />
 
       <div className="space-y-6 p-5 sm:p-8">
         <section>
-          <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="font-display text-[15px] font-bold text-ink">
-              This cycle at a glance
-            </h2>
-          </div>
-          <div className="grid grid-cols-3 gap-2.5">
-            <StatCard
-              label="Income"
-              value={formatMoneyDisplay(totalIncome, currency)}
-              tone="positive"
-            />
-            <StatCard
-              label="Expenses"
-              value={formatMoneyDisplay(totalExpense, currency)}
-              tone="negative"
-            />
-            <StatCard label="Net" value={netDisplay} tone="accent" />
-          </div>
+          <SectionHeading index="01" title="Cycle Brief" meta="this cycle" />
+          <CycleBriefCard
+            month={month}
+            isCurrentMonth={isCurrentMonth}
+            state={cycleState}
+            qualifier={qualifier}
+            qualifierTone={netDelta.direction}
+            netDisplay={netDisplay}
+            meterPct={meterPct}
+            summary={summary}
+            closeLabel={closeLabel}
+          />
         </section>
 
         <section>
-          <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="font-display text-[15px] font-bold text-ink">
-              Full breakdown
-            </h2>
-            <span className="text-xs text-ink-faint">{monthLabel(month)}</span>
-          </div>
+          <SectionHeading
+            index="02"
+            title="This Cycle vs Last"
+            meta="4 figures"
+          />
+          <CycleStatGrid stats={stats} />
+        </section>
+
+        <section>
+          <SectionHeading
+            index="03"
+            title="Biggest Changes"
+            meta="vs last cycle"
+          />
+          <BiggestChanges tiles={biggestChanges} />
+        </section>
+
+        <section>
+          <SectionHeading
+            index="04"
+            title="Full Breakdown"
+            meta={monthLabel(month)}
+          />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <SplitCard
               title="Income & receivables"
@@ -215,53 +306,15 @@ export default async function DashboardPage({
               ))}
             </SplitCard>
           </div>
+        </section>
 
-          <div className="mt-4 rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-            <div className="flex items-center justify-between px-[18px] py-4">
-              <h3 className="font-display text-sm font-bold text-accent">
-                Logged this cycle &middot; card payments &amp; other one-off
-              </h3>
-              <span className="font-display text-xs font-bold text-ink-faint">
-                {formatMoneyDisplay(oneOffTotal, currency)} net
-              </span>
-            </div>
-            {snapshot.oneOff.length === 0 ? (
-              <p className="px-[18px] pb-4 text-sm text-ink-faint">
-                Nothing logged for {monthLabel(month)} yet.
-              </p>
-            ) : (
-              <ul>
-                {snapshot.oneOff.map((line) => (
-                  <li
-                    key={line.id}
-                    className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-3 last:border-b-0"
-                  >
-                    <p className="min-w-0 truncate text-sm font-semibold text-ink">
-                      {transactionDisplayTitle(line, accountName)}
-                    </p>
-                    {line.kind === "transfer" &&
-                    !line.transferReducesCashOnHand ? (
-                      <p className="whitespace-nowrap font-display text-sm font-bold text-ink-faint">
-                        Transfer &middot;{" "}
-                        {formatMoneyDisplay(line.amount, line.currencyCode)}
-                      </p>
-                    ) : (
-                      <p
-                        className={`whitespace-nowrap font-display text-sm font-bold ${
-                          line.kind === "income"
-                            ? "text-positive"
-                            : "text-negative"
-                        }`}
-                      >
-                        {line.kind === "income" ? "+" : "−"}
-                        {formatMoneyDisplay(line.amount, line.currencyCode)}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+        <section>
+          <SectionHeading
+            index="05"
+            title="Logged This Cycle"
+            meta={`${formatMoneyDisplay(oneOffTotal, currency)} net`}
+          />
+          <LoggedFeedList items={snapshot.oneOff} accountName={accountName} />
         </section>
 
         <p className="text-xs text-ink-faint">

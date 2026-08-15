@@ -31,8 +31,25 @@
     --ink: 270 29% 11%;
     --ink-soft: 261 11% 45%;
     --ink-faint: 265 13% 67%;
-    --accent: 263 69% 42%;
-    --accent-soft: 263 74% 94%;
+    /* v3.1.0: was a deep indigo/purple (263 69% 42%) matching the old
+       hero gradient — swapped for a flat confident blue at the
+       household's explicit request ("same colors" as the referenced
+       Risk Intelligence app: cool light gray, white cards, blue
+       accent, green/red semantics). This is a real app-wide rebrand,
+       not a Dashboard-only tweak — every bg-accent/text-accent/
+       border-accent usage across the app (buttons, active nav, link
+       cards, CardMonthNav, merchant-merge UI, etc.) picks this up
+       automatically since they all read the token, not a hardcoded
+       hex. The one thing that does NOT follow this token: Intel's
+       chart color palette (app/(app)/intel/page.tsx) is a separate
+       hardcoded hex array for Recharts, deliberately left alone here
+       — untouched, still the old purple family, a known follow-up if
+       the household wants full consistency there too. --hero-1/
+       --hero-2 (still indigo) are also untouched on purpose — /login's
+       full-screen background is the one place still using them, by
+       design (see hero.tsx's own v3.0.0 comment). */
+    --accent: 220 82% 55%;
+    --accent-soft: 221 85% 95%;
     --positive: 147 75% 36%;
     --positive-soft: 142 51% 93%;
     --negative: 347 73% 54%;
@@ -127,8 +144,11 @@
     --ink: 270 15% 95%;
     --ink-soft: 261 10% 70%;
     --ink-faint: 265 10% 50%;
-    --accent: 263 75% 68%;
-    --accent-soft: 263 35% 22%;
+    /* v3.1.0: dark-mode pair for the new blue accent above — same
+       lighten-and-ease-saturation treatment as every other dark-mode
+       token in this block. */
+    --accent: 220 78% 69%;
+    --accent-soft: 215 38% 18%;
     --positive: 147 55% 55%;
     --positive-soft: 142 30% 18%;
     --negative: 347 70% 65%;
