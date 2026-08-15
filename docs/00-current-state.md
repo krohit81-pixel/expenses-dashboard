@@ -168,7 +168,12 @@ orient quickly.
 - **Merchant Dictionary**: a shared, issuer-agnostic merchant/category
   resolution layer (`finance.merchants`, `finance.merchant_aliases`,
   `finance.atlas_categories`) that every statement parser feeds into, plus
-  a `/merchants` admin UI for reviewing and re-categorizing.
+  a `/merchants` admin UI for reviewing and re-categorizing. The
+  resolver itself only ever does exact alias/name matching — v2.5.5
+  added an optional, button-triggered "Find likely duplicates" (AI,
+  advisory only, never auto-merges — see doc 07) to catch the near-
+  duplicate "unmapped" merchants that exact matching alone always
+  misses (an order-ID suffix, a city name, an abbreviation).
 - **Intel tab**: spending charts (by category, month-on-month, card-level
   breakdown by billing cycle) plus a single, button-triggered AI insight
   (Anthropic or Gemini — see doc 07) that's stored, not regenerated on

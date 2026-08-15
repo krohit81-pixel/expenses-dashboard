@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Hero } from "@/components/ui/hero";
 import { MerchantFilters } from "@/features/merchants/components/MerchantFilters";
 import { MerchantListRow } from "@/features/merchants/components/MerchantListRow";
+import { MerchantMergeSuggestions } from "@/features/merchants/components/MerchantMergeSuggestions";
 import {
   listAtlasCategories,
   listCreditCardCycleMonths,
@@ -32,6 +33,14 @@ interface MerchantsPageProps {
  * src/services/MerchantDictionaryService.ts for how a merchant gets
  * here in the first place — nothing on this page is HDFC-specific;
  * every future card parser feeds the same dictionary.
+ *
+ * v2.5.5: MerchantMergeSuggestions up top — the deterministic resolver
+ * only ever matches exact alias/name text, so any statement-text
+ * variation spawns a brand-new "unmapped" merchant instead of being
+ * recognized as one already known. That button asks an LLM to propose
+ * which unmapped merchants are probably an existing one under different
+ * wording; see MerchantMergeSuggestionService for the "advisory only,
+ * never merges by itself" boundary.
  */
 export default async function MerchantsPage({
   searchParams,
@@ -77,6 +86,8 @@ export default async function MerchantsPage({
         }
       />
       <div className="space-y-4 p-5 sm:p-8">
+        <MerchantMergeSuggestions />
+
         <div className="rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
           <MerchantFilters
             categories={categories}

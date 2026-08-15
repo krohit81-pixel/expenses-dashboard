@@ -9,6 +9,10 @@ import {
   untagTransaction,
   updateMerchant,
 } from "@/services/MerchantService";
+import {
+  suggestMerchantMerges,
+  type MergeSuggestion,
+} from "@/services/MerchantMergeSuggestionService";
 
 export interface MerchantFormState {
   success?: boolean;
@@ -192,4 +196,74 @@ export async function mergeMerchantsAction(
   revalidatePath("/merchants");
   revalidatePath(`/merchants/${targetMerchantId}`);
   redirect(`/merchants/${targetMerchantId}`);
+}
+
+export interface SuggestMergesState {
+  suggestions?: MergeSuggestion[];
+  error?: string;
+}
+
+/**
+ * Button-triggered (MerchantMergeSuggestions, on the Merchants list
+ * page), same "not on page load" reasoning as Intel's
+ * generateInsightAction — an LLM call is slow and this list doesn't
+ * need to be fresh on every visit, only when actually asked for.
+ * Read-only: returns candidate (unmapped, established) pairs for a
+ * human to review, never merges anything itself — see
+ * mergeSuggestedMerchantAction below for the actual mutation, and
+ * MerchantMergeSuggestionService's own comment for why that split
+ * matters.
+ */
+export async function suggestMerchantMergesAction(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- required by useActionState's action signature
+  _prevState: SuggestMergesState,
+): Promise<SuggestMergesState> {
+  const result = await suggestMerchantMerges();
+  if (!result.ok) {
+    return { error: result.reason };
+  }
+  return { suggestions: result.suggestions };
+}
+
+export interface MergeSuggestionActionState {
+  success?: boolean;
+  error?: string;
+}
+
+/**
+ * A near-duplicate of mergeMerchantsAction above, deliberately not
+ * shared with it: that action redirects to the target merchant's page
+ * because it's only ever submitted FROM the source merchant's own
+ * detail page, which 404s once the merge deletes that merchant. This
+ * one is submitted from the Merchants LIST page instead (one row inside
+ * MerchantMergeSuggestions, possibly several still left to review) —
+ * redirecting away would lose the rest of that in-progress review, so
+ * this just revalidates and returns success, letting the client remove
+ * the merged row from its own list locally instead of navigating.
+ */
+export async function mergeSuggestedMerchantAction(
+  _prevState: MergeSuggestionActionState,
+  formData: FormData,
+): Promise<MergeSuggestionActionState> {
+  const sourceMerchantId = formData.get("sourceMerchantId");
+  const targetMerchantId = formData.get("targetMerchantId");
+
+  if (typeof sourceMerchantId !== "string" || !sourceMerchantId) {
+    return { error: "Missing merchant." };
+  }
+  if (typeof targetMerchantId !== "string" || !targetMerchantId) {
+    return { error: "Missing target merchant." };
+  }
+
+  try {
+    await mergeMerchants({ sourceMerchantId, targetMerchantId });
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error ? error.message : "Failed to merge merchants.",
+    };
+  }
+
+  revalidatePath("/merchants");
+  return { success: true };
 }
