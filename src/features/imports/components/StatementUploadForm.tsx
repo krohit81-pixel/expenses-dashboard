@@ -12,6 +12,7 @@ import {
 } from "@/features/imports/api/actions";
 import { CARD_STATEMENT_LABELS } from "@/features/imports/cards";
 import { LogCardDuePrompt } from "@/features/imports/components/LogCardDuePrompt";
+import { MerchantMergeSuggestions } from "@/features/merchants/components/MerchantMergeSuggestions";
 import type { Account } from "@/services/AccountService";
 
 const CARD_OPTIONS = Object.entries(CARD_STATEMENT_LABELS);
@@ -39,6 +40,17 @@ function formatIsoDate(iso: string): string {
  * LogCardDuePrompt, pre-filled from the parsed header — see that
  * component's own comment for why the import itself was never enough
  * to make an imported statement show up as a Dashboard expense.
+ *
+ * v2.5.6: when this import created any new ("needs review") merchants,
+ * also renders MerchantMergeSuggestions right here — the same
+ * AI-assisted duplicate-check tool that lives on /merchants, so
+ * checking for a near-duplicate of a merchant this import just created
+ * (an order-ID suffix, a city name — anything the deterministic
+ * alias/name matcher can't catch) is the very next thing offered,
+ * instead of requiring a separate trip to /merchants. It still checks
+ * the whole dictionary's backlog, not just this import's merchants —
+ * there's no per-import scoping, deliberately: one shared tool, reused
+ * in both places, rather than a second scoped variant to maintain.
  */
 export function StatementUploadForm({
   cardAccounts,
@@ -179,6 +191,10 @@ export function StatementUploadForm({
           cardAccounts={cardAccounts}
           checkingAccounts={checkingAccounts}
         />
+      )}
+
+      {state.summary && state.summary.needsReviewCount > 0 && (
+        <MerchantMergeSuggestions />
       )}
 
       {state.pages && (

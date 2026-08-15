@@ -8,7 +8,10 @@ import {
   ZERO,
   type Money,
 } from "@/lib/money";
-import { serverEnv } from "@/lib/env/server";
+import {
+  callConfiguredProvider,
+  hasAiProviderConfigured,
+} from "@/lib/ai/providers";
 import { createServiceClient } from "@/lib/supabase/service";
 import {
   getCashFlowSummary,
@@ -20,10 +23,6 @@ import { getUserSettings } from "@/services/UserSettingsService";
 import { getPlannedCardDuesForMonths } from "@/services/BudgetSnapshotService";
 import { OWNER_USER_ID } from "@/lib/owner";
 import { currentMonth, monthLabel, shiftMonth } from "@/lib/dates/month";
-
-const ANTHROPIC_MODEL = "claude-sonnet-5";
-/** Only used when GEMINI_API_KEY is configured and GEMINI_MODEL isn't set — a current, small/cheap chat model, not Gemini's largest, since this is a 2-3 sentence summary, not a task that needs a frontier model. Override via GEMINI_MODEL if this ever starts returning a model-not-found error (model names/versions do change over time — verify against https://ai.google.dev/gemini-api/docs/models). */
-const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
 /**
  * Builds the same prompt regardless of which provider ends up answering
@@ -76,70 +75,6 @@ Upcoming one-time commitments, next 90 days:
 ${params.upcomingLines || "(none scheduled)"}`;
 }
 
-async function callAnthropic(
-  apiKey: string,
-  prompt: string,
-): Promise<string | null> {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: ANTHROPIC_MODEL,
-      max_tokens: 300,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(
-      `Anthropic API returned ${response.status}: ${body.slice(0, 300)}`,
-    );
-  }
-
-  const data: { content: { type: string; text?: string }[] } =
-    await response.json();
-  const text = data.content.find((block) => block.type === "text")?.text;
-  return text?.trim() || null;
-}
-
-/** Google's Generative Language API — generateContent, the standard single-turn text-completion endpoint. The API key goes in the query string (Google's documented approach for this API), not a header. */
-async function callGemini(
-  apiKey: string,
-  prompt: string,
-): Promise<string | null> {
-  const model = serverEnv.GEMINI_MODEL ?? DEFAULT_GEMINI_MODEL;
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 300 },
-      }),
-    },
-  );
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(
-      `Gemini API returned ${response.status}: ${body.slice(0, 300)}`,
-    );
-  }
-
-  const data: {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
-  } = await response.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  return text?.trim() || null;
-}
-
 /**
  * Generates a short (2-3 sentence) natural-language insight from the
  * current month's cash flow, category breakdown, and upcoming
@@ -151,12 +86,7 @@ async function callGemini(
  * request (someone else in the household may only have an OpenAI key,
  * or prefer it). v1.6.0 replaced it with GEMINI_API_KEY instead, again
  * at the user's request — not kept as a third option, so there are
- * still only ever two providers to reason about. Anthropic is tried
- * first when both are configured — arbitrary as a technical matter
- * (either would work), but keeps behavior unchanged by default for the
- * household that's already been running on Anthropic since this
- * feature shipped, rather than silently switching providers out from
- * under them the moment a second key happens to be present.
+ * still only ever two providers to reason about.
  *
  * v1.6.1: this no longer runs on every Intel page load. Calling an LLM
  * API on every visit was slow (the page waited on it) and needlessly
@@ -164,14 +94,13 @@ async function callGemini(
  * now only invoked by regenerateInsight(), itself only called from the
  * Intel page's "Generate commentary" button — see getStoredInsight()
  * for what's shown the rest of the time.
+ *
+ * v2.5.5: the actual provider calls (callAnthropic/callGemini) and the
+ * "which provider, in what order" logic moved to lib/ai/providers.ts's
+ * callConfiguredProvider, shared with MerchantMergeSuggestionService —
+ * this function now just builds the prompt and hands it off.
  */
 async function generateInsightText(): Promise<string | null> {
-  const anthropicKey = serverEnv.ANTHROPIC_API_KEY;
-  const geminiKey = serverEnv.GEMINI_API_KEY;
-  if (!anthropicKey && !geminiKey) {
-    return null;
-  }
-
   const now = new Date();
   const monthStart = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
@@ -289,10 +218,7 @@ async function generateInsightText(): Promise<string | null> {
   });
 
   try {
-    if (anthropicKey) {
-      return await callAnthropic(anthropicKey, prompt);
-    }
-    return await callGemini(geminiKey as string, prompt);
+    return await callConfiguredProvider(prompt);
   } catch (error) {
     console.error("Failed to generate Intel insight:", error);
     return null;
@@ -347,12 +273,9 @@ export type RegenerateInsightResult =
 export async function regenerateInsight(): Promise<RegenerateInsightResult> {
   const text = await generateInsightText();
   if (!text) {
-    const hasProvider = Boolean(
-      serverEnv.ANTHROPIC_API_KEY || serverEnv.GEMINI_API_KEY,
-    );
     return {
       ok: false,
-      reason: hasProvider
+      reason: hasAiProviderConfigured()
         ? "Something went wrong generating an insight. Please try again in a moment."
         : "No AI provider is configured — set ANTHROPIC_API_KEY or GEMINI_API_KEY.",
     };
