@@ -2,6 +2,7 @@
 
 import type { Money } from "@/lib/money";
 import type { ExtractedPdfPage } from "@/lib/pdf/extract-text";
+import { cycleMonthForStatementDate } from "@/lib/statement-cycle";
 import {
   CARD_STATEMENT_LABELS,
   type CardStatementSource,
@@ -20,6 +21,7 @@ import {
   saveHdfcStatement,
   saveIciciStatement,
 } from "@/services/CreditCardStatementService";
+import { listTransactions } from "@/services/TransactionService";
 import { extractCardStatement } from "@/services/StatementImportService";
 
 const KNOWN_CARDS = Object.keys(CARD_STATEMENT_LABELS) as CardStatementSource[];
@@ -36,6 +38,24 @@ export interface StatementSummary {
   statementCurrency: string;
   transactionCount: number;
   needsReviewCount: number;
+  /** Which CardStatementSource the person picked before uploading —
+   * carried through so the client can default-select the matching card
+   * account in the "log this payment" prompt (see
+   * features/imports/cards.ts's guessCardAccountId). */
+  cardSource: CardStatementSource;
+  /** The cash-flow cycle this statement's due amount belongs to (v1.6.1
+   * convention: the month AFTER the statement's own month — see
+   * lib/statement-cycle.ts) — same value CreditCardStatementService
+   * already stores on the row, recomputed here rather than added to
+   * SaveXStatementResult since every save function already returns the
+   * header this derives from. */
+  cycleMonth: string;
+  /** transferAccountId of every already-logged, non-void transfer
+   * tagged to `cycleMonth` (v2.5.4) — lets the "log this payment"
+   * prompt warn rather than silently invite a second, duplicate entry
+   * when a payment for this cycle (any card, not just this one) has
+   * already been logged. */
+  alreadyLoggedCardAccountIds: string[];
 }
 
 export interface ImportStatementState {
@@ -119,6 +139,25 @@ export async function importStatementAction(
       : cardSource === "axis-horizon-airtel"
         ? await saveAxisStatement(pageTexts, file.name)
         : await saveIciciStatement(pageTexts, file.name);
+
+    const cycleMonth = cycleMonthForStatementDate(saved.header.statementDate);
+    // Same-cycle transfers already logged, any card — cheap enough to
+    // just fetch (a cycle rarely has more than a handful) and lets the
+    // "log this payment" prompt warn instead of silently inviting a
+    // duplicate entry. See StatementSummary.alreadyLoggedCardAccountIds.
+    const { transactions: sameCycleTransfers } = await listTransactions({
+      cycleMonth,
+      kind: "transfer",
+      limit: 200,
+    });
+    const alreadyLoggedCardAccountIds = Array.from(
+      new Set(
+        sameCycleTransfers
+          .map((t) => t.transferAccountId)
+          .filter((id): id is string => id !== null),
+      ),
+    );
+
     return {
       status: saved.outcome,
       summary: {
@@ -133,6 +172,9 @@ export async function importStatementAction(
         statementCurrency: saved.header.statementCurrency,
         transactionCount: saved.transactionCount,
         needsReviewCount: saved.needsReviewCount,
+        cardSource,
+        cycleMonth,
+        alreadyLoggedCardAccountIds,
       },
       pages: extraction.pages,
     };

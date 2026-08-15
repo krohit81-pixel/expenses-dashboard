@@ -49,3 +49,39 @@ export const CARD_STATEMENT_LABELS: Record<CardStatementSource, string> = {
   "axis-horizon-airtel": "Axis Horizon / Airtel",
   "icici-amazon-rupay": "ICICI Amazon Pay / RuPay",
 };
+
+/**
+ * Best-effort default for "which of my credit_card accounts is this
+ * statement for" (v2.5.4) — used to pre-select a card in the "log this
+ * payment" prompt that appears right after a successful import, since
+ * the person already told the app exactly which product this statement
+ * is (the CARD_STATEMENT_LABELS dropdown on the upload form) but that
+ * doesn't map to any particular `Account` row -- accounts are freeform,
+ * user-named, with no stored link back to a CardStatementSource. Rather
+ * than a schema change to store that link explicitly for a handful of
+ * accounts, this scores each candidate account by how many of the
+ * statement label's significant words (e.g. "HDFC", "Infinia") appear
+ * in the account's name, and returns the best-scoring one. Always just
+ * a *default* — the prompt still shows every card account in a picker,
+ * editable, precisely because this is a guess, not a real link.
+ */
+export function guessCardAccountId(
+  source: CardStatementSource,
+  cardAccounts: { id: string; name: string }[],
+): string | null {
+  const keywords = CARD_STATEMENT_LABELS[source]
+    .split(/[^a-z0-9]+/i)
+    .filter(Boolean);
+
+  let best: { id: string; score: number } | null = null;
+  for (const account of cardAccounts) {
+    const name = account.name.toLowerCase();
+    const score = keywords.filter((word) =>
+      name.includes(word.toLowerCase()),
+    ).length;
+    if (score > 0 && (!best || score > best.score)) {
+      best = { id: account.id, score };
+    }
+  }
+  return best?.id ?? null;
+}

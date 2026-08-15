@@ -11,6 +11,8 @@ import {
   type ImportStatementState,
 } from "@/features/imports/api/actions";
 import { CARD_STATEMENT_LABELS } from "@/features/imports/cards";
+import { LogCardDuePrompt } from "@/features/imports/components/LogCardDuePrompt";
+import type { Account } from "@/services/AccountService";
 
 const CARD_OPTIONS = Object.entries(CARD_STATEMENT_LABELS);
 
@@ -32,8 +34,19 @@ function formatIsoDate(iso: string): string {
  * (Phase 1's whole UI) is still available underneath, collapsed, since
  * it's the most useful thing to check against if a parse or
  * reconciliation error comes back.
+ *
+ * v2.5.4: a successful (or duplicate) save now also renders
+ * LogCardDuePrompt, pre-filled from the parsed header — see that
+ * component's own comment for why the import itself was never enough
+ * to make an imported statement show up as a Dashboard expense.
  */
-export function StatementUploadForm() {
+export function StatementUploadForm({
+  cardAccounts,
+  checkingAccounts,
+}: {
+  cardAccounts: Account[];
+  checkingAccounts: Account[];
+}) {
   const [card, setCard] = useState(CARD_OPTIONS[0][0]);
   const [fileName, setFileName] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -150,6 +163,22 @@ export function StatementUploadForm() {
             </dd>
           </dl>
         </div>
+      )}
+
+      {state.summary && (
+        <LogCardDuePrompt
+          key={`${state.summary.cardSource}-${state.summary.statementDate}-${state.summary.cardLast4}`}
+          cardSource={state.summary.cardSource}
+          cycleMonth={state.summary.cycleMonth}
+          dueDate={state.summary.dueDate}
+          totalAmountDue={state.summary.totalAmountDue}
+          statementCurrency={state.summary.statementCurrency}
+          alreadyLoggedCardAccountIds={
+            state.summary.alreadyLoggedCardAccountIds
+          }
+          cardAccounts={cardAccounts}
+          checkingAccounts={checkingAccounts}
+        />
       )}
 
       {state.pages && (
