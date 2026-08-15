@@ -34,16 +34,21 @@ they say so.
 - Single-owner app: one fixed account, an HMAC-signed access-gate cookie
   instead of sign-in, and a service-role Supabase client that bypasses RLS
   (see doc 00 for why, and what that means for how you write services).
-- Feature set as of v3.0.0: bottom nav is **Dashboard / Log / Intel /
-  Calendar** — four tabs, no fifth. "More" is a hamburger icon in the
-  top-left of every page's header now (v2.5.8), next to the "Atlas"
-  wordmark (the header's icon/logo image itself was dropped in v2.5.9 —
-  wordmark + version only), not a nav tab; `/more` itself is unchanged.
-  The header itself dropped its indigo gradient background in v3.0.0 —
-  it's flush with the page background now, ink-toned text, no separate
-  colored bar (see doc 00). Dashboard's cycle prev/next pager also gained
-  a visible loading spinner in v3.0.0, matching the fix Intel's
-  card-level nav already had.
+- Feature set as of v3.1.0: bottom nav is **Dashboard / Log / Intel /
+  Calendar** — four tabs, no fifth. "More" is a bordered menu button in
+  the top-right of every page's header now (v3.1.0, moved from a plain
+  icon on the top-left in v2.5.8), paired with the date; the "Atlas"
+  wordmark + version live on the left instead (the header's icon/logo
+  image itself was dropped in v2.5.9 — wordmark + version only), not a
+  nav tab; `/more` itself is unchanged. The header dropped its indigo
+  gradient background in v3.0.0 — flush with the page background,
+  ink-toned text, no separate colored bar (see doc 00). v3.1.0 also
+  swapped the app's accent color app-wide from purple to blue, and
+  rebuilt Dashboard around a new Cycle Brief card, a real cycle-over-cycle
+  stat grid, and a Biggest Changes section — see doc 00's v3.1.0 section
+  for the full breakdown. Dashboard's cycle prev/next pager gained a
+  visible loading spinner in v3.0.0, matching the fix Intel's card-level
+  nav already had.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement

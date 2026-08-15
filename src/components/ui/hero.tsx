@@ -12,6 +12,12 @@ interface HeroProps {
   amount?: string;
   /** Small caption under the amount, e.g. the period or a one-line explainer. */
   sub?: string;
+  /** Small caption directly under the "Atlas" wordmark (v3.1.0) — e.g.
+   * Dashboard's "August 2026 cycle". A lighter-weight alternative to
+   * `title`/`label`/`amount`/`sub` for a page whose own first body card
+   * carries the actual headline number instead of Hero. Optional; most
+   * pages still just use `title`. */
+  subtitle?: string;
   /** Extra content below the headline block — period pickers, etc. */
   children?: ReactNode;
   /** Small control rendered top-right, before the date (v2.5.2) — e.g.
@@ -80,46 +86,50 @@ interface HeroProps {
  * files. `--hero-1`/`--hero-2` themselves are untouched in
  * `globals.css`; `/login`'s full-screen background still uses them on
  * purpose, since that's a distinct one-time screen, not this header.
+ *
+ * v3.1.0: the hamburger moved from the left (next to the wordmark) to
+ * the right (paired with the date), and switched from a plain circular
+ * icon button to a bordered white rounded-square "menu" button — the
+ * household pointed at a different app's header they liked
+ * specifically for this arrangement (name/version on the left, a
+ * clearly-a-button menu control on the right, next to the date). Left
+ * side is now just the wordmark, version, and the new optional
+ * `subtitle` line — no icon in front of it. `topRightAction` (the
+ * calendar theme toggle) still renders left of the date, same as
+ * before, just now also left of the menu button.
  */
 export function Hero({
   title,
   label,
   amount,
   sub,
+  subtitle,
   children,
   topRightAction,
 }: HeroProps) {
   return (
     <header className="min-h-[190px] border-b border-line bg-bg px-5 pb-6 pt-6 text-ink sm:px-8">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1">
-          <Link
-            href="/more"
-            aria-label="More"
-            className="flex size-9 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-ink/5"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="size-[22px] fill-none stroke-current stroke-[1.8]"
-              strokeLinecap="round"
-            >
-              <path d="M4 7h16" />
-              <path d="M4 12h16" />
-              <path d="M4 17h16" />
-            </svg>
-          </Link>
-          <span className="font-display text-[26px] font-extrabold tracking-tight text-ink">
-            Atlas
-          </span>
-          {/* v1.1.3: moved next to the wordmark, at the user's request —
-              it used to live in the top-right corner paired with the
-              date, which read as one throwaway timestamp string rather
-              than "this is the version of the app you're looking at."
-              v1.1.4: dropped the pill background behind it — plain text
-              reads as part of the wordmark, not a separate ui chip. */}
-          <span className="shrink-0 whitespace-nowrap font-display text-[11px] font-bold text-ink-faint">
-            v{APP_VERSION}
-          </span>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="font-display text-[26px] font-extrabold tracking-tight text-ink">
+              Atlas
+            </span>
+            {/* v1.1.3: moved next to the wordmark, at the user's request —
+                it used to live in the top-right corner paired with the
+                date, which read as one throwaway timestamp string rather
+                than "this is the version of the app you're looking at."
+                v1.1.4: dropped the pill background behind it — plain text
+                reads as part of the wordmark, not a separate ui chip. */}
+            <span className="shrink-0 whitespace-nowrap font-display text-[11px] font-bold text-ink-faint">
+              v{APP_VERSION}
+            </span>
+          </div>
+          {subtitle && (
+            <div className="mt-0.5 text-[11.5px] text-ink-faint">
+              {subtitle}
+            </div>
+          )}
         </div>
         {/* v1.1.6: was a hardcoded per-release date string that only
             got updated by hand alongside APP_VERSION — see the comment
@@ -129,9 +139,24 @@ export function Hero({
             the server itself runs. */}
         <div className="flex shrink-0 items-center gap-2.5">
           {topRightAction}
-          <span className="whitespace-nowrap font-display text-[11.5px] font-semibold text-ink-faint">
+          <span className="whitespace-nowrap font-display text-[12px] font-semibold text-ink-soft">
             {getIndiaDateLabel()}
           </span>
+          <Link
+            href="/more"
+            aria-label="More"
+            className="flex size-9 shrink-0 items-center justify-center rounded-[11px] border border-line bg-surface text-ink-soft transition-colors hover:bg-ink/5"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="size-[17px] fill-none stroke-current stroke-[1.8]"
+              strokeLinecap="round"
+            >
+              <path d="M4 7h16" />
+              <path d="M4 12h16" />
+              <path d="M4 17h16" />
+            </svg>
+          </Link>
         </div>
       </div>
       {title && (
