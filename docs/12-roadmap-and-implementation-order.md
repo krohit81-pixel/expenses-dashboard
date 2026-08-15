@@ -115,6 +115,71 @@
   hourly timeline) that can page ±1 week instead of only ever showing the
   current week. Ahaana's CA1/CA2 subject-by-subject test schedule added
   from the school's own circular.
+- **v2.5.1** — Calendar cosmetic pass: the selected-day ring went from
+  `ring-ink` (near-black in light mode) to a soft accent-tinted
+  background + thin accent ring; `PersonNames` (color-coded names,
+  capped + truncated) replaced the color-only `PersonDots` stack in
+  `DayDetailCard`; the section pill switcher renamed Dashboard/Report/Log
+  → Summary/Details/Log; the public footer paragraph condensed to one
+  line (the public/no-password notice only).
+- **v2.5.2** — Login page's "shared calendar, no password needed" link
+  became a real secondary button, not plain underlined text.
+  `todayISODate()` fixed from UTC to explicit `Asia/Kolkata` — it was
+  silently a day behind every morning between midnight and 5:30am IST.
+  `DayDetailCard`'s heading condensed to one line, "In N days" dropped;
+  its Schedule rows show the full time range with AM/PM instead of a
+  bare start hour. A compact `ThemeToggleButton` added to `Hero`'s new
+  `topRightAction` slot, reachable from `/calendar` without logging in.
+- **v2.5.3** — `withAuthTimingRetry` (`lib/supabase/retry.ts`): retries a
+  Supabase query once on the transient "JWT issued at future" error seen
+  on the first request after idle traffic — applied to `/calendar`'s
+  server-side fetches and `middleware.ts`'s `user_settings` check, the
+  two places most exposed to a cold first request. Found via a real
+  production server-side exception, reported from Vercel logs.
+- **v2.5.4** — `LogCardDuePrompt`: a statement import only ever wrote to
+  `credit_card_statements`/`credit_card_transactions` (Intel's reporting
+  tables), never a real `finance.transactions` row — so an imported
+  card due never showed up as a Dashboard expense, no matter how
+  correctly it parsed. The bridge that used to exist for this
+  (`CardPaymentQuickLog`, a standalone manual form) was removed from the
+  UI in the v2.0 redesign and nothing replaced its job. Fixed by
+  pre-filling the same log-payment action right after a successful/
+  duplicate import; the only real guess is which `Account` the
+  statement's card corresponds to (`guessCardAccountId`, keyword-scored,
+  always shown as an editable picker).
+- **v2.5.5–v2.5.6** — AI-suggested merchant merges
+  (`MerchantMergeSuggestionService`): `MerchantDictionaryService`'s
+  resolver only ever does exact alias/name matching, so any
+  statement-text variation spawns a new "unmapped" merchant instead of
+  matching an existing one. "Find likely duplicates" on `/merchants`
+  (and, v2.5.6, right after an import) sends unmapped/established
+  merchant *names only* to the configured AI provider (`lib/ai/
+  providers.ts`, factored out of `IntelService.ts` so both features
+  share one provider-selection implementation) for advisory-only
+  suggestions — the model never merges anything itself, every suggestion
+  needs an explicit human click, reusing the pre-existing
+  `mergeMerchants()`. `scripts/suggest-merchant-merges.mjs` (report-only)
+  and `apply-merchant-merges.mjs` (explicit ID-pair apply) cover a
+  one-off backlog sweep outside the UI — run once against the real
+  household data, found 4 candidates, applied 3, correctly left one
+  (two BBPS payments differing only by reference number) unmerged as a
+  likely false positive.
+- **v2.5.7** — Merging moved onto the `/merchants` list itself: a
+  "Merge" button next to "Edit" on every row (was only reachable from a
+  merchant's own detail page before), plus checkbox multi-select with a
+  "Merge N into…" bulk bar (`MerchantListWithSelection`,
+  `bulkMergeMerchantsAction`, sequential per-source). Merge-target
+  dropdowns are built from the unfiltered merchant list — building them
+  from whatever's on screen breaks on the "uncategorized only" filter,
+  which would otherwise only offer other uncategorized merchants as a
+  target.
+- **v2.5.8** — "More" converted from a fifth nav-bar item (`BottomNav`/
+  `TopNav`) to a hamburger icon in `Hero`'s top-left, next to the
+  wordmark — plain link to `/more`, not a new dropdown/drawer.
+  `BottomNav` goes from 5 columns to 4.
+- **v2.5.9** — `Hero`'s `atlas-mark.png` icon dropped; header reads
+  hamburger + "Atlas" + version, no image. Asset itself untouched, still
+  used on `/login`.
 
 ## What was explicitly descoped or replaced along the way
 

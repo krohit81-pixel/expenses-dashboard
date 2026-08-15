@@ -2,10 +2,12 @@
 
 ## Actual route map
 
-> Bottom nav (primary) is **Dashboard / Log / Intel / Calendar**, plus
-> More — see [00 — Current state](./00-current-state.md)'s "v2.0/v2.1
-> revamp" section for the full story of how this changed from an earlier
-> Transactions-first, 3-phase design.
+> Bottom nav (primary) is **Dashboard / Log / Intel / Calendar** — four
+> tabs, no fifth. More is a hamburger icon in `Hero`'s top-left now
+> (v2.5.8), not a nav tab — see [00 — Current
+> state](./00-current-state.md)'s "v2.0/v2.1 revamp" section for the full
+> story of how this changed from an earlier Transactions-first, 3-phase
+> design, and its More/nav addendum for the v2.5.8/v2.5.9 header changes.
 
 ```text
 /(app)/dashboard        # primary tab. Full cycle-wise income/expense breakdown — absorbed
@@ -16,7 +18,7 @@
 /(app)/imports           # under Log. Credit-card statement upload (HDFC Infinia, Axis Horizon, ICICI).
 /(app)/intel             # primary tab. Spending charts + AI insight.
 /(app)/calendar          # primary tab. School calendar (static) + trips + events + recurring events —
-                         # the one gate-free route. See "Calendar tab structure" below (v2.5.0).
+                         # the one gate-free route. See "Calendar tab structure" below (v2.5.0-v2.5.2).
 /(app)/transactions      # under More. Read-only historical log as of v2.0.0 — no entry forms.
 /(app)/budgets           # under More→ nowhere (unlinked, v2.1.0). Still runs; content now duplicated on Dashboard.
 /(app)/merchants         # under More. Merchant Dictionary admin (list + /merchants/[id] detail)
@@ -34,28 +36,40 @@ this isn't Supabase Auth. There is no `/(auth)/sign-in` or
 `/(auth)/callback` route group; those were part of the original,
 superseded design.
 
-## Calendar tab structure (v2.5.0)
+## Calendar tab structure (v2.5.0, labels updated v2.5.1)
 
 `TravelCalendarSection` (`src/features/travel/components/`) owns all
 interactive state for `/calendar` and renders three switchable sections
 behind a pill tab switcher, below the person filter chips (which stay
-visible across all three since they filter every section's content):
+visible across all three since they filter every section's content).
+Displayed as **Summary / Details / Log** (renamed from Dashboard/Report/
+Log in v2.5.1 — the internal `SectionTab` keys are still
+`"dashboard"`/`"report"`/`"log"`, only the label text changed):
 
-- **Dashboard** — `TripCalendarGrid` (the month grid) and
+- **Summary** (`dashboard` key) — `TripCalendarGrid` (the month grid) and
   `WeekScheduleGrid` (a navigable day-list for "This week's schedule",
   `±1 week` at a time via its own `weekOffset` state, with a "This week"
   button to jump back). Both always expanded.
-- **Report** — `GoodTravelWindows`, `TripDetailedList` (the chronological
-  detailed event list), and `RecurringEventsList` (the recurring-rules
-  list) — each individually collapsed by default.
+- **Details** (`report` key) — `GoodTravelWindows`, `TripDetailedList`
+  (the chronological detailed event list), and `RecurringEventsList`
+  (the recurring-rules list) — each individually collapsed by default.
 - **Log** — `LoggingSection`, three collapsed add-cards (trip / event /
   recurring), each opening the matching `AddTripModal`/`AddEventModal`/
   `AddRecurringEventModal`.
 
+The active pill's background is `bg-accent`/`text-white` (v2.5.1 — was
+`bg-ink`, near-black in light mode).
+
 Tapping any day — a month-grid cell or a week-list row — expands
 `DayDetailCard` inline right below it (an "All day" section, then a
-time-sorted "Schedule" section for recurring occurrences); there is no
-full-screen day view. `chipsForDate` (`TripCalendarGrid.tsx`) is the one
+time-sorted "Schedule" section for recurring occurrences, each Schedule
+row now showing the full time range with AM/PM rather than a bare start
+hour — v2.5.2); there is no full-screen day view. The card's own heading
+is one line ("22 August Saturday", v2.5.2 — was two lines with an "In N
+days" relative label). Person identification throughout uses
+`PersonNames` (color-coded names, v2.5.1) rather than the earlier
+color-only dot stack (`PersonDots`, removed). `chipsForDate`
+(`TripCalendarGrid.tsx`) is the one
 shared "what's on this date" function every view builds from, so
 visibility-filter/date-range logic never diverges between the grid, the
 week list, and the day card. `compactChipsForDate` wraps it for the

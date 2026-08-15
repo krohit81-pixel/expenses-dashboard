@@ -186,6 +186,24 @@ why, but the logs always do. Causes seen so far:
   Node.js runtime (`runtime: "nodejs"` in `src/middleware.ts`'s config
   export) — if this resurfaces, something likely removed that setting.
 
+### `Failed to load trips: JWT issued at future` (or the same on calendar events / recurring events / a redirect to onboarding for no reason)
+
+Seen as a real server-side exception on `/calendar`'s very first load
+after a stretch of no traffic — the app's own error page ("Application
+error: a server-side exception has occurred"), with this exact message
+in Vercel's Runtime Logs. Not an actual credential problem:
+`SUPABASE_SERVICE_ROLE_KEY` is a long-lived static secret, not something
+that expires or gets reissued per request. It's a transient clock-sync
+artifact on Supabase's side, and it self-clears — reloading the page
+(or waiting for the next request) works. `src/lib/supabase/retry.ts`'s
+`withAuthTimingRetry` (added v2.5.3) retries the specific query once,
+after a short delay, when it hits this error — applied to `/calendar`'s
+server-side data fetches and `middleware.ts`'s `user_settings` check
+(the latter matters because, unretried, it silently looked identical to
+"no settings row found" and could redirect an already-onboarded owner to
+`/onboarding`). If this resurfaces somewhere new, wrap that query the
+same way rather than re-solving it from scratch.
+
 ### CI failure email from GitHub Actions
 
 This is a different system from your deployed app — it's testing a

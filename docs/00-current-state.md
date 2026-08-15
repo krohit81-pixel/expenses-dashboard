@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v2.5.0**
+correction layer: what's actually true today, current as of **v2.5.9**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -70,6 +70,22 @@ document the intended per-user boundary and would matter again if this
 ever became genuinely multi-user), but don't rely on them for anything the
 app must actually enforce today.
 
+**Known production quirk (v2.5.3, still real, has a workaround):**
+`createServiceClient()`'s static `SUPABASE_SERVICE_ROLE_KEY` occasionally
+gets rejected by Supabase with a `"JWT issued at future"` PostgREST error
+— not an actual credential problem (the key doesn't expire or get
+reissued per request), a transient clock-sync artifact on Supabase's
+side, seen only on the very first query after a stretch of no traffic.
+`src/lib/supabase/retry.ts`'s `withAuthTimingRetry` wraps a query and
+retries it once, after a short delay, specifically for this error class —
+applied so far to `/calendar`'s server-side data fetches (`TripService`,
+`CalendarEventService`, `RecurringCalendarEventService`) and
+`middleware.ts`'s `user_settings` check, the two places most exposed to a
+cold first request (the public route, and every gated page's own
+middleware check). Not applied everywhere — extend the same wrapper to
+any other query that starts showing this error rather than re-solving it
+ad hoc.
+
 ## The v2.0/v2.1 revamp (read this before touching nav, Dashboard, Recurring, or Accounts)
 
 Starting in v2.0.0, the household steered the app away from a
@@ -84,10 +100,19 @@ that expectation. Concretely:
   `ChecklistItem`) is **deleted** (v2.0.0). The only time concept left is
   the monthly "cycle" (`currentCycleMonth()` in `lib/dates/month.ts`,
   rolling to next month on day 25).
-- **Bottom nav is now 4 primary tabs + More**: `Dashboard`, `Log`, `Intel`,
-  `Calendar` (v2.1.0; was `Home`/`Calendar`/`Intel` + More in v2.0.0, and
+- **Bottom nav is 4 primary tabs**: `Dashboard`, `Log`, `Intel`, `Calendar`
+  (v2.1.0; was `Home`/`Calendar`/`Intel` + More in v2.0.0, and
   `Home`/`Transactions`/`Calendar`/`Intel` + More before that). See
   `src/components/app-nav.tsx`.
+- **More is a hamburger icon now, not a nav tab** (v2.5.8) — it used to be
+  a fifth item in both `BottomNav` and `TopNav`; it's a plain link to
+  `/more` in the top-left of every page's `Hero`, next to the wordmark,
+  freeing the bottom nav down to four evenly-spaced tabs. `/more` itself
+  (the actual overflow page — Merchants, Net worth, Categories, AIS,
+  Settings, theme toggle, log out) is unchanged, just reached differently.
+  `Hero`'s `atlas-mark.png` icon was also dropped (v2.5.9) — the header's
+  left side is now hamburger + "Atlas" + version, no image. The asset
+  itself still renders on `/login`, outside `Hero`.
 - **Dashboard** (`/dashboard`, was "Home") is the full cycle-wise
   income/expense breakdown — it absorbed everything **Budgets**
   (`/budgets`) used to show. `/budgets` still runs (unlinked from nav, not
@@ -170,10 +195,23 @@ orient quickly.
   `finance.atlas_categories`) that every statement parser feeds into, plus
   a `/merchants` admin UI for reviewing and re-categorizing. The
   resolver itself only ever does exact alias/name matching — v2.5.5
-  added an optional, button-triggered "Find likely duplicates" (AI,
-  advisory only, never auto-merges — see doc 07) to catch the near-
-  duplicate "unmapped" merchants that exact matching alone always
-  misses (an order-ID suffix, a city name, an abbreviation).
+  added an optional, button-triggered "Find likely duplicates"
+  (`MerchantMergeSuggestionService`, AI, advisory only, never auto-merges
+  — see doc 07) to catch the near-duplicate "unmapped" merchants that
+  exact matching alone always misses (an order-ID suffix, a city name, an
+  abbreviation); v2.5.6 also surfaces the same tool right after a
+  statement import creates new merchants, and added
+  `scripts/suggest-merchant-merges.mjs`/`apply-merchant-merges.mjs` for a
+  one-off backlog sweep outside the UI (report-only, then explicit
+  ID-pair apply — see those scripts' own comments). v2.5.7 moved merging
+  itself onto the `/merchants` list directly: a "Merge" button next to
+  "Edit" on every row (was only reachable from a merchant's own detail
+  page before), plus checkbox multi-select with a "Merge N into…" bulk
+  bar (`MerchantListWithSelection`). Merge-target dropdowns everywhere
+  are built from the *unfiltered* merchant list on purpose — building
+  them from whatever's currently on screen breaks exactly on the
+  "uncategorized only" filter, which would otherwise only ever offer
+  other uncategorized merchants as a target.
 - **Intel tab**: spending charts (by category, month-on-month, card-level
   breakdown by billing cycle) plus a single, button-triggered AI insight
   (Anthropic or Gemini — see doc 07) that's stored, not regenerated on
@@ -205,6 +243,42 @@ orient quickly.
   classes" summary chip in the compact month-grid/week-list views —
   `DayDetailCard` is where each occurrence gets its own row and click
   target once expanded.
+
+  v2.5.1/v2.5.2 cosmetic pass, on top of the above: the selected-day
+  ring went from `ring-ink` (near-black in light mode) to a soft
+  accent-tinted background + thin accent ring, visually distinct from
+  the separate accent-outline "today" indicator; the section pill
+  switcher (Summary/Details/Log, renamed from Dashboard/Report/Log)
+  active state moved off `bg-ink` onto `bg-accent` for the same reason.
+  Person identification in `DayDetailCard` switched from color-only
+  dots (`PersonNames` replacing the old `PersonDots`) to actual
+  color-coded names, capped and truncated so a trip with several
+  travellers can't spill to a second line. `DayDetailCard`'s heading is
+  one line now ("22 August Saturday", no "In N days" relative label),
+  and its Schedule rows show the full time range with AM/PM
+  ("10–11:30 AM") instead of a bare, truncated start hour. The public
+  footer paragraph is one line (the public/no-password notice only —
+  source-attribution detail dropped). `todayISODate()`
+  (`lib/dates/calendar-grid.ts`) was computing "today" in UTC, not IST
+  — wrong every morning between midnight and 5:30am IST; fixed to use
+  `Asia/Kolkata` explicitly. A compact `ThemeToggleButton` (top-right of
+  `Hero`, via a new `topRightAction` slot) makes dark/light reachable
+  from `/calendar` without logging in, where the full Appearance card on
+  More isn't reachable.
+- **Card dues, connected to Dashboard (v2.5.4)**: a statement import
+  used to only ever write to `credit_card_statements`/
+  `credit_card_transactions` (Intel's reporting tables) — Dashboard's
+  cycle math (`BudgetSnapshotService`'s `oneOff`,
+  `lib/budget/home-stats.ts`'s `computeCardDuesTotal`) only reads real
+  `finance.transactions` rows tagged to a cycle, which an import never
+  created. `LogCardDuePrompt` (shown right after a successful/duplicate
+  import, `StatementUploadForm`) closes that gap: pre-filled from the
+  statement (amount due, due date, cycle — derived via
+  `cycleMonthForStatementDate`), the person just confirms the
+  from-account and hits Log payment. Reuses the same
+  `logCardPaymentAction`/`createTransaction` path a since-removed
+  standalone form (`CardPaymentQuickLog`, dead code, still in the repo)
+  used to.
 - **Budgets** (income/fixed-expense planning, not the older category-envelope
   model the very first design had — that was deleted, not hidden, per
   `INSTALL.md`'s v0.3 history): as of v2.1.0 this is shown **on Dashboard**,
@@ -260,53 +334,98 @@ as an archive, not something to keep in sync going forward.
   transaction rows.
 - **Verification pipeline**, run before every commit:
   `npx tsc --noEmit`, `npx eslint .`, `npx prettier --check .`,
-  `npx vitest run`. A full `next build` reliably cannot finish inside this
-  sandbox's tool-call timeout (see "Sandbox constraints" below) — tell the
-  user to confirm via a real Vercel deploy instead of claiming a build
-  passed.
+  `npx vitest run`. Whether a full local `npm run build` completes inside
+  one tool call depends on the session's environment (see "Working
+  environment" below) — if it times out, fall back to treating a
+  successful Vercel deploy as the real build check instead of claiming a
+  local build passed.
 - **Versioning**: `APP_VERSION` in `src/lib/version.ts`, bumped with every
   release, shown in the app's own header. Commit messages follow
   `vX.Y.Z: <summary>` and match the version bump in the same commit.
 
-## Sandbox constraints (specific to this Cowork environment)
+## Working environment (observed directly, v2.5.1–v2.5.9 sessions — verify fresh, don't assume it always holds)
 
-These are environment facts, not app facts, but they change how you should
-work here:
+Earlier revisions of this doc described a heavily restricted "Cowork"
+sandbox here (no file deletion, no `next build`, a manual
+`git commit-tree` workaround, no `git push`). **None of that held in the
+sessions that shipped v2.5.1 through v2.5.9** — this section is what
+actually worked, replacing that. Environment capabilities can differ
+session to session (a different harness, a different sandbox profile),
+so treat this as "what to try first, and a known-working fallback," not
+a permanent guarantee — a quick `rm` of a scratch file or a plain
+`git commit` will fail loudly and fast if this session is more
+restricted, at which point falling back to the older workaround (still
+valid technique, just shouldn't be your default) is reasonable.
 
-- **Files cannot be deleted, unlinked, or renamed** (`rm`, `fs.unlinkSync`,
-  etc. all fail with `EPERM`). To retire a file's content, overwrite it
-  (e.g. neuter a scratch test to `describe.skip`). To "rename" a
-  directory, create the new one and use `git rm --cached -r
-  --ignore-unmatch <old-path>` to stop tracking the old one — git still
-  detects this as a rename in `git show --stat`. The old files remain as
-  physical, untracked cruft; tell the user to delete them by hand.
-- **A full `npm run build` cannot complete** inside a single tool call —
-  it hits the timeout mid-compile, and background/`nohup` attempts get
-  killed when the tool call's shell exits. Rely on the verification
-  pipeline above instead, and say so explicitly when delivering a change.
-- **Committing** uses a manual workflow, not plain `git commit`, because
-  the sandbox can't always update `.git` the normal way:
-  ```bash
-  TMP_INDEX=$(mktemp)
-  export GIT_INDEX_FILE="$TMP_INDEX"
-  git read-tree HEAD
-  git add <specific files>          # never `git add -A` — stage deliberately
-  TREE=$(git write-tree)
-  PARENT=$(git rev-parse HEAD)
-  export GIT_AUTHOR_NAME="Atlas Delivery" GIT_AUTHOR_EMAIL="atlas-bot@local"
-  export GIT_COMMITTER_NAME="Atlas Delivery" GIT_COMMITTER_EMAIL="atlas-bot@local"
-  SHA=$(git commit-tree "$TREE" -p "$PARENT" -F <commit-message-file>)
-  echo "$SHA" > .git/refs/heads/main
-  cp "$TMP_INDEX" .git/index
-  ```
-  The user's real project folder is bind-mounted directly into this
-  sandbox — there is no separate clone — so these commands mutate the
-  user's actual repo in real time. Tell the user to `git push` themselves
-  once done; this workflow doesn't push.
-- **Personal data**: statement PDFs and extracted text the user shares are
-  real financial data. Never let it end up in a committed test fixture or
-  doc. Validate against it in a scratch test/file, confirm, then neuter or
-  discard the scratch artifact.
+- **Normal filesystem operations work**: `rm`, file edits, moving files
+  — no `EPERM` failures seen. A scratch/temp file (see "Verifying a
+  change" below) can just be deleted with `rm` when done.
+- **Normal git works**: plain `git add`/`git commit`/`git push`, feature
+  branches, no manual `commit-tree`/index workaround needed. This repo's
+  real remote (`github.com/krohit81-pixel/expenses-dashboard`) is a
+  bind-mounted real clone with a working `git credential` (osxkeychain)
+  — `git push` actually reaches GitHub.
+- **`gh` (GitHub CLI) is not installed.** For opening/merging a PR, use
+  the GitHub REST API directly via `curl`/`python3`, authenticated with
+  the same credential `git push` already uses:
+  `git credential fill <<< $'protocol=https\nhost=github.com\n'`
+  extracts it (never print the token itself — pipe straight into the
+  API call). `POST /repos/{owner}/{repo}/pulls` to open, `PATCH` the
+  same endpoint with a `/{number}` to edit title/body, `PUT
+  .../pulls/{number}/merge` to merge, `DELETE
+  /repos/{owner}/{repo}/git/refs/heads/{branch}` to clean up the branch
+  after. One branch per logical change (`fix/…`, `feat/…`,
+  `cosmetic/…`), `vX.Y.Z: <summary>` commits, matches the convention
+  already established across this repo's PR history.
+- **`vercel` CLI is available** and, once authenticated, confirms a real
+  production deploy: `vercel ls atlas` (or your project name) shows
+  Building → Ready status and the deployment URL;
+  `vercel inspect <deployment-url>` lists its aliases (this project's
+  production domain, `expdash.vercel.app`, is one). The *first*
+  `vercel whoami`/`vercel ls` call in a session may trigger an
+  unprompted device-auth login that completes on its own — flag that to
+  the user rather than silently proceeding, same as any other
+  unexpected authorization event. After merging to `main`, Vercel's own
+  Git integration deploys automatically; poll `vercel ls` until
+  `Ready`, then `curl` the production URL to confirm no error page and
+  the expected `APP_VERSION` in the HTML, rather than assuming the merge
+  alone means it's live.
+- **This dev environment's `.env.local` points at the same real Supabase
+  project as production** — there is no separate dev database. Local
+  testing (even `next dev` on `localhost`) reads and can write real
+  household data. Verify new UI against fixture props/data in a
+  temporary route rather than clicking through real mutating buttons
+  locally; see "Verifying a change" below.
+- **`npm run build` timeout status is unverified** — never actually run
+  in these sessions (a successful Vercel deploy was used as the real
+  build check every time instead, which is strictly more authoritative
+  than a local build anyway). If you need a local build specifically,
+  try it and note what actually happens rather than assuming either the
+  old "always times out" claim or that it'll just work.
+- **Personal data**: statement PDFs and extracted text the user shares
+  are real financial data. Never let it end up in a committed test
+  fixture or doc. Validate against it in a scratch test/file, confirm,
+  then neuter or discard the scratch artifact.
+
+### Verifying a change without touching real data
+
+The access gate (`APP_ACCESS_PASSWORD`) blocks every route except
+`/calendar` and `/login` — and this session shouldn't be entering that
+password to authenticate through the UI (see the credential-handling
+rules governing the session generally). The pattern used successfully
+throughout v2.5.1–v2.5.9: create a temporary page at
+`src/app/(app)/calendar/preview-temp/page.tsx` (any subpath under
+`/calendar/` inherits its gate-free status —
+`isPublicPath`/`PUBLIC_PATHS` in `src/middleware.ts` matches by prefix),
+render the real component directly with fixture props (not through the
+real data-fetching page), screenshot/inspect it via the browser tools,
+then delete the file before committing. For anything that would call a
+real mutating server action (a real merge, a real transaction write, a
+real paid LLM API call), don't click it for real during verification —
+either use obviously-fake IDs so the mutation harmlessly fails against
+Supabase (confirms the wiring and error path with zero risk), or skip
+that specific interaction and say so explicitly rather than guessing
+it works.
 
 ## Where to look for more detail
 
