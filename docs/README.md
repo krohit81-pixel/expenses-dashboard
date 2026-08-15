@@ -12,7 +12,7 @@ they say so.
 
 | Document | Purpose |
 | --- | --- |
-| [Current state — read first](./00-current-state.md) | What's actually built, the real auth model, working conventions, sandbox constraints. |
+| [Current state — read first](./00-current-state.md) | What's actually built, the real auth model, working conventions, working environment. |
 | [Product vision](./01-product-vision.md) | Audience, outcomes, scope, and success metrics. |
 | [System architecture](./02-system-architecture.md) | Runtime boundaries, modules, data flow, and decisions. |
 | [Database design](./03-database-design.md) | Finance schema model, invariants, and migration policy. |
@@ -34,21 +34,32 @@ they say so.
 - Single-owner app: one fixed account, an HMAC-signed access-gate cookie
   instead of sign-in, and a service-role Supabase client that bypasses RLS
   (see doc 00 for why, and what that means for how you write services).
-- Feature set as of v2.5.0: bottom nav is **Dashboard / Log / Intel /
-  Calendar + More**. Dashboard shows the full cycle-wise income/expense
-  breakdown (absorbed Budgets in v2.1.0). Log is a hub for Recurring (bulk
-  cycle-tagging), Accounts (with inline balance correction), and Imports.
-  Transactions is now a read-only historical log, moved under More. Credit
-  card statement imports (HDFC Infinia / Tata Neu Plus, Axis Horizon /
-  Airtel, ICICI Amazon Pay / RuPay) feed a shared Merchant Dictionary. Intel
-  has charts and a button-triggered AI insight. Calendar (school calendar +
-  trips + one-off events + weekly-repeating recurring events, all merged
-  into a Dashboard/Report/Log tabbed layout with a tap-to-expand day card)
-  is the one public, gate-free route — see doc 00 for the v2.2.0–v2.5.0
-  rebuild. AIS is a static Income Tax summary under More. See
-  [00 — Current state](./00-current-state.md) for the full v2.0/v2.1 revamp
-  writeup — this app moved from a transaction-logging, 3-phase model to a
-  cycle-based reporting/intel model.
+- Feature set as of v2.5.9: bottom nav is **Dashboard / Log / Intel /
+  Calendar** — four tabs, no fifth. "More" is a hamburger icon in the
+  top-left of every page's header now (v2.5.8), next to the "Atlas"
+  wordmark (the header's icon/logo image itself was dropped in v2.5.9 —
+  wordmark + version only), not a nav tab; `/more` itself is unchanged.
+  Dashboard shows the full cycle-wise income/expense breakdown (absorbed
+  Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
+  Accounts (with inline balance correction), and Imports — a statement
+  import now also prompts to log its due amount as a real Dashboard
+  expense (v2.5.4) and to check for AI-suggested duplicate merchants
+  (v2.5.5/v2.5.6). Transactions is now a read-only historical log, moved
+  under More. Credit card statement imports (HDFC Infinia / Tata Neu
+  Plus, Axis Horizon / Airtel, ICICI Amazon Pay / RuPay) feed a shared
+  Merchant Dictionary, which now supports AI-suggested merges plus
+  inline/bulk merging directly on `/merchants` (v2.5.5–v2.5.7). Intel has
+  charts and a button-triggered AI insight (now sharing its provider
+  logic with the merchant-merge suggestions via `lib/ai/providers.ts`).
+  Calendar (school calendar + trips + one-off events + weekly-repeating
+  recurring events, merged into a Summary/Details/Log tabbed layout with
+  a tap-to-expand day card, a fixed IST-timezone "today," and a public
+  theme toggle) is the one public, gate-free route — see doc 00 for the
+  v2.2.0–v2.5.2 rebuild/polish history. AIS is a static Income Tax
+  summary under More. See [00 — Current state](./00-current-state.md) for
+  the full v2.0/v2.1 revamp writeup — this app moved from a
+  transaction-logging, 3-phase model to a cycle-based reporting/intel
+  model.
 - Root `INSTALL.md` is the source of truth for setup, environment
   variables, and release history — not this folder.
 
