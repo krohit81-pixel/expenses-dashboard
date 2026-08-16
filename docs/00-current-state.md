@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.1.0**
+correction layer: what's actually true today, current as of **v3.1.1**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -244,6 +244,28 @@ mockup round — everything below reads real Atlas data, nothing simulated.
   unchanged. `SectionHeading` is the small numbered/colored-bar header
   component used throughout (purely presentational — the chevron is
   decorative, nothing collapses today).
+
+## v3.1.1: header/footer spacing fix
+
+Two small spacing corrections reported right after v3.1.0 shipped:
+
+- **Hero's `min-h-[190px]` dropped to `min-h-[100px]`.** That floor dates
+  from when every bottom-nav page's Hero carried real
+  title/label/amount/sub content tall enough to need it. Since v3.1.0,
+  Dashboard's Hero is chrome-only (wordmark + `subtitle`, no
+  title/label/amount/sub — see the v3.1.0 section above), so the old
+  floor forced roughly 90px of dead empty space under it before "01
+  Cycle Brief" even started. 100px matches what the shortest real
+  content already needs on its own; pages with more content (a plain
+  `title`, or the full title/label/amount/sub set) still grow past it
+  exactly as before.
+- **`BottomNav`'s per-link padding, `py-3` → `pt-2.5 pb-1.5`**
+  (`src/components/app-nav.tsx`). The 12px `py-3` bottom padding was
+  stacking on top of the nav's own `env(safe-area-inset-bottom)`
+  padding, reading as an oversized gap under every label on a real
+  notched phone. The safe-area padding itself is untouched — that's
+  the real, necessary device-mandated gap protecting the
+  home-indicator gesture area, not what was being fixed.
 
 ## What's actually built
 

@@ -97,6 +97,18 @@ interface HeroProps {
  * `subtitle` line — no icon in front of it. `topRightAction` (the
  * calendar theme toggle) still renders left of the date, same as
  * before, just now also left of the menu button.
+ *
+ * v3.1.1: `min-h-[190px]` dropped to `min-h-[100px]` — that floor
+ * dates from when every bottom-nav page's Hero carried real
+ * title/label/amount/sub content tall enough to need it. Since
+ * v3.1.0, Dashboard's Hero is chrome-only (wordmark + `subtitle`, no
+ * title/label/amount/sub at all — see this file's own v3.1.0 note),
+ * so the old floor forced ~90px of dead empty space under it on
+ * every load. 100px matches roughly what the shortest real content
+ * (wordmark row + one subtitle line) already needs on its own, so
+ * it's now a true floor, not a forced gap; pages with more content
+ * (title, or the full title/label/amount/sub set) still grow past it
+ * exactly as before, unaffected.
  */
 export function Hero({
   title,
@@ -108,7 +120,7 @@ export function Hero({
   topRightAction,
 }: HeroProps) {
   return (
-    <header className="min-h-[190px] border-b border-line bg-bg px-5 pb-6 pt-6 text-ink sm:px-8">
+    <header className="min-h-[100px] border-b border-line bg-bg px-5 pb-6 pt-6 text-ink sm:px-8">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-baseline gap-1.5">

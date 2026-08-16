@@ -124,6 +124,15 @@ export function TopNav() {
  * assistant app) the person pointed to use exactly this quieter pattern.
  *
  * v1.1.6: label text bumped 10px -> 11.5px, at the user's request.
+ *
+ * v3.1.1: each link's own bottom padding trimmed (py-3 -> pt-2.5 pb-1.5)
+ * — stacked on top of this nav's own `env(safe-area-inset-bottom)`
+ * padding below, `py-3`'s full 12px read as a visibly oversized gap
+ * under every label on a real notched phone, not just extra breathing
+ * room. Top padding barely touched, so the tap target doesn't shrink
+ * much; the safe-area inset itself is untouched — that's the real
+ * device-mandated gap protecting the home-indicator gesture area, not
+ * the bug being fixed here.
  */
 export function BottomNav() {
   const pathname = usePathname();
@@ -143,7 +152,7 @@ export function BottomNav() {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex flex-col items-center gap-1 py-3 font-display text-[11.5px] font-semibold tracking-wide",
+                  "flex flex-col items-center gap-1 pb-1.5 pt-2.5 font-display text-[11.5px] font-semibold tracking-wide",
                   active
                     ? "font-extrabold text-[hsl(var(--ink))]"
                     : "text-[hsl(var(--ink-faint))]",
