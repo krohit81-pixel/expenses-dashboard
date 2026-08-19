@@ -221,3 +221,15 @@ Not applicable anymore — there is no sign-in flow. If you're seeing
 anything mentioning sign-in, magic links, or `APP_OWNER_PASSWORD`,
 you're on an old branch from before this architecture changed; pull the
 latest.
+
+### Recurring's "Generate due transactions" tagged the wrong cycle (fixed v3.1.2)
+
+Browsing Recurring forward or back with the month-nav and clicking
+"Generate due transactions" used to always catch up whatever was due
+by _today's real date_, ignoring whichever cycle was actually on
+screen — the underlying `generateDueTransactions()` call had no `asOf`
+wired up from the UI at all. Fixed in v3.1.2: the button now submits
+the viewed `cycleMonth`, and the action scopes catch-up to that
+cycle's own window (`cycleWindowEnd`, `lib/dates/month.ts`) instead of
+literal today. If you're on an older build and see tagging land in a
+cycle other than the one shown, update.

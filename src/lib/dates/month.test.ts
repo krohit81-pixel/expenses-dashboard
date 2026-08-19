@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   currentCycleMonth,
   currentMonth,
+  cycleWindowEnd,
   isValidMonth,
   monthLabel,
   monthOptions,
@@ -85,6 +86,27 @@ describe("currentCycleMonth", () => {
 
   it("rolls over the calendar year correctly (December into January)", () => {
     expect(currentCycleMonth(utcDate(2026, 12, 25))).toBe("2027-01");
+  });
+});
+
+describe("cycleWindowEnd", () => {
+  it("is the 24th of the cycle's own month", () => {
+    expect(cycleWindowEnd("2026-08")).toBe("2026-08-24");
+  });
+
+  it("agrees with currentCycleMonth's own rollover boundary", () => {
+    // The day after cycleWindowEnd's date should already belong to the
+    // next cycle, per currentCycleMonth's own rollover rule.
+    const cycleMonth = "2026-07";
+    const end = cycleWindowEnd(cycleMonth);
+    const dayAfter = utcDate(2026, 7, 25);
+    expect(end).toBe("2026-07-24");
+    expect(currentCycleMonth(dayAfter)).toBe(shiftMonth(cycleMonth, 1));
+  });
+
+  it("handles February and year-end without special-casing", () => {
+    expect(cycleWindowEnd("2026-02")).toBe("2026-02-24");
+    expect(cycleWindowEnd("2026-12")).toBe("2026-12-24");
   });
 });
 

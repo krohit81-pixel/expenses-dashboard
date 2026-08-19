@@ -39,6 +39,22 @@ export function currentCycleMonth(date: Date = new Date()): string {
   return day >= 25 ? shiftMonth(base, 1) : base;
 }
 
+/**
+ * The last calendar date inside cycle month `cycleMonth`'s own window —
+ * "2026-08" (Jul 25 – Aug 24, per currentCycleMonth's rollover rule
+ * above) ends on "2026-08-24", the day before it rolls into "2026-09".
+ * Always day 24, so no month-length edge cases to handle.
+ *
+ * v3.1.2: added so a date-driven action can be scoped to whichever
+ * cycle is currently being *viewed* rather than literally today — see
+ * generateDueTransactionsAction's own comment for why that distinction
+ * mattered (Recurring's "Generate due transactions" used to always run
+ * against real today, ignoring the cycle shown on screen).
+ */
+export function cycleWindowEnd(cycleMonth: string): string {
+  return `${cycleMonth}-24`;
+}
+
 export function monthLabel(month: string): string {
   return new Date(`${month}-01T00:00:00Z`).toLocaleDateString("en-US", {
     month: "long",
