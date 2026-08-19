@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.1.1**
+correction layer: what's actually true today, current as of **v3.1.2**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -266,6 +266,38 @@ Two small spacing corrections reported right after v3.1.0 shipped:
   notched phone. The safe-area padding itself is untouched — that's
   the real, necessary device-mandated gap protecting the
   home-indicator gesture area, not what was being fixed.
+
+## v3.1.2: Recurring's "Generate due transactions" now respects the viewed cycle
+
+Reported directly: browse Recurring forward to a future cycle (the
+page's own month-nav, e.g. September while today is still in August's
+cycle) and click "Generate due transactions" — it used to call
+`generateDueTransactions()` with no `asOf` at all, which defaults to
+literal today, so it silently caught up whatever's due by *today's*
+real date regardless of which cycle was on screen. "This tagging
+should be done to the cycle selected above. Currently it is not," in
+the household's own words.
+
+Fix: `GenerateDueTransactionsButton` (`src/features/recurring/components/`)
+now takes a `cycleMonth` prop, submitted as a hidden form field;
+`generateDueTransactionsAction` reads it and passes
+`cycleWindowEnd(cycleMonth)` (new, `lib/dates/month.ts` — the last real
+date inside that cycle's own window, e.g. `"2026-09-24"` for cycle
+`"2026-09"`, mirroring `currentCycleMonth`'s own rollover rule) as
+`asOf`. `generateDueTransactions` already supported an `asOf`
+parameter for exactly this; it just wasn't wired up from the UI. A
+browsed-to past cycle now just limits catch-up to that cycle's own
+window instead of running past it.
+
+Also fixed alongside, same root cause (Recurring's cycle-nav not
+correctly propagating into client state): `RecurringCycleTagger` gained
+`key={cycleMonth}` on its call site — without it, React reconciled the
+same component instance across cycle navigation and its `checked`
+selection state carried over from whichever cycle was viewed
+previously instead of resetting to the new cycle's own due list. The
+`cycleMonth` hidden input driving "Apply to this cycle" itself was
+already correctly prop-driven (verified, not changed) — only the
+pre-checked *selection* was stale, not which cycle got tagged.
 
 ## What's actually built
 

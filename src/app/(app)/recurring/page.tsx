@@ -155,10 +155,17 @@ export default async function RecurringPage({
       </Hero>
 
       <div className="space-y-6 p-5 sm:p-8">
-        <GenerateDueTransactionsButton />
+        <GenerateDueTransactionsButton cycleMonth={cycleMonth} />
 
         <section>
+          {/* key={cycleMonth}: forces a fresh mount (and a fresh
+              default-checked set) on cycle navigation — without it,
+              React reconciles the existing instance in place and its
+              `checked` state carries over from whichever cycle was
+              viewed before, instead of resetting to the new cycle's
+              own due list. */}
           <RecurringCycleTagger
+            key={cycleMonth}
             cycleMonth={cycleMonth}
             income={dueIncome}
             expenses={dueExpenses}

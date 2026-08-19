@@ -15,6 +15,7 @@ import {
   createRecurringTransactionInputSchema,
   updateRecurringTransactionInputSchema,
 } from "@/features/recurring/schemas";
+import { cycleWindowEnd, isValidMonth } from "@/lib/dates/month";
 
 export interface CreateRecurringFormState {
   error?: string;
@@ -76,12 +77,32 @@ export interface GenerateDueFormState {
   error?: string;
 }
 
+/**
+ * v3.1.2: now scoped to whichever cycle Recurring's own month-nav is
+ * showing, via a hidden `cycleMonth` field
+ * (GenerateDueTransactionsButton) — it used to call
+ * generateDueTransactions() with no `asOf` at all, which defaults to
+ * literal today regardless of what cycle was on screen. Someone
+ * browsing ahead to next cycle and clicking "Generate due
+ * transactions" expected it to catch this page up to *that* cycle, not
+ * whatever's due by today's real date — reported directly as "this
+ * tagging should be done to the cycle selected above." `cycleWindowEnd`
+ * maps the viewed cycle to the last real date inside its own window
+ * (lib/dates/month.ts), so a past cycle just limits catch-up to that
+ * window (safe no-op-ish) and a future cycle catches up through it.
+ */
 export async function generateDueTransactionsAction(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- required by useActionState's action signature
   _prevState: GenerateDueFormState,
+  formData: FormData,
 ): Promise<GenerateDueFormState> {
+  const cycleMonth = formValue(formData, "cycleMonth");
+  const asOf =
+    cycleMonth && isValidMonth(cycleMonth)
+      ? cycleWindowEnd(cycleMonth)
+      : undefined;
+
   try {
-    const result = await generateDueTransactions();
+    const result = await generateDueTransactions(asOf);
     revalidatePath("/recurring");
     revalidatePath("/transactions");
     revalidatePath("/dashboard");
