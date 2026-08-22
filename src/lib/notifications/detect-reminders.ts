@@ -76,6 +76,11 @@ function buildBody(lines: Array<string | null | undefined>): string {
   return lines.filter((line): line is string => Boolean(line)).join("\n");
 }
 
+/** "👥 Rohit, Ahaana" — omitted (via buildBody) when nobody's tagged. Household-reported: the notification didn't say who an event/trip/class was actually for. Same field every "Who's this for" UI already reads (CalendarEvent.people, Trip.travelerNames, RecurringCalendarEvent.people) — just surfaced in the message too now. */
+function peopleLine(people: string[]): string | null {
+  return people.length > 0 ? `👥 ${people.join(", ")}` : null;
+}
+
 export function detectCalendarEventReminders(
   events: CalendarEvent[],
   today: string,
@@ -99,6 +104,7 @@ export function detectCalendarEventReminders(
       leadTimeUnit: "days" as const,
       title: event.title,
       body: buildBody([
+        peopleLine(event.people),
         event.startTime
           ? `📅 ${formatDate(event.startDate)} at ${formatTime12h(event.startTime)}`
           : `📅 ${formatDate(event.startDate)}`,
@@ -125,6 +131,7 @@ export function detectTripReminders(
       leadTimeUnit: "days" as const,
       title: `Trip to ${trip.destination}`,
       body: buildBody([
+        peopleLine(trip.travelerNames),
         `📅 Departs ${formatDate(trip.startDate)}`,
         trip.flight ? `✈️ ${trip.flight}` : null,
         `⏰ ${daysBeforeLabel(trip.remindLeadDays)}`,
@@ -170,6 +177,7 @@ export function detectRecurringEventReminders(
       leadTimeUnit: "days",
       title: occurrence.title,
       body: buildBody([
+        peopleLine(occurrence.people),
         `📅 ${formatDate(occurrence.date)} at ${formatTime12h(occurrence.startTime)}`,
         `⏰ ${daysBeforeLabel(rule.remindLeadDays)}`,
         occurrence.notes ? `📝 ${occurrence.notes}` : null,
@@ -248,6 +256,7 @@ export function detectCalendarEventHourlyReminders(
       leadTimeUnit: "hours" as const,
       title: event.title,
       body: buildBody([
+        peopleLine(event.people),
         `📅 ${formatDate(event.startDate)} at ${formatTime12h(event.startTime)}`,
         `⏰ ${hoursBeforeLabel(event.remindLeadHours!)}`,
         event.notes ? `📝 ${event.notes}` : null,
@@ -306,6 +315,7 @@ export function detectRecurringEventHourlyReminders(
         leadTimeUnit: "hours",
         title: occurrence.title,
         body: buildBody([
+          peopleLine(occurrence.people),
           `📅 ${formatDate(occurrence.date)} at ${formatTime12h(occurrence.startTime)}`,
           `⏰ ${hoursBeforeLabel(rule.remindLeadHours)}`,
           occurrence.notes ? `📝 ${occurrence.notes}` : null,

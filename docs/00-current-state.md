@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.3.2**
+correction layer: what's actually true today, current as of **v3.3.3**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -713,6 +713,39 @@ reminder types, not just calendar events.
   require waiting for a real event to come due, or clicking a real
   send button, which this session doesn't do) — the exact body strings
   are unit-tested directly instead.
+
+## v3.3.3: reminder notification text — added a people/tagged line
+
+Follow-up to v3.3.2, spotted immediately after that shipped: the new
+body format dropped who an event/trip/class was actually tagged to —
+the same `people` (`CalendarEvent`/`RecurringCalendarEvent`) /
+`travelerNames` (`Trip`) array every "Who's this for" UI already reads
+and displays, just never surfaced in the reminder message itself.
+
+- **`peopleLine()`** (`lib/notifications/detect-reminders.ts`, new) —
+  `👥 {names.join(", ")}`, or `null` (dropped by `buildBody`) when
+  nobody's tagged. Added as the **first** line of the body — before
+  the date — for calendar events, trips, and recurring events (both
+  day- and hour-based variants), mirroring the ordering
+  `detectSchoolCalendarReminders` already used for its own single
+  `person` field (v3.2.1). School-calendar reminders themselves are
+  unchanged — that `👤 {person}` line already covered this.
+- A tagged calendar event/trip/class now reads, e.g.:
+  ```
+  Dinner with the Sharmas
+  👥 Rohit, Ahaana
+  📅 Aug 24, 2026 at 7:00 PM
+  ⏰ 1 day before
+  📝 Bring wine
+  ```
+- **Verified**: extended/updated the v3.3.2 unit tests — the two
+  richer-case tests (trip with a tagged traveller, recurring rule with
+  a tagged person) now assert the people line appears first; a new
+  test confirms a multi-person calendar event joins names with ", "
+  and that the bare (nobody tagged) case still omits the line
+  entirely. `npx tsc --noEmit && npx eslint . && npx prettier --check
+  . && npx vitest run` all pass (516 passed — +1 new). A full local
+  `npm run build` completed successfully.
 
 ## What's actually built
 
