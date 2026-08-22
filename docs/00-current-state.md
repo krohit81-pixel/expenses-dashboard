@@ -368,8 +368,14 @@ actually shipped.
   isn't constrained to those values, so a richer picker later needs no
   migration.
 - **End-to-end confirmed working in production**, post-deploy:
-  `TELEGRAM_BOT_TOKEN` and `CRON_SECRET` are set in Vercel; the
-  household linked a Telegram **group** (not a personal DM) as the
+  `TELEGRAM_BOT_TOKEN` is set in Vercel (this line previously also
+  claimed `CRON_SECRET` was already set as of v3.2.0 — **that was
+  wrong**, caught in the v3.2.1 session by actually checking
+  `vercel env ls production` instead of trusting this doc: the var
+  didn't exist yet, and `/api/cron/reminders` 503'd until it was added
+  and Production was redeployed — see the v3.2.1 section below for
+  the real timeline); the household linked a Telegram **group** (not a
+  personal DM) as the
   destination — `finance.notification_channels.config.chat_id` holds
   the group's id as a negative number string (e.g. `"-4930398936"`,
   no `-100` prefix since it's a plain `"group"` type chat, not a
@@ -474,6 +480,24 @@ holiday/exam-only subset, when asked to choose.
   other event type uses — a school-calendar reminder fires once, ever,
   per (item, lead time, channel), regardless of how many times the
   4-hourly cron ticks on its due day.
+
+**Deployed, real state as of merge**: PR merged to `main`, Vercel
+auto-deployed, `expdash.vercel.app` confirmed serving `v3.2.1`.
+`CRON_SECRET` did not actually exist in Vercel yet at that point (see
+the correction above) — generated one, added it via
+`vercel env add CRON_SECRET production` (Preview was skipped; the CLI
+wanted a specific git branch or an extra flag for Preview and it isn't
+needed there since Vercel Cron only ever invokes Production), then
+`vercel redeploy ... --target production` so the running deployment
+actually picked up the new value (Vercel env vars are locked into a
+deployment at build time — adding one doesn't retroactively affect an
+already-built deployment). Re-verified after redeploy:
+`/api/cron/reminders` now correctly returns `401` for a missing/wrong
+token instead of `503`. **The new migration
+(`20260822095409_add_school_calendar_event_notification_type.sql`) is
+still the household's action item** — not applied by this session (no
+direct Postgres/CLI access), needs to be run in the Supabase SQL
+editor before a school-calendar reminder actually comes due.
 
 ## What's actually built
 
