@@ -11,9 +11,11 @@ import {
 } from "@/services/NotificationLogService";
 import { getSendTarget } from "@/services/NotificationChannelService";
 import { listChannelTypes, getProvider } from "@/lib/notifications/registry";
+import { buildSchoolCalendarItems } from "@/features/travel/school-items";
 import {
   detectCalendarEventReminders,
   detectRecurringEventReminders,
+  detectSchoolCalendarReminders,
   detectTripReminders,
   type ReminderCandidate,
 } from "@/lib/notifications/detect-reminders";
@@ -28,12 +30,16 @@ export interface ReminderRunResult {
 /** How far ahead a recurring rule's occurrences need expanding to catch every possible remindLeadDays value in play — generous fixed bound rather than computing the real max from the data, since the cost of expanding a few extra days is negligible and it means a newly-raised lead time never silently falls outside the window. */
 const RECURRING_LOOKAHEAD_DAYS = 14;
 
+/** v3.2.1 — fixed lead time for every entry in the static school calendars (household request: "all of them, 1 day before"). Not user-configurable since there's no per-item toggle for static data-file rows — see detectSchoolCalendarReminders' own comment. */
+const SCHOOL_CALENDAR_LEAD_DAYS = 1;
+
 /**
- * The reminder engine (v3.2.0) — ties the pure detectors together with
- * real data and actually sends. Deliberately thin: fetch real rows via
- * the existing list*() service functions (no new queries duplicating
- * due-date logic), run them through the pure detectors, dedupe against
- * notification_log, send via whichever channels are linked.
+ * The reminder engine (v3.2.0, gained a 4th source in v3.2.1) — ties
+ * the pure detectors together with real data and actually sends.
+ * Deliberately thin: fetch real rows via the existing list*() service
+ * functions (no new queries duplicating due-date logic) plus the
+ * static school calendars, run them through the pure detectors, dedupe
+ * against notification_log, send via whichever channels are linked.
  *
  * `asOf` defaults to today but is overridable for testing/backfill —
  * same reasoning as RecurringTransactionService.generateDueTransactions'
@@ -55,6 +61,14 @@ export async function runReminders(
       recurringRules,
       asOf,
       RECURRING_LOOKAHEAD_DAYS,
+    ),
+    // buildSchoolCalendarItems() is pure/synchronous (in-code data, no
+    // DB round trip) — safe to call inline here alongside the three
+    // real async list*() fetches above.
+    ...detectSchoolCalendarReminders(
+      buildSchoolCalendarItems(),
+      asOf,
+      SCHOOL_CALENDAR_LEAD_DAYS,
     ),
   ];
 

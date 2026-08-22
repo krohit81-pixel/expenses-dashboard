@@ -1671,9 +1671,15 @@ export type Database = {
       // Hand-added (v3.2.0) the same way as every other table below —
       // see this file's header disclaimer. Matches
       // supabase/migrations/20260822061100_create_notifications.sql.
+      // notification_event_type's 4th member, school_calendar_event,
+      // added v3.2.1 — see
+      // 20260822095409_add_school_calendar_event_notification_type.sql.
       notification_channel_type: "telegram";
       notification_event_type:
-        "calendar_event" | "trip" | "recurring_calendar_event";
+        | "calendar_event"
+        | "trip"
+        | "recurring_calendar_event"
+        | "school_calendar_event";
       notification_status: "sent" | "failed";
     };
     CompositeTypes: Record<string, never>;

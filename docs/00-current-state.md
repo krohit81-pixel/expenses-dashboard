@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.2.0**
+correction layer: what's actually true today, current as of **v3.2.1**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -380,18 +380,100 @@ actually shipped.
   text field with no numeric sanitization, so nothing in the app
   strips a leading `-` — the one time it went missing was a pure
   data-entry slip when the id was first pasted in, not a code issue.
-- **Not built yet**: `/api/cron/reminders` and the Vercel Cron wiring
-  (`vercel.json`) — confirmed viable (this project's Vercel plan is
-  Pro, no Hobby once-daily ceiling), deliberately deferred until the
-  manual path above was proven end-to-end, which it now is. **This is
-  the next task** — a new session can start directly on it: add a
-  `CRON_SECRET`-authenticated Route Handler at `/api/cron/reminders`
-  that calls `ReminderService.runReminders()` (already fully built and
-  tested), add a `crons` entry to `vercel.json`, verify the route
-  rejects an unauthenticated request, then confirm a real scheduled
-  run actually lands in the "RAR" Telegram group. Nothing else about
-  the reminder feature is unfinished — this is purely "put the
-  already-working manual trigger on a timer."
+- **Vercel Cron wiring shipped in v3.2.1** — see that section below.
+  `/api/cron/reminders` and `vercel.json` did not exist as of v3.2.0
+  itself; the manual "Run reminders now" button was the only trigger
+  for that release.
+
+## v3.2.1: Vercel Cron wiring for reminders
+
+Puts the already-working manual reminder trigger (v3.2.0) on a timer —
+nothing about the reminder detection/send logic itself changed.
+
+- **`src/app/api/cron/reminders/route.ts`** (new): a `GET` Route
+  Handler that calls `ReminderService.runReminders()` — the exact same
+  function `RunRemindersButton`'s server action already called. Not
+  behind the access-gate cookie (Vercel Cron has no browser session to
+  carry one); authenticates itself instead by checking
+  `Authorization: Bearer $CRON_SECRET` against `serverEnv.CRON_SECRET`,
+  via `timingSafeStringEqual` (`access-gate-core.ts` — the same tested
+  primitive the access-gate cookie itself uses, reused rather than
+  writing a second timing-safe comparison). Two failure modes, both
+  before `runReminders()` is ever called: `503` if `CRON_SECRET` isn't
+  set at all (refuses to run unauthenticated rather than treating "no
+  secret configured" as "anything goes"), `401` for a missing/wrong/
+  non-`Bearer` token. See `route.test.ts` for all four rejection paths
+  plus the happy path.
+- **`middleware.ts`'s `PUBLIC_PATHS` gained `/api/cron`** — a different
+  reason than `/calendar`'s public-by-design exemption: the access-gate
+  cookie check would otherwise redirect every cron invocation to
+  `/login` before the route's own `CRON_SECRET` check ever ran, since
+  Vercel Cron requests carry no cookie. The route still authenticates
+  itself independently; this bypass only skips the cookie gate, not
+  authentication generally.
+- **`vercel.json`** (new, repo root): one `crons` entry,
+  `"schedule": "0 */4 * * *"` — every 4 hours, chosen (asked directly)
+  over a once- or twice-daily schedule for lower latency between an
+  event's reminder being added/edited and it actually firing;
+  `notification_log`'s dedupe (already built in v3.2.0) makes the more
+  frequent invocations safe — a candidate already sent is skipped, not
+  resent, on every subsequent run within the same lead-day window.
+  Confirmed on the project's Vercel Pro plan, which has no Hobby-tier
+  once-daily cron ceiling.
+- **`CRON_SECRET` is still optional at the env-schema level**
+  (`src/lib/env/server.ts`) — the app must still boot in a fresh
+  environment before anyone's set it in Vercel — but is now
+  effectively required in production: unset, the route 503s on every
+  invocation instead of silently doing nothing.
+- **Verified**: `npx tsc --noEmit && npx eslint . && npx prettier
+  --check . && npx vitest run` all pass locally, including the new
+  `route.test.ts`. A real Vercel deploy + a real scheduled cron run
+  landing a Telegram message has **not** been confirmed in this
+  session — see the handoff note in this doc's version-history commit
+  for what's still open.
+
+**Same PR, a second reminder source added on request**: the static
+Ahaana/Rohana school calendars (`src/features/calendar/data.ts` — CNS
+holidays, CA1/CA2 exam dates, NUS calendar, every tag: holiday/exam/
+vacation/event/trip, 105 entries total) now get an automatic,
+always-on 1-day-before reminder, same delivery pipeline as everything
+else. Household asked directly ("for all the school calendars ... I
+would want a notification reminder created for all that events for 1
+day before") and confirmed scope as literally everything, not a
+holiday/exam-only subset, when asked to choose.
+
+- **New `school_calendar_event` notification type**
+  (`supabase/migrations/20260822095409_add_school_calendar_event_notification_type.sql`
+  — `ALTER TYPE ... ADD VALUE`, **not yet applied to the real Supabase
+  project as of this PR** — same "apply the migration before the code
+  that depends on it goes live" lesson v3.2.0 already hit once with
+  `/calendar`. This one's blast radius is smaller (only reminder sends
+  touch this column, not every page load), but still: **apply this
+  migration before merging/deploying**, or `ReminderService.runReminders()`
+  will throw the first time a school-calendar candidate is actually due
+  and the insert into `notification_log` fails on the missing enum
+  value.
+- **Deliberately a distinct type, not reusing `'calendar_event'`** —
+  these are static data-file rows, not `finance.calendar_events` rows,
+  and never will be: turning all 105 into real DB rows would make each
+  show up twice on `/calendar` (once from the static list already
+  rendered via `buildSchoolCalendarItems()`, once as a new DB-backed
+  event). No new table, no UI, no per-item toggle — see the migration's
+  own comment.
+- **`detectSchoolCalendarReminders`** (`lib/notifications/detect-reminders.ts`)
+  is the new pure detector, wired into `ReminderService.runReminders()`
+  alongside the other three. Fixed lead time
+  (`SCHOOL_CALENDAR_LEAD_DAYS = 1`), not per-item — there's no toggle
+  UI for static data. `eventKey` is built from person + startDate +
+  slugified title (no stable id exists on a data-file row); a later
+  edit to a title string in `data.ts` will cause that one item's
+  reminder to resend once — an accepted tradeoff, not a bug, for
+  static once-a-year data.
+- **Dedup already covers this correctly, no extra logic needed**: it's
+  the same `notification_log` partial-unique-index mechanism every
+  other event type uses — a school-calendar reminder fires once, ever,
+  per (item, lead time, channel), regardless of how many times the
+  4-hourly cron ticks on its due day.
 
 ## What's actually built
 
@@ -638,12 +720,14 @@ valid technique, just shouldn't be your default) is reasonable.
   household data. Verify new UI against fixture props/data in a
   temporary route rather than clicking through real mutating buttons
   locally; see "Verifying a change" below.
-- **`npm run build` timeout status is unverified** — never actually run
-  in these sessions (a successful Vercel deploy was used as the real
-  build check every time instead, which is strictly more authoritative
-  than a local build anyway). If you need a local build specifically,
-  try it and note what actually happens rather than assuming either the
-  old "always times out" claim or that it'll just work.
+- **`npm run build` completed successfully in-session for the first time
+  in the v3.2.1 session** — full production build, ~7s compile plus
+  static generation, no timeout, no truncation. Earlier revisions of
+  this doc called the timeout status "unverified" since every prior
+  session used a successful Vercel deploy as the build check instead;
+  that's still a fine fallback if a future session's sandbox behaves
+  differently, but don't assume a local build won't complete — try it
+  first.
 - **Personal data**: statement PDFs and extracted text the user shares
   are real financial data. Never let it end up in a committed test
   fixture or doc. Validate against it in a scratch test/file, confirm,
