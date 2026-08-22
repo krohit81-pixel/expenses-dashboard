@@ -72,7 +72,10 @@ they say so.
   reading visually bigger, reordered Log's own cards (event first,
   bigger cards, the standalone recurring-event card removed), and
   folded "repeats weekly" directly into Add Event as a toggle — see
-  doc 00's v3.3.0 section.
+  doc 00's v3.3.0 section. v3.3.1 numbered Summary's month grid as "01
+  Monthly Schedule" (This Week's Schedule became "02"), and added a
+  new "03 Add Event" quick-access card on Summary itself, opening the
+  same Add Event modal Log's own card does.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement

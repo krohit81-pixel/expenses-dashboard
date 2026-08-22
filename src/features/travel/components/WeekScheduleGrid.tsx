@@ -95,7 +95,7 @@ export function WeekScheduleGrid({
   return (
     <section>
       <SectionHeading
-        index="01"
+        index="02"
         title="This Week's Schedule"
         meta={rangeLabel}
         right={

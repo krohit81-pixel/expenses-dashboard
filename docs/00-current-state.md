@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.3.0**
+correction layer: what's actually true today, current as of **v3.3.1**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -627,6 +627,38 @@ migration.
   pass (510 passed, unchanged — this pass added no new pure-function
   logic to unit test, it's forms/layout), and a full local `npm run
   build` completed successfully.
+
+## v3.3.1: Summary page — Monthly Schedule numbered, new Add Event card
+
+Small follow-up requested right after v3.3.0 shipped: the Summary tab's
+month grid never had a numbered section header (deliberately, at the
+time — see v3.3.0's note on why `TripCalendarGrid`'s own header was
+left alone), and there was no quick way to add an event without
+switching to the Log tab first. Both addressed:
+
+- **`TripCalendarGrid` is now wrapped in its own `<section>` with
+  `SectionHeading index="01" title="Monthly Schedule"`** — the
+  component itself is unchanged; `TravelCalendarSection` just wraps it.
+- **`WeekScheduleGrid`'s own header renumbered `01` → `02`** (still
+  "This Week's Schedule", nothing else changed there) to make room for
+  Monthly Schedule as `01`.
+- **New `03 Add Event` card on Summary** — a plain button (not a
+  `Link`, since it opens the same `AddEventModal` state Log's own "Add
+  an event" card already drives — this is a second door into the
+  identical modal, not a separate flow) styled like Dashboard's own
+  link-cards (`rounded-[20px] bg-surface p-5` + icon tile + title/
+  subtitle + right-aligned CTA text). Summary now reads Monthly
+  Schedule → This Week's Schedule → Add Event, so adding something no
+  longer requires switching tabs first.
+- **Verified visually** against the real `/calendar` page: confirmed
+  "01 Monthly Schedule" renders above the grid, "02 This Week's
+  Schedule" keeps its own content unchanged, and clicking the new "03
+  Add Event" card's "+ Add" button actually opens `AddEventModal` (not
+  just a static card) — including the "Repeats weekly" toggle from
+  v3.3.0 being present in it, same as reaching the modal from Log.
+  `npx tsc --noEmit && npx eslint . && npx prettier --check . && npx
+  vitest run` all pass (510 passed, unchanged), and a full local `npm
+  run build` completed successfully.
 
 ## What's actually built
 
