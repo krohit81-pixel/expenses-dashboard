@@ -34,7 +34,7 @@ they say so.
 - Single-owner app: one fixed account, an HMAC-signed access-gate cookie
   instead of sign-in, and a service-role Supabase client that bypasses RLS
   (see doc 00 for why, and what that means for how you write services).
-- Feature set as of v3.1.0: bottom nav is **Dashboard / Log / Intel /
+- Feature set as of v3.2.0: bottom nav is **Dashboard / Log / Intel /
   Calendar** — four tabs, no fifth. "More" is a bordered menu button in
   the top-right of every page's header now (v3.1.0, moved from a plain
   icon on the top-left in v2.5.8), paired with the date; the "Atlas"
@@ -48,7 +48,11 @@ they say so.
   stat grid, and a Biggest Changes section — see doc 00's v3.1.0 section
   for the full breakdown. Dashboard's cycle prev/next pager gained a
   visible loading spinner in v3.0.0, matching the fix Intel's card-level
-  nav already had.
+  nav already had. v3.2.0 added reminders — a "Remind me" toggle on
+  calendar events/trips/recurring events, sent via Telegram once linked
+  in Settings; see doc 00's v3.2.0 section for the full architecture
+  (generic notification provider, dedupe log, no scheduler wired up
+  yet — reminders send on a manual "Run reminders now" click today).
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement

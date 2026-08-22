@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { zReminderFields } from "@/features/calendar/schemas";
+
 /**
  * Validation for finance.recurring_calendar_events (v2.2.0) — a
  * weekly-repeating rule, not a single date. See that migration's comment
@@ -44,6 +46,7 @@ const baseRecurringEventFields = z.object({
   startDate: z.iso.date(),
   endDate: z.iso.date(),
   notes: z.string().trim().max(1000).nullable().optional(),
+  ...zReminderFields.shape,
 });
 
 function refineOrder<

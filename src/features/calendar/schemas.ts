@@ -20,6 +20,21 @@ const zEventPeople = z
   .default([])
   .transform((names) => Array.from(new Set(names)));
 
+/**
+ * v3.2.0 — the reminder toggle + lead time shared by calendar events,
+ * trips, and recurring calendar event rules (identical field shape on
+ * all three, see zReminderFields reused in features/travel/schemas.ts
+ * and features/calendar/recurring-schemas.ts). remindLeadDays isn't
+ * restricted to the UI's 0/1/3 options here — same "don't over-constrain
+ * a column for a UI-level choice" reasoning as the DB column itself
+ * (see the migration comment); a future UI offering more choices needs
+ * no schema change on either side.
+ */
+export const zReminderFields = z.object({
+  remindEnabled: z.coerce.boolean().default(false),
+  remindLeadDays: z.coerce.number().int().min(0).max(365).default(0),
+});
+
 const baseCalendarEventFields = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
   tag: zEventTag,
@@ -27,6 +42,7 @@ const baseCalendarEventFields = z.object({
   startDate: z.iso.date(),
   endDate: z.iso.date(),
   notes: z.string().trim().max(1000).nullable().optional(),
+  ...zReminderFields.shape,
 });
 
 function refineDateOrder<T extends { startDate: string; endDate: string }>(

@@ -55,12 +55,15 @@ Authentication → Users and copy their ID from there instead.
 | `HDFC_TATA_STATEMENT_PASSWORD`    | The password HDFC emails Tata Neu Plus statement PDFs with | **Optional**, added in v1.11.0. Reuses the same `hdfc-infinia-tata` parser module as Infinia above (a real Tata Neu Plus statement reconciled against it with no code changes needed), but kept as its own variable rather than reusing `HDFC_INFINIA_STATEMENT_PASSWORD` — HDFC's co-branded cards aren't guaranteed to share the core product's password formula. |
 | `AXIS_STATEMENT_PASSWORD`         | The password Axis emails statement PDFs with               | **Optional**, added in v1.7.0 as `AXIS_HORIZON_STATEMENT_PASSWORD`, renamed in v1.10.0 once a second real statement (an Airtel co-branded Mastercard) confirmed Axis uses the same password scheme for both card products the `axis-horizon-airtel` parser covers — one shared variable, not a per-product one.                                                     |
 | `ICICI_STATEMENT_PASSWORD`        | The password ICICI emails statement PDFs with              | **Optional**, added in v1.8.0 as `ICICI_AMAZON_STATEMENT_PASSWORD`, renamed in v1.9.0 once a second real statement (a RuPay-variant card) confirmed ICICI uses the same password scheme for both card products the `icici-amazon-rupay` parser covers — one shared variable, not a per-product one.                                                                 |
+| `TELEGRAM_BOT_TOKEN`              | @BotFather on Telegram, after `/newbot`                    | **Optional**, added in v3.2.0. Powers calendar-event/trip/recurring-event reminders (the first notification channel). Without it, the reminder toggle still saves on an event, it just never actually sends — see `src/lib/notifications/providers/telegram.ts`. The recipient's own chat ID is entered in the app's Settings page, not here.                       |
+| `CRON_SECRET`                     | Generate yourself: `openssl rand -hex 32`                  | **Optional**, added in v3.2.0. Authenticates `/api/cron/reminders` once Vercel Cron is wired up (not yet — see `docs/00-current-state.md`'s v3.2.0 section). Vercel automatically sends this value as a bearer token to a Cron-invoked route when the env var has exactly this name.                                                                                |
 
 Every var except `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`,
 `HDFC_INFINIA_STATEMENT_PASSWORD`, `HDFC_TATA_STATEMENT_PASSWORD`,
-`AXIS_STATEMENT_PASSWORD`, and `ICICI_STATEMENT_PASSWORD` is required —
-the app fails fast (loudly, on startup) if any are missing or malformed,
-rather than running with a gap.
+`AXIS_STATEMENT_PASSWORD`, `ICICI_STATEMENT_PASSWORD`,
+`TELEGRAM_BOT_TOKEN`, and `CRON_SECRET` is required — the app fails
+fast (loudly, on startup) if any are missing or malformed, rather than
+running with a gap.
 
 **Common mistake when pasting into Vercel's env var UI:** a trailing
 space or newline gets included in the value, which silently breaks

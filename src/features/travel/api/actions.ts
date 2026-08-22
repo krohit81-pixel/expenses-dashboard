@@ -36,6 +36,8 @@ export async function createTripAction(
     flight: formValue(formData, "flight") ?? null,
     travelerNames: travelerNames(formData),
     notes: formValue(formData, "notes") ?? null,
+    remindEnabled: formValue(formData, "remindEnabled"),
+    remindLeadDays: formValue(formData, "remindLeadDays"),
   });
 
   if (!parsed.success) {
@@ -66,6 +68,8 @@ export async function updateTripAction(
     flight: formValue(formData, "flight") ?? null,
     travelerNames: travelerNames(formData),
     notes: formValue(formData, "notes") ?? null,
+    remindEnabled: formValue(formData, "remindEnabled"),
+    remindLeadDays: formValue(formData, "remindLeadDays"),
   });
 
   if (!parsed.success) {

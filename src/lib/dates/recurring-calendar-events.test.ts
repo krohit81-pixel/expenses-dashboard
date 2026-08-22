@@ -20,6 +20,8 @@ function rule(
     startDate: "2026-08-10",
     endDate: "2026-09-18",
     notes: null,
+    remindEnabled: false,
+    remindLeadDays: 0,
     ...overrides,
   };
 }

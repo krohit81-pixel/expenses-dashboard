@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.1.2**
+correction layer: what's actually true today, current as of **v3.2.0**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -298,6 +298,79 @@ previously instead of resetting to the new cycle's own due list. The
 `cycleMonth` hidden input driving "Apply to this cycle" itself was
 already correctly prop-driven (verified, not changed) — only the
 pre-checked *selection* was stale, not which cycle got tagged.
+
+## v3.2.0: calendar-event reminders, first notification channel Telegram
+
+The first slice of a generic notification architecture (financial-event
+reminders — recurring due dates, card statement dues — come later, same
+shape, not built yet): a "Remind me" toggle on Add/Edit event, trip,
+and recurring-event, sent via Telegram once linked. Two-round design
+pass before any code (financial-event architecture research, then a
+refinement pass separating Event/Rule/Channel and confirming the
+Vercel plan) — see git history for both; this section covers what
+actually shipped.
+
+- **Schema**: `finance.notification_channels` (where a reminder can
+  go — one row per (user, channel_type), v1 only populates `telegram`,
+  `config` jsonb holds the channel-specific target so a future channel
+  doesn't need its own table), `finance.notification_rules` (created
+  now for a later financial-event UI, **not read** by this pass — see
+  below), and `finance.notification_log` (the dedupe/audit trail — a
+  **partial** unique index over `status = 'sent'` rows only, so a
+  logged failure never blocks a later retry of the same reminder).
+  `calendar_events`/`trips`/`recurring_calendar_events` each gained
+  `remind_enabled`/`remind_lead_days` directly on the row — no
+  separate rule object to create/manage for this pass, since "add
+  event → toggle a reminder" is naturally a couple of columns on the
+  event itself. Migration:
+  `supabase/migrations/20260822061100_create_notifications.sql`. **Not
+  yet applied to the real Supabase project or reflected in a real
+  `npm run db:types` run** — `src/lib/db/database-types.ts` was
+  hand-extended the same way `trips`/`recurring_calendar_events` were
+  (no live Supabase CLI in this session, same documented fallback).
+  Apply the migration (Supabase dashboard SQL editor or CLI) and
+  re-run `npm run db:types` before trusting these types further.
+- **No new "future expense" event-source table.** Confirmed during
+  research: `finance.recurring_transactions` (any `frequency`, plus
+  `ends_on` capping it to a single occurrence) already covers both
+  genuinely recurring and one-off future financial obligations — a
+  real gap worth closing later for financial events, but not a reason
+  to add a competing table.
+- **Provider abstraction**: `src/lib/notifications/provider.ts`
+  (`NotificationProvider` interface, mirrors `lib/ai/providers.ts`'s
+  shape on purpose), `providers/telegram.ts` (the only implementation
+  so far — plain `fetch` against Telegram's Bot API,
+  `TELEGRAM_BOT_TOKEN`-gated), `registry.ts` (the one place that maps
+  a channel type to its provider — a second channel later is a new
+  file plus one registry entry, nothing else changes).
+- **Channel linking isolated**: `NotificationChannelService` is the
+  only thing that knows a Telegram chat ID is entered by hand today
+  (Settings → `TelegramSettingsForm` → `saveTelegramChatIdAction`) —
+  `getSendTarget()` is the one function everything else calls. A
+  future `/start`-webhook linking flow only changes what's *inside*
+  this service. No webhook built.
+- **Detectors + engine**: `src/lib/notifications/detect-reminders.ts`
+  (pure functions, unit-tested — reuses `expandRecurringOccurrences`
+  for the recurring-event case rather than re-deriving occurrence
+  math) feed `ReminderService.runReminders()`, which fetches real rows
+  via the existing `list*()` service functions, dedupes against
+  `notification_log`, and sends. `RunRemindersButton` (Settings) is
+  the manual trigger — same role `GenerateDueTransactionsButton` plays
+  for `generateDueTransactions`, lets the whole pipeline be exercised
+  before any scheduler exists.
+- **Not built yet, deliberately**: `/api/cron/reminders` and the
+  Vercel Cron wiring (`vercel.json`) — confirmed viable (this
+  project's Vercel plan is Pro, no Hobby once-daily ceiling), just not
+  wired up this pass. Until then, reminders only send when someone
+  clicks "Run reminders now."
+- **UI**: `ReminderFields` (`src/features/calendar/components/`) is
+  the one shared checkbox+lead-time-select component used by
+  `AddEventModal`, `AddTripModal`, and `AddRecurringEventModal` — a
+  plain checkbox (this app has no dedicated Switch component), styled
+  like `RecurringCycleTagger`'s bulk-tagging checkboxes.
+  `remindLeadDays` offers 0/1/3 days in the UI but the column itself
+  isn't constrained to those values, so a richer picker later needs no
+  migration.
 
 ## What's actually built
 

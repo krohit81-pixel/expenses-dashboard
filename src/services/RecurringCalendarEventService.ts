@@ -31,10 +31,14 @@ export interface RecurringCalendarEvent {
   startDate: string;
   endDate: string;
   notes: string | null;
+  /** v3.2.0 — see supabase/migrations/20260822061100_create_notifications.sql. Whether ReminderService should notify before each occurrence this rule produces. */
+  remindEnabled: boolean;
+  /** Days before each occurrence's date to send the reminder (0 = the morning of). Applies to every occurrence, not just the first. */
+  remindLeadDays: number;
 }
 
 const RECURRING_CALENDAR_EVENT_SELECT =
-  "id, title, people, mode, days_of_week, start_time, end_time, start_date, end_date, notes";
+  "id, title, people, mode, days_of_week, start_time, end_time, start_date, end_date, notes, remind_enabled, remind_lead_days";
 
 function mapRow(row: {
   id: string;
@@ -47,6 +51,8 @@ function mapRow(row: {
   start_date: string;
   end_date: string;
   notes: string | null;
+  remind_enabled: boolean;
+  remind_lead_days: number;
 }): RecurringCalendarEvent {
   return {
     id: row.id,
@@ -62,6 +68,8 @@ function mapRow(row: {
     startDate: row.start_date,
     endDate: row.end_date,
     notes: row.notes,
+    remindEnabled: row.remind_enabled,
+    remindLeadDays: row.remind_lead_days,
   };
 }
 
@@ -106,6 +114,8 @@ export async function createRecurringCalendarEvent(
       start_date: parsed.startDate,
       end_date: parsed.endDate,
       notes: parsed.notes ?? null,
+      remind_enabled: parsed.remindEnabled,
+      remind_lead_days: parsed.remindLeadDays,
     })
     .select(RECURRING_CALENDAR_EVENT_SELECT)
     .single();
@@ -137,6 +147,8 @@ export async function updateRecurringCalendarEvent(
       start_date: parsed.startDate,
       end_date: parsed.endDate,
       notes: parsed.notes ?? null,
+      remind_enabled: parsed.remindEnabled,
+      remind_lead_days: parsed.remindLeadDays,
     })
     .eq("id", parsed.id)
     .eq("user_id", OWNER_USER_ID)

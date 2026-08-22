@@ -13,6 +13,15 @@
  * Supabase in most sessions" section). Re-run `npm run db:types` once you
  * have CLI access, same as every other table here.
  *
+ * v3.2.0 (20260822061100_create_notifications.sql) added
+ * notification_channels/notification_rules/notification_log plus
+ * remind_enabled/remind_lead_days on trips/calendar_events/
+ * recurring_calendar_events the same hand-added way — this file was
+ * still the only source of truth in this session, no live DB to
+ * regenerate against. Applying the migration to the real Supabase
+ * project and running `npm run db:types` afterward will silently
+ * confirm or correct these by hand — don't skip that step.
+ *
  * Replace it with the real generated file as soon as you can run:
  *
  *   npx supabase login
@@ -992,6 +1001,9 @@ export type Database = {
           flight: string | null;
           traveler_names: string[];
           notes: string | null;
+          // v3.2.0 — see supabase/migrations/20260822061100_create_notifications.sql.
+          remind_enabled: boolean;
+          remind_lead_days: number;
           created_at: string;
           updated_at: string;
         };
@@ -1004,6 +1016,8 @@ export type Database = {
           flight?: string | null;
           traveler_names?: string[];
           notes?: string | null;
+          remind_enabled?: boolean;
+          remind_lead_days?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -1016,6 +1030,8 @@ export type Database = {
           flight?: string | null;
           traveler_names?: string[];
           notes?: string | null;
+          remind_enabled?: boolean;
+          remind_lead_days?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -1031,6 +1047,8 @@ export type Database = {
           start_date: string;
           end_date: string;
           notes: string | null;
+          remind_enabled: boolean;
+          remind_lead_days: number;
           created_at: string;
           updated_at: string;
         };
@@ -1043,6 +1061,8 @@ export type Database = {
           start_date: string;
           end_date: string;
           notes?: string | null;
+          remind_enabled?: boolean;
+          remind_lead_days?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -1055,6 +1075,8 @@ export type Database = {
           start_date?: string;
           end_date?: string;
           notes?: string | null;
+          remind_enabled?: boolean;
+          remind_lead_days?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -1078,6 +1100,8 @@ export type Database = {
           start_date: string;
           end_date: string;
           notes: string | null;
+          remind_enabled: boolean;
+          remind_lead_days: number;
           created_at: string;
           updated_at: string;
         };
@@ -1093,6 +1117,8 @@ export type Database = {
           start_date: string;
           end_date: string;
           notes?: string | null;
+          remind_enabled?: boolean;
+          remind_lead_days?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -1108,6 +1134,8 @@ export type Database = {
           start_date?: string;
           end_date?: string;
           notes?: string | null;
+          remind_enabled?: boolean;
+          remind_lead_days?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -1510,6 +1538,114 @@ export type Database = {
         };
         Relationships: [];
       };
+      // Hand-added (v3.2.0) the same way as every other table in this
+      // file — see the header disclaimer. Matches
+      // supabase/migrations/20260822061100_create_notifications.sql.
+      notification_channels: {
+        Row: {
+          id: string;
+          user_id: string;
+          channel_type: Database["finance"]["Enums"]["notification_channel_type"];
+          is_enabled: boolean;
+          config: Json;
+          verified_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          channel_type: Database["finance"]["Enums"]["notification_channel_type"];
+          is_enabled?: boolean;
+          config?: Json;
+          verified_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          channel_type?: Database["finance"]["Enums"]["notification_channel_type"];
+          is_enabled?: boolean;
+          config?: Json;
+          verified_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      notification_rules: {
+        Row: {
+          id: string;
+          user_id: string;
+          event_type: Database["finance"]["Enums"]["notification_event_type"];
+          lead_time_days: number;
+          is_enabled: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          event_type: Database["finance"]["Enums"]["notification_event_type"];
+          lead_time_days: number;
+          is_enabled?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          event_type?: Database["finance"]["Enums"]["notification_event_type"];
+          lead_time_days?: number;
+          is_enabled?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      notification_log: {
+        Row: {
+          id: string;
+          user_id: string;
+          event_type: Database["finance"]["Enums"]["notification_event_type"];
+          event_key: string;
+          lead_time_days: number;
+          channel_type: Database["finance"]["Enums"]["notification_channel_type"];
+          status: Database["finance"]["Enums"]["notification_status"];
+          provider_message_id: string | null;
+          error: string | null;
+          sent_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          event_type: Database["finance"]["Enums"]["notification_event_type"];
+          event_key: string;
+          lead_time_days: number;
+          channel_type: Database["finance"]["Enums"]["notification_channel_type"];
+          status: Database["finance"]["Enums"]["notification_status"];
+          provider_message_id?: string | null;
+          error?: string | null;
+          sent_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          event_type?: Database["finance"]["Enums"]["notification_event_type"];
+          event_key?: string;
+          lead_time_days?: number;
+          channel_type?: Database["finance"]["Enums"]["notification_channel_type"];
+          status?: Database["finance"]["Enums"]["notification_status"];
+          provider_message_id?: string | null;
+          error?: string | null;
+          sent_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -1532,6 +1668,13 @@ export type Database = {
       liability_type: "personal" | "tax" | "medical" | "other";
       investment_transaction_type:
         "buy" | "sell" | "dividend" | "interest" | "fee" | "split";
+      // Hand-added (v3.2.0) the same way as every other table below —
+      // see this file's header disclaimer. Matches
+      // supabase/migrations/20260822061100_create_notifications.sql.
+      notification_channel_type: "telegram";
+      notification_event_type:
+        "calendar_event" | "trip" | "recurring_calendar_event";
+      notification_status: "sent" | "failed";
     };
     CompositeTypes: Record<string, never>;
   };

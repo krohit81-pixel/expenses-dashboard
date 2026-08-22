@@ -18,6 +18,7 @@ import {
   knownTravelers,
   travelerColorClass,
 } from "@/features/travel/travelers";
+import { ReminderFields } from "@/features/calendar/components/ReminderFields";
 import type { RecurringCalendarEvent } from "@/services/RecurringCalendarEventService";
 
 const initialState: RecurringCalendarEventFormState = {};
@@ -70,6 +71,8 @@ export function AddRecurringEventModal({
   const [selectedPeople, setSelectedPeople] = useState<string[]>([]);
   const [customPerson, setCustomPerson] = useState("");
   const [extraPeopleOptions, setExtraPeopleOptions] = useState<string[]>([]);
+  const [remindEnabled, setRemindEnabled] = useState(false);
+  const [remindLeadDays, setRemindLeadDays] = useState(0);
 
   useEffect(() => {
     if (!open) return;
@@ -95,6 +98,8 @@ export function AddRecurringEventModal({
       setNotes(editingRule.notes ?? "");
       setSelectedPeople(editingRule.people);
       setExtraPeopleOptions(editingRule.people);
+      setRemindEnabled(editingRule.remindEnabled);
+      setRemindLeadDays(editingRule.remindLeadDays);
     } else {
       setTitle("");
       setMode("");
@@ -106,6 +111,8 @@ export function AddRecurringEventModal({
       setNotes("");
       setSelectedPeople([]);
       setExtraPeopleOptions([]);
+      setRemindEnabled(false);
+      setRemindLeadDays(0);
     }
   }, [open, editingRule]);
 
@@ -362,6 +369,14 @@ export function AddRecurringEventModal({
             weeks so this stops appearing on its own once the break or the
             semester ends — there&apos;s no separate pause step.
           </p>
+
+          <ReminderFields
+            idPrefix="recurring"
+            enabled={remindEnabled}
+            onEnabledChange={setRemindEnabled}
+            leadDays={remindLeadDays}
+            onLeadDaysChange={setRemindLeadDays}
+          />
 
           <div className="space-y-1.5">
             <Label htmlFor="recurring-notes">
