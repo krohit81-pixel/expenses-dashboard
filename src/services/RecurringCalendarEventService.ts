@@ -33,12 +33,14 @@ export interface RecurringCalendarEvent {
   notes: string | null;
   /** v3.2.0 — see supabase/migrations/20260822061100_create_notifications.sql. Whether ReminderService should notify before each occurrence this rule produces. */
   remindEnabled: boolean;
-  /** Days before each occurrence's date to send the reminder (0 = the morning of). Applies to every occurrence, not just the first. */
+  /** Days before each occurrence's date to send the reminder (0 = the morning of). Applies to every occurrence, not just the first. Mutually exclusive with remindLeadHours — see detect-reminders.ts. */
   remindLeadDays: number;
+  /** v3.2.2 — hours before each occurrence's date+startTime to send the reminder, instead of remindLeadDays. Null means "not using an hour-based reminder." */
+  remindLeadHours: number | null;
 }
 
 const RECURRING_CALENDAR_EVENT_SELECT =
-  "id, title, people, mode, days_of_week, start_time, end_time, start_date, end_date, notes, remind_enabled, remind_lead_days";
+  "id, title, people, mode, days_of_week, start_time, end_time, start_date, end_date, notes, remind_enabled, remind_lead_days, remind_lead_hours";
 
 function mapRow(row: {
   id: string;
@@ -53,6 +55,7 @@ function mapRow(row: {
   notes: string | null;
   remind_enabled: boolean;
   remind_lead_days: number;
+  remind_lead_hours: number | null;
 }): RecurringCalendarEvent {
   return {
     id: row.id,
@@ -70,6 +73,7 @@ function mapRow(row: {
     notes: row.notes,
     remindEnabled: row.remind_enabled,
     remindLeadDays: row.remind_lead_days,
+    remindLeadHours: row.remind_lead_hours,
   };
 }
 
@@ -116,6 +120,7 @@ export async function createRecurringCalendarEvent(
       notes: parsed.notes ?? null,
       remind_enabled: parsed.remindEnabled,
       remind_lead_days: parsed.remindLeadDays,
+      remind_lead_hours: parsed.remindLeadHours,
     })
     .select(RECURRING_CALENDAR_EVENT_SELECT)
     .single();
@@ -149,6 +154,7 @@ export async function updateRecurringCalendarEvent(
       notes: parsed.notes ?? null,
       remind_enabled: parsed.remindEnabled,
       remind_lead_days: parsed.remindLeadDays,
+      remind_lead_hours: parsed.remindLeadHours,
     })
     .eq("id", parsed.id)
     .eq("user_id", OWNER_USER_ID)

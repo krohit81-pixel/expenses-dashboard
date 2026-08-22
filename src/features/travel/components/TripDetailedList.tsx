@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Plane } from "lucide-react";
+import { Plane } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { SectionHeading } from "@/features/dashboard/components/SectionHeading";
 import { TAG_LABELS, TAG_STYLES } from "@/features/calendar/data";
 import { dayBadge, type DayBadge } from "@/features/travel/day-badge";
 import {
@@ -108,31 +109,17 @@ export function TripDetailedList({
 
   return (
     <section>
-      <button
-        type="button"
+      <SectionHeading
+        index="02"
+        title="Detailed Calendar Events"
+        meta={`${totalCount} events`}
         onClick={() => setCollapsed((c) => !c)}
-        className="mb-3 flex w-full items-center justify-between gap-3 text-left"
-        aria-expanded={!collapsed}
-      >
-        <div>
-          <h2 className="font-display text-[15px] font-bold text-ink">
-            Detailed calendar events
-          </h2>
-          <p className="mt-0.5 text-[11.5px] text-ink-faint">
-            Exams, vacations, holidays, travel, and recurring classes —
-            chronological
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <span className="text-xs text-ink-faint">{totalCount} events</span>
-          <ChevronDown
-            className={cn(
-              "size-4 text-ink-faint transition-transform",
-              !collapsed && "rotate-180",
-            )}
-          />
-        </div>
-      </button>
+        expanded={!collapsed}
+      />
+      <p className="-mt-1.5 mb-3 text-[11.5px] text-ink-faint">
+        Exams, vacations, holidays, travel, and recurring classes —
+        chronological
+      </p>
 
       {!collapsed && (
         <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">

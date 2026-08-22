@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 
+import { CalendarPlus } from "lucide-react";
+
 import { currentMonth } from "@/lib/dates/month";
 import { cn } from "@/lib/utils";
+import { SectionHeading } from "@/features/dashboard/components/SectionHeading";
 import { AddEventModal } from "@/features/calendar/components/AddEventModal";
 import { AddRecurringEventModal } from "@/features/calendar/components/AddRecurringEventModal";
 import { LoggingSection } from "@/features/calendar/components/LoggingSection";
@@ -25,10 +28,17 @@ import type { Trip } from "@/services/TripService";
 type Visibility = VisibilityFilter;
 type SectionTab = "dashboard" | "report" | "log";
 
+/**
+ * v3.3.0 — Log moved from last to the middle (was Summary/Details/Log,
+ * household request) and reads visually bigger than its two siblings
+ * in the switcher below — it's the tab that actually gets tapped most
+ * (adding something), not just a place to review data like the other
+ * two.
+ */
 const SECTION_TABS: { key: SectionTab; label: string }[] = [
   { key: "dashboard", label: "Summary" },
-  { key: "report", label: "Details" },
   { key: "log", label: "Log" },
+  { key: "report", label: "Details" },
 ];
 
 /**
@@ -165,11 +175,6 @@ export function TravelCalendarSection({
     setEventModalOpen(true);
   }
 
-  function openAddRecurringModal() {
-    setEditingRecurringRule(null);
-    setRecurringModalOpen(true);
-  }
-
   function openEditRecurringModal(ruleId: string) {
     const rule = recurringRules.find((r) => r.id === ruleId);
     if (!rule) return;
@@ -203,7 +208,12 @@ export function TravelCalendarSection({
           switched to bg-accent/text-white, the same selection color
           used for the selected day ring elsewhere on this page, so
           "selected" reads consistently rather than defaulting to black
-          here specifically. */}
+          here specifically.
+
+          v3.3.0: Log gets more flex-grow and a bigger label than
+          Summary/Details (flex-[1.4] + text-[13.5px] vs flex-1 +
+          text-[12.5px]) — "make the log little big," since it's the
+          tab people actually tap to do something, not just review. */}
       <div className="flex gap-1 rounded-full bg-line p-1">
         {SECTION_TABS.map((tab) => (
           <button
@@ -211,7 +221,10 @@ export function TravelCalendarSection({
             type="button"
             onClick={() => setActiveTab(tab.key)}
             className={cn(
-              "flex-1 rounded-full py-2 text-center font-display text-[12.5px] font-bold transition-colors",
+              "rounded-full py-2 text-center font-display font-bold transition-colors",
+              tab.key === "log"
+                ? "flex-[1.4] text-[13.5px]"
+                : "flex-1 text-[12.5px]",
               activeTab === tab.key ? "bg-accent text-white" : "text-ink-soft",
             )}
           >
@@ -222,18 +235,21 @@ export function TravelCalendarSection({
 
       {activeTab === "dashboard" && (
         <div className="space-y-6">
-          <TripCalendarGrid
-            month={month}
-            onMonthChange={setMonth}
-            trips={trips}
-            schoolItems={schoolItems}
-            calendarEvents={calendarEvents}
-            recurringOccurrences={recurringOccurrences}
-            visible={visible}
-            onTripClick={openEditModal}
-            onEventClick={openEditEventModal}
-            onRecurringClick={openEditRecurringModal}
-          />
+          <section>
+            <SectionHeading index="01" title="Monthly Schedule" />
+            <TripCalendarGrid
+              month={month}
+              onMonthChange={setMonth}
+              trips={trips}
+              schoolItems={schoolItems}
+              calendarEvents={calendarEvents}
+              recurringOccurrences={recurringOccurrences}
+              visible={visible}
+              onTripClick={openEditModal}
+              onEventClick={openEditEventModal}
+              onRecurringClick={openEditRecurringModal}
+            />
+          </section>
 
           <WeekScheduleGrid
             rules={recurringRules}
@@ -245,6 +261,36 @@ export function TravelCalendarSection({
             onEventClick={openEditEventModal}
             onRecurringClick={openEditRecurringModal}
           />
+
+          {/* v3.3.1 — a quick-access "Add event" entry point right on
+              Summary (household request), so adding something doesn't
+              require switching to Log first. Same openAddEventModal
+              state/handler Log's own "Add an event" card already uses —
+              this is just a second door into the identical modal, not a
+              separate flow. */}
+          <section>
+            <SectionHeading index="03" title="Add Event" />
+            <button
+              type="button"
+              onClick={openAddEventModal}
+              className="flex w-full items-center gap-3 rounded-[20px] bg-surface p-5 text-left shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]"
+            >
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-[11px] bg-accent-soft text-accent">
+                <CalendarPlus className="size-4.5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-display text-[14.5px] font-extrabold text-ink">
+                  Add an event
+                </div>
+                <div className="mt-0.5 text-[11.5px] text-ink-faint">
+                  Dinner, an appointment, a class that repeats
+                </div>
+              </div>
+              <span className="shrink-0 font-display text-xs font-bold text-accent">
+                + Add
+              </span>
+            </button>
+          </section>
         </div>
       )}
 
@@ -275,7 +321,6 @@ export function TravelCalendarSection({
           onUploadTrip={() => openAddModal("upload")}
           onManualTrip={() => openAddModal("manual")}
           onAddEvent={openAddEventModal}
-          onAddRecurring={openAddRecurringModal}
         />
       )}
 

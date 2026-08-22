@@ -16,3 +16,4 @@
 # tooling
 *.tsbuildinfo
 .DS_Store
+.vercel

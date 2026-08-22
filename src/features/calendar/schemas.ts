@@ -35,14 +35,56 @@ export const zReminderFields = z.object({
   remindLeadDays: z.coerce.number().int().min(0).max(365).default(0),
 });
 
+/** "08:00" — a 24-hour HH:MM time, shared by calendar events' optional startTime and recurring rules' required startTime/endTime. Was private to recurring-schemas.ts until v3.2.2 gave calendar events a time field too; lives here now as the one shared definition. */
+export const zTimeOfDay = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a 24-hour HH:MM time");
+
+/**
+ * v3.2.2 — an alternative, more granular lead time for rows that carry
+ * a real time of day (calendar events with an optional startTime set,
+ * and recurring calendar event rules, which always have one). NOT part
+ * of zReminderFields itself: finance.trips has no time column and
+ * never offers this option (household explicitly asked for day-before
+ * only on trips), so folding it into the shape every one of the three
+ * reminder-capable tables shares would give trips a meaningless field.
+ * remindLeadHours null means "not using an hour-based reminder for
+ * this row" — remindLeadDays governs instead, exactly like before this
+ * existed. The two are mutually exclusive in practice: see
+ * detectCalendarEventReminders/detectCalendarEventHourlyReminders in
+ * lib/notifications/detect-reminders.ts for how that's enforced at
+ * read time, not enforced here at the schema level (a row could in
+ * principle have both fields set; the detectors just agree on which
+ * one wins so nothing double-fires).
+ */
+export const zHourlyReminderFields = z.object({
+  remindLeadHours: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(23)
+    .nullable()
+    .default(null),
+});
+
 const baseCalendarEventFields = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
   tag: zEventTag,
   people: zEventPeople,
   startDate: z.iso.date(),
   endDate: z.iso.date(),
+  // v3.2.2 — optional: an event doesn't have to carry a specific time
+  // to be worth saving, same reasoning notes has always had. Only
+  // meaningful for an hour-based reminder (remindLeadHours) or a
+  // future display enhancement; day-based reminders/display are
+  // untouched by this being null.
+  startTime: zTimeOfDay
+    .nullable()
+    .optional()
+    .transform((v) => v ?? null),
   notes: z.string().trim().max(1000).nullable().optional(),
   ...zReminderFields.shape,
+  ...zHourlyReminderFields.shape,
 });
 
 function refineDateOrder<T extends { startDate: string; endDate: string }>(
@@ -58,15 +100,41 @@ function refineDateOrder<T extends { startDate: string; endDate: string }>(
   }
 }
 
+/** An hour-based reminder needs a time to count backward from — reject the combination client- and server-side rather than silently falling back to some assumed hour. */
+function refineHourlyNeedsStartTime<
+  T extends { startTime: string | null; remindLeadHours: number | null },
+>(value: T, ctx: z.RefinementCtx) {
+  if (value.remindLeadHours !== null && !value.startTime) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Add a start time to use an hours-before reminder",
+      path: ["remindLeadHours"],
+    });
+  }
+}
+
+function refineCalendarEvent(
+  value: {
+    startDate: string;
+    endDate: string;
+    startTime: string | null;
+    remindLeadHours: number | null;
+  },
+  ctx: z.RefinementCtx,
+) {
+  refineDateOrder(value, ctx);
+  refineHourlyNeedsStartTime(value, ctx);
+}
+
 export const createCalendarEventInputSchema =
-  baseCalendarEventFields.superRefine(refineDateOrder);
+  baseCalendarEventFields.superRefine(refineCalendarEvent);
 export type CreateCalendarEventInput = z.infer<
   typeof createCalendarEventInputSchema
 >;
 
 export const updateCalendarEventInputSchema = baseCalendarEventFields
   .extend({ id: z.uuid() })
-  .superRefine(refineDateOrder);
+  .superRefine(refineCalendarEvent);
 export type UpdateCalendarEventInput = z.infer<
   typeof updateCalendarEventInputSchema
 >;

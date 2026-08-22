@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.2.1**
+correction layer: what's actually true today, current as of **v3.3.1**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -474,6 +474,191 @@ holiday/exam-only subset, when asked to choose.
   other event type uses — a school-calendar reminder fires once, ever,
   per (item, lead time, channel), regardless of how many times the
   4-hourly cron ticks on its due day.
+
+## v3.2.2: hour-based reminders ("3/4 hours before")
+
+Household asked (right after v3.2.1 shipped) for a more granular
+option alongside the existing 0/1/3-*day* lead times, specifically for
+things that have a real time of day — a class, or an event logged with
+a specific time — not for trips or the static school calendars.
+
+- **Scope, exactly as asked**: recurring calendar event rules (already
+  had a real `start_time`) and manually-logged calendar events (gained
+  an *optional* new `start_time` — the household explicitly wanted "to
+  add the time for events getting logged into the screen"). Trips stay
+  day-before-only, no time field, per explicit instruction ("even for
+  trips, we can have it a day before, don't need time"). The static
+  Ahaana/Rohana school calendars are untouched — same reasoning as
+  v3.2.1's own scoping, no time data exists in that source at all.
+- **New `remind_lead_hours` column** on both `calendar_events` and
+  `recurring_calendar_events` (nullable, `check (> 0)`, unconstrained
+  beyond that — same "don't over-constrain a column for a UI-level
+  choice" precedent `remind_lead_days` already set; the UI only offers
+  3/4 hours). Mutually exclusive with `remind_lead_days` in practice:
+  a row with `remind_lead_hours` set is skipped entirely by the
+  day-based detectors and picked up only by the new hourly ones — see
+  `detect-reminders.ts`'s comments on each detector for exactly how.
+  Migration:
+  `supabase/migrations/20260822102845_add_hourly_reminders.sql` — same
+  "apply this in the Supabase SQL editor before the code that depends
+  on it ships" requirement v3.2.1's own migration had.
+- **`notification_log` gained `lead_time_unit`** (`'days'` default |
+  `'hours'`), part of the sent-dedupe key now alongside
+  `lead_time_days` — without it, a 3-day and a 3-hour reminder for the
+  same event would collide in the dedupe index, each looking like a
+  duplicate of the other. The partial unique index was dropped and
+  recreated to include it (Postgres has no in-place "add a column to
+  an index").
+- **Two new pure detectors**
+  (`detectCalendarEventHourlyReminders`/`detectRecurringEventHourlyReminders`,
+  `lib/notifications/detect-reminders.ts`) — unlike every day-based
+  detector, these compare a real UTC instant, not a date string:
+  `istDateTimeToUtcMillis` combines a date+time as an **IST**
+  wall-clock value (this household's real timezone; Vercel's servers
+  aren't in it) into the equivalent UTC instant, and a candidate is
+  "due" for the whole window between the reminder threshold and the
+  event's own start — same "due for a while, dedup makes repeat runs
+  harmless" shape the day-based detectors already use, just measured
+  in hours instead of a day.
+- **A second, more frequent Vercel Cron** — `/api/cron/reminders-hourly`
+  (new route, same `checkCronAuth` bearer-token check as the original
+  route, now factored into `src/lib/cron-auth.ts` so the two can't
+  drift), `every 15 minutes` in `vercel.json`. Deliberate architecture
+  choice, asked directly: keep the existing 4-hour cron exactly as
+  infrequent as it already was for day-level reminders, add a
+  dedicated frequent one only for the new hour-based case, rather than
+  tightening the single existing schedule (worst-case lag on an
+  hour-based reminder is therefore ~15 minutes).
+  `ReminderService.runHourlyReminders()` is the new engine function
+  this route calls, alongside the existing `runReminders()` (day-based,
+  unchanged) — both now share a `sendCandidates()` helper for the
+  actual dedupe/send/record loop, factored out of `runReminders` during
+  this pass.
+- **UI**: `ReminderFields` (`src/features/calendar/components/`) gained
+  an opt-in `allowHourly` prop and a Days-before/Hours-before segmented
+  toggle — `AddTripModal` never passes it (unchanged, byte-for-byte the
+  same submitted fields as before this existed);
+  `AddRecurringEventModal` always passes it true (a rule always has a
+  time); `AddEventModal` passes `Boolean(startTime)` — the Hours option
+  only appears once the event's own new, optional Time field has a
+  value, and clearing that field also clears any active hour-based
+  reminder rather than leaving it pointing at nothing.
+- **Verified**: `npx tsc --noEmit && npx eslint . && npx prettier
+  --check . && npx vitest run` all pass (510 passed). A full local
+  `npm run build` also completed successfully. New UI verified visually
+  via the `/calendar/preview-temp` scratch-page pattern (deleted before
+  committing) — confirmed the Time field, the Days/Hours toggle
+  appearing only once a time is set (AddEventModal) vs. always
+  (AddRecurringEventModal), and the 3/4-hour option list.
+
+## v3.3.0: Calendar restyle + Log reorder + recurring folded into Add Event
+
+Household: `/calendar` "looks so outdated" next to Dashboard's v3.1.0
+"classy and sleek" rebuild — asked to reuse Dashboard's visual
+language, reorder Log to the middle and make it bigger, and let
+"Repeats weekly" happen right inside Add Event instead of needing a
+separate section. Purely a UI/UX pass — no schema change, no new
+migration.
+
+- **`SectionHeading` (`src/features/dashboard/components/`) is now
+  shared, not Dashboard-only.** Extended with two optional additions
+  so Calendar's more varied headers (some collapsible, a couple with
+  their own extra nav controls) can reuse the exact same numbered/
+  accent-bar/uppercase-title look without forcing every call site
+  through a rigid shape: `right` (arbitrary content after `meta` — a
+  "this week" jump button, month-nav arrows) and `onClick`/`expanded`
+  (turns the whole heading into a real collapse/expand toggle, chevron
+  included, instead of Dashboard's always-static one). Applied to
+  `WeekScheduleGrid`, `GoodTravelWindows`, `TripDetailedList`,
+  `RecurringEventsList`, and `LoggingSection` — replacing each one's
+  old plain `<h2 className="font-display text-[15px] font-bold...">`.
+  `TripCalendarGrid`'s own month-label header was deliberately left
+  alone — it's a card-internal month-nav row (same role as
+  Dashboard's `DashboardMonthNav` living inside `CycleBriefCard`), not
+  a page-level section, so the numbered treatment would be a style
+  mismatch there.
+- **Log moved from last to the middle of the Summary/Details/Log
+  pill switcher** (`TravelCalendarSection.tsx`) — now Summary/Log/
+  Details — and reads visually bigger than its two siblings
+  (`flex-[1.4]` + `text-[13.5px]` vs `flex-1` + `text-[12.5px]`),
+  since it's the tab people actually tap to do something on, not just
+  review data like the other two.
+- **`LoggingSection` reordered and trimmed**: Add an event now comes
+  first (opened by default, since it's the more common action) with
+  Add a trip below it — was Trip/Event/Recurring. Each `LogCard` is
+  sized up a notch too (bigger icon tile, `rounded-[22px]`, more
+  padding, a larger title) as part of Log reading like the primary
+  tab it now visually is.
+- **The standalone "Add a recurring event" card is gone.**
+  `AddEventModal` itself gained a "Repeats weekly" checkbox
+  (add-flow only, `!isEditing` — see its own comment for why editing
+  an existing single event was deliberately left out of scope: there's
+  no obviously-right meaning for "turn this existing event into a
+  recurring rule mid-edit"). Toggling it on:
+  - swaps which server action the same `<form>` submits to
+    (`createRecurringCalendarEventAction` instead of
+    `createCalendarEventAction` — both actions happen to already share
+    almost every field name: title, people, notes,
+    remindEnabled/remindLeadDays/remindLeadHours, startDate, endDate,
+    startTime; only mode/daysOfWeek/endTime are recurring-specific
+    additions rendered conditionally into the same form)
+  - hides the Category select (recurring rules have no `tag` column)
+  - relabels Start/End date as "From"/"Until"
+  - adds a day-of-week picker (reuses `AddRecurringEventModal`'s own
+    now-exported `DAY_OPTIONS`, not a second copy) and an "Ends" time
+    alongside the existing Start time field, defaulting both times in
+    (08:00/09:30) the moment the toggle flips on rather than leaving a
+    required field empty
+  - changes the submit button to "Save recurring event"
+
+  `AddRecurringEventModal` itself is **unchanged** and still exists —
+  it's what opens when an existing rule is tapped for editing
+  (grid/week view/Recurring events list all still call
+  `onRecurringClick` → the same edit modal as before). Only the
+  standalone **add** entry point moved into `AddEventModal`.
+- **Verified visually** against the real `/calendar` page (public
+  route, no scratch page needed): tab reorder/sizing, the restyled
+  numbered section headers on Details and Summary, `LoggingSection`'s
+  new order/sizing, and the "Repeats weekly" toggle actually
+  transforming the Add Event form (Category disappears, From/Until +
+  Starts/Ends + day picker + Mode appear, button label changes) —
+  screenshots taken during the session. `npx tsc --noEmit && npx
+  eslint . && npx prettier --check . && npx vitest run` all still
+  pass (510 passed, unchanged — this pass added no new pure-function
+  logic to unit test, it's forms/layout), and a full local `npm run
+  build` completed successfully.
+
+## v3.3.1: Summary page — Monthly Schedule numbered, new Add Event card
+
+Small follow-up requested right after v3.3.0 shipped: the Summary tab's
+month grid never had a numbered section header (deliberately, at the
+time — see v3.3.0's note on why `TripCalendarGrid`'s own header was
+left alone), and there was no quick way to add an event without
+switching to the Log tab first. Both addressed:
+
+- **`TripCalendarGrid` is now wrapped in its own `<section>` with
+  `SectionHeading index="01" title="Monthly Schedule"`** — the
+  component itself is unchanged; `TravelCalendarSection` just wraps it.
+- **`WeekScheduleGrid`'s own header renumbered `01` → `02`** (still
+  "This Week's Schedule", nothing else changed there) to make room for
+  Monthly Schedule as `01`.
+- **New `03 Add Event` card on Summary** — a plain button (not a
+  `Link`, since it opens the same `AddEventModal` state Log's own "Add
+  an event" card already drives — this is a second door into the
+  identical modal, not a separate flow) styled like Dashboard's own
+  link-cards (`rounded-[20px] bg-surface p-5` + icon tile + title/
+  subtitle + right-aligned CTA text). Summary now reads Monthly
+  Schedule → This Week's Schedule → Add Event, so adding something no
+  longer requires switching tabs first.
+- **Verified visually** against the real `/calendar` page: confirmed
+  "01 Monthly Schedule" renders above the grid, "02 This Week's
+  Schedule" keeps its own content unchanged, and clicking the new "03
+  Add Event" card's "+ Add" button actually opens `AddEventModal` (not
+  just a static card) — including the "Repeats weekly" toggle from
+  v3.3.0 being present in it, same as reaching the modal from Log.
+  `npx tsc --noEmit && npx eslint . && npx prettier --check . && npx
+  vitest run` all pass (510 passed, unchanged), and a full local `npm
+  run build` completed successfully.
 
 ## What's actually built
 

@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import { zReminderFields } from "@/features/calendar/schemas";
+import {
+  zReminderFields,
+  zHourlyReminderFields,
+  zTimeOfDay,
+} from "@/features/calendar/schemas";
 
 /**
  * Validation for finance.recurring_calendar_events (v2.2.0) — a
@@ -26,10 +30,6 @@ const zDaysOfWeek = z
   .min(1, "Pick at least one day of the week")
   .transform((days) => Array.from(new Set(days)).sort((a, b) => a - b));
 
-const zTimeOfDay = z
-  .string()
-  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a 24-hour HH:MM time");
-
 const baseRecurringEventFields = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
   people: zRecurringPeople,
@@ -47,6 +47,10 @@ const baseRecurringEventFields = z.object({
   endDate: z.iso.date(),
   notes: z.string().trim().max(1000).nullable().optional(),
   ...zReminderFields.shape,
+  // v3.2.2 — every rule already has a real startTime, so no
+  // "requires a time" refinement is needed here the way calendar
+  // events' optional startTime needs one (see schemas.ts).
+  ...zHourlyReminderFields.shape,
 });
 
 function refineOrder<

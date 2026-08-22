@@ -1037,6 +1037,8 @@ export type Database = {
         };
         Relationships: [];
       };
+      // start_time/remind_lead_hours hand-added (v3.2.2) — see
+      // 20260822102845_add_hourly_reminders.sql.
       calendar_events: {
         Row: {
           id: string;
@@ -1046,9 +1048,11 @@ export type Database = {
           people: string[];
           start_date: string;
           end_date: string;
+          start_time: string | null;
           notes: string | null;
           remind_enabled: boolean;
           remind_lead_days: number;
+          remind_lead_hours: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -1060,9 +1064,11 @@ export type Database = {
           people?: string[];
           start_date: string;
           end_date: string;
+          start_time?: string | null;
           notes?: string | null;
           remind_enabled?: boolean;
           remind_lead_days?: number;
+          remind_lead_hours?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1074,9 +1080,11 @@ export type Database = {
           people?: string[];
           start_date?: string;
           end_date?: string;
+          start_time?: string | null;
           notes?: string | null;
           remind_enabled?: boolean;
           remind_lead_days?: number;
+          remind_lead_hours?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1087,6 +1095,8 @@ export type Database = {
       // supabase/migrations/20260807000100_create_recurring_calendar_events.sql;
       // smallint[] -> number[], time -> string, matching this file's
       // existing numeric/bigint -> number convention.
+      // remind_lead_hours hand-added (v3.2.2) — see
+      // 20260822102845_add_hourly_reminders.sql.
       recurring_calendar_events: {
         Row: {
           id: string;
@@ -1102,6 +1112,7 @@ export type Database = {
           notes: string | null;
           remind_enabled: boolean;
           remind_lead_days: number;
+          remind_lead_hours: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -1119,6 +1130,7 @@ export type Database = {
           notes?: string | null;
           remind_enabled?: boolean;
           remind_lead_days?: number;
+          remind_lead_hours?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1136,6 +1148,7 @@ export type Database = {
           notes?: string | null;
           remind_enabled?: boolean;
           remind_lead_days?: number;
+          remind_lead_hours?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1604,6 +1617,8 @@ export type Database = {
         };
         Relationships: [];
       };
+      // lead_time_unit hand-added (v3.2.2) — see
+      // 20260822102845_add_hourly_reminders.sql.
       notification_log: {
         Row: {
           id: string;
@@ -1611,6 +1626,7 @@ export type Database = {
           event_type: Database["finance"]["Enums"]["notification_event_type"];
           event_key: string;
           lead_time_days: number;
+          lead_time_unit: string;
           channel_type: Database["finance"]["Enums"]["notification_channel_type"];
           status: Database["finance"]["Enums"]["notification_status"];
           provider_message_id: string | null;
@@ -1624,6 +1640,7 @@ export type Database = {
           event_type: Database["finance"]["Enums"]["notification_event_type"];
           event_key: string;
           lead_time_days: number;
+          lead_time_unit?: string;
           channel_type: Database["finance"]["Enums"]["notification_channel_type"];
           status: Database["finance"]["Enums"]["notification_status"];
           provider_message_id?: string | null;
@@ -1637,6 +1654,7 @@ export type Database = {
           event_type?: Database["finance"]["Enums"]["notification_event_type"];
           event_key?: string;
           lead_time_days?: number;
+          lead_time_unit?: string;
           channel_type?: Database["finance"]["Enums"]["notification_channel_type"];
           status?: Database["finance"]["Enums"]["notification_status"];
           provider_message_id?: string | null;
