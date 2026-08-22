@@ -76,6 +76,18 @@ export function AddEventModal({
   const [extraPeopleOptions, setExtraPeopleOptions] = useState<string[]>([]);
   const [remindEnabled, setRemindEnabled] = useState(false);
   const [remindLeadDays, setRemindLeadDays] = useState(0);
+  // v3.2.2 — startTime is optional (an event doesn't have to carry a
+  // specific time to be worth saving); remindLeadHours can only be set
+  // once a time exists to count backward from, so clearing the time
+  // also clears any active hour-based reminder rather than leaving it
+  // silently pointing at nothing.
+  const [startTime, setStartTime] = useState("");
+  const [remindLeadHours, setRemindLeadHours] = useState<number | null>(null);
+
+  function handleStartTimeChange(value: string) {
+    setStartTime(value);
+    if (!value) setRemindLeadHours(null);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -99,6 +111,8 @@ export function AddEventModal({
       setExtraPeopleOptions(editingEvent.people);
       setRemindEnabled(editingEvent.remindEnabled);
       setRemindLeadDays(editingEvent.remindLeadDays);
+      setStartTime(editingEvent.startTime ?? "");
+      setRemindLeadHours(editingEvent.remindLeadHours);
     } else {
       setTitle("");
       setTag("event");
@@ -109,6 +123,8 @@ export function AddEventModal({
       setExtraPeopleOptions([]);
       setRemindEnabled(false);
       setRemindLeadDays(0);
+      setStartTime("");
+      setRemindLeadHours(null);
     }
   }, [open, editingEvent, initialDate]);
 
@@ -259,6 +275,22 @@ export function AddEventModal({
           </div>
 
           <div className="space-y-1.5">
+            <Label htmlFor="event-startTime">
+              Time{" "}
+              <span className="font-normal text-ink-faint">
+                (optional — needed for an hours-before reminder)
+              </span>
+            </Label>
+            <Input
+              id="event-startTime"
+              name="startTime"
+              type="time"
+              value={startTime}
+              onChange={(e) => handleStartTimeChange(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-1.5">
             <Label>
               Who&apos;s this for{" "}
               <span className="font-normal text-ink-faint">(optional)</span>
@@ -312,6 +344,9 @@ export function AddEventModal({
             onEnabledChange={setRemindEnabled}
             leadDays={remindLeadDays}
             onLeadDaysChange={setRemindLeadDays}
+            leadHours={remindLeadHours}
+            onLeadHoursChange={setRemindLeadHours}
+            allowHourly={Boolean(startTime)}
           />
 
           <div className="space-y-1.5">

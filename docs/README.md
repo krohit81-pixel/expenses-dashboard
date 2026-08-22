@@ -59,7 +59,13 @@ they say so.
   also gave the static Ahaana/Rohana school calendars (CNS holidays,
   CA1/CA2 exam dates, NUS calendar — all 105 entries) an automatic,
   always-on 1-day-before reminder through the same pipeline, as a new
-  `school_calendar_event` notification type.
+  `school_calendar_event` notification type. v3.2.2 added hour-based
+  reminders ("3/4 hours before") for anything with a real time of day —
+  recurring class events, and calendar events once a new optional Time
+  field is set; trips and the school calendars stay day-before-only —
+  on a second, more frequent Vercel Cron (`/api/cron/reminders-hourly`,
+  every 15 minutes) so precision matches the shorter lead time; see
+  doc 00's v3.2.2 section.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement

@@ -73,6 +73,10 @@ export function AddRecurringEventModal({
   const [extraPeopleOptions, setExtraPeopleOptions] = useState<string[]>([]);
   const [remindEnabled, setRemindEnabled] = useState(false);
   const [remindLeadDays, setRemindLeadDays] = useState(0);
+  // v3.2.2 — every rule already has a real startTime, so hourly mode
+  // is always available here (unlike AddEventModal's, this isn't
+  // gated on anything).
+  const [remindLeadHours, setRemindLeadHours] = useState<number | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -100,6 +104,7 @@ export function AddRecurringEventModal({
       setExtraPeopleOptions(editingRule.people);
       setRemindEnabled(editingRule.remindEnabled);
       setRemindLeadDays(editingRule.remindLeadDays);
+      setRemindLeadHours(editingRule.remindLeadHours);
     } else {
       setTitle("");
       setMode("");
@@ -113,6 +118,7 @@ export function AddRecurringEventModal({
       setExtraPeopleOptions([]);
       setRemindEnabled(false);
       setRemindLeadDays(0);
+      setRemindLeadHours(null);
     }
   }, [open, editingRule]);
 
@@ -376,6 +382,9 @@ export function AddRecurringEventModal({
             onEnabledChange={setRemindEnabled}
             leadDays={remindLeadDays}
             onLeadDaysChange={setRemindLeadDays}
+            leadHours={remindLeadHours}
+            onLeadHoursChange={setRemindLeadHours}
+            allowHourly
           />
 
           <div className="space-y-1.5">

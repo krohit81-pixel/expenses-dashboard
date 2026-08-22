@@ -18,6 +18,8 @@ export interface NotificationLogKey {
   eventType: NotificationEventType;
   eventKey: string;
   leadTimeDays: number;
+  /** v3.2.2 — disambiguates leadTimeDays ("days" or "hours"); part of the dedupe identity alongside it. See notification_log_sent_dedupe_idx. */
+  leadTimeUnit: "days" | "hours";
   channelType: ChannelType;
 }
 
@@ -41,6 +43,7 @@ export async function alreadySent(key: NotificationLogKey): Promise<boolean> {
     .eq("event_type", key.eventType)
     .eq("event_key", key.eventKey)
     .eq("lead_time_days", key.leadTimeDays)
+    .eq("lead_time_unit", key.leadTimeUnit)
     .eq("channel_type", key.channelType)
     .eq("status", "sent")
     .maybeSingle();
@@ -65,7 +68,7 @@ export async function listSentKeys(
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("notification_log")
-    .select("event_key, lead_time_days, channel_type")
+    .select("event_key, lead_time_days, lead_time_unit, channel_type")
     .eq("user_id", OWNER_USER_ID)
     .eq("event_type", eventType)
     .eq("status", "sent");
@@ -76,13 +79,14 @@ export async function listSentKeys(
 
   return new Set(
     data.map(
-      (row) => `${row.event_key}:${row.lead_time_days}:${row.channel_type}`,
+      (row) =>
+        `${row.event_key}:${row.lead_time_days}:${row.lead_time_unit}:${row.channel_type}`,
     ),
   );
 }
 
 export function logKeyString(key: NotificationLogKey): string {
-  return `${key.eventKey}:${key.leadTimeDays}:${key.channelType}`;
+  return `${key.eventKey}:${key.leadTimeDays}:${key.leadTimeUnit}:${key.channelType}`;
 }
 
 export async function recordSent(
@@ -95,6 +99,7 @@ export async function recordSent(
     event_type: key.eventType,
     event_key: key.eventKey,
     lead_time_days: key.leadTimeDays,
+    lead_time_unit: key.leadTimeUnit,
     channel_type: key.channelType,
     status: "sent",
     provider_message_id: providerMessageId ?? null,
@@ -121,6 +126,7 @@ export async function recordFailed(
     event_type: key.eventType,
     event_key: key.eventKey,
     lead_time_days: key.leadTimeDays,
+    lead_time_unit: key.leadTimeUnit,
     channel_type: key.channelType,
     status: "failed",
     error: errorMessage.slice(0, 500),

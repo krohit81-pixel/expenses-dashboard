@@ -115,9 +115,11 @@ describe("buildDetailedGroups", () => {
         people: [],
         startDate: "2026-07-20",
         endDate: "2026-07-20",
+        startTime: null,
         notes: null,
         remindEnabled: false,
         remindLeadDays: 0,
+        remindLeadHours: null,
       },
     ];
     // Empty trips/schoolItems here — this test is isolating the manual
@@ -213,9 +215,11 @@ describe("buildDetailedGroups", () => {
         people: [],
         startDate: "2026-07-20",
         endDate: "2026-07-20",
+        startTime: null,
         notes: null,
         remindEnabled: false,
         remindLeadDays: 0,
+        remindLeadHours: null,
       },
     ];
     const groups = buildDetailedGroups(
@@ -236,9 +240,11 @@ describe("buildDetailedGroups", () => {
         people: ["Rohit"],
         startDate: "2026-07-20",
         endDate: "2026-07-20",
+        startTime: null,
         notes: null,
         remindEnabled: false,
         remindLeadDays: 0,
+        remindLeadHours: null,
       },
     ];
     const groups = buildDetailedGroups(

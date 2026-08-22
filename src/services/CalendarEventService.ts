@@ -21,15 +21,19 @@ export interface CalendarEvent {
   people: string[];
   startDate: string;
   endDate: string;
+  /** v3.2.2 — optional time of day; null for an event with no specific time (see the migration comment). "HH:MM", trimmed from Postgres's "HH:MM:SS" the same way RecurringCalendarEventService's startTime already is. */
+  startTime: string | null;
   notes: string | null;
   /** v3.2.0 — see supabase/migrations/20260822061100_create_notifications.sql. Whether ReminderService should notify about this event. */
   remindEnabled: boolean;
-  /** Days before startDate to send the reminder (0 = the morning of). Only meaningful when remindEnabled is true. */
+  /** Days before startDate to send the reminder (0 = the morning of). Only meaningful when remindEnabled is true AND remindLeadHours is null — the two are mutually exclusive, see detect-reminders.ts. */
   remindLeadDays: number;
+  /** v3.2.2 — hours before startDate+startTime to send the reminder, instead of remindLeadDays. Null means "not using an hour-based reminder"; only meaningful when startTime is also set. */
+  remindLeadHours: number | null;
 }
 
 const CALENDAR_EVENT_SELECT =
-  "id, title, tag, people, start_date, end_date, notes, remind_enabled, remind_lead_days";
+  "id, title, tag, people, start_date, end_date, start_time, notes, remind_enabled, remind_lead_days, remind_lead_hours";
 
 function mapRow(row: {
   id: string;
@@ -38,9 +42,11 @@ function mapRow(row: {
   people: string[];
   start_date: string;
   end_date: string;
+  start_time: string | null;
   notes: string | null;
   remind_enabled: boolean;
   remind_lead_days: number;
+  remind_lead_hours: number | null;
 }): CalendarEvent {
   return {
     id: row.id,
@@ -49,9 +55,11 @@ function mapRow(row: {
     people: row.people,
     startDate: row.start_date,
     endDate: row.end_date,
+    startTime: row.start_time ? row.start_time.slice(0, 5) : null,
     notes: row.notes,
     remindEnabled: row.remind_enabled,
     remindLeadDays: row.remind_lead_days,
+    remindLeadHours: row.remind_lead_hours,
   };
 }
 
@@ -88,9 +96,11 @@ export async function createCalendarEvent(
       people: parsed.people,
       start_date: parsed.startDate,
       end_date: parsed.endDate,
+      start_time: parsed.startTime,
       notes: parsed.notes ?? null,
       remind_enabled: parsed.remindEnabled,
       remind_lead_days: parsed.remindLeadDays,
+      remind_lead_hours: parsed.remindLeadHours,
     })
     .select(CALENDAR_EVENT_SELECT)
     .single();
@@ -116,9 +126,11 @@ export async function updateCalendarEvent(
       people: parsed.people,
       start_date: parsed.startDate,
       end_date: parsed.endDate,
+      start_time: parsed.startTime,
       notes: parsed.notes ?? null,
       remind_enabled: parsed.remindEnabled,
       remind_lead_days: parsed.remindLeadDays,
+      remind_lead_hours: parsed.remindLeadHours,
     })
     .eq("id", parsed.id)
     .eq("user_id", OWNER_USER_ID)

@@ -22,6 +22,7 @@ function rule(
     notes: null,
     remindEnabled: false,
     remindLeadDays: 0,
+    remindLeadHours: null,
     ...overrides,
   };
 }

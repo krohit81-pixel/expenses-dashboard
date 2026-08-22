@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.2.1**
+correction layer: what's actually true today, current as of **v3.2.2**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -474,6 +474,82 @@ holiday/exam-only subset, when asked to choose.
   other event type uses — a school-calendar reminder fires once, ever,
   per (item, lead time, channel), regardless of how many times the
   4-hourly cron ticks on its due day.
+
+## v3.2.2: hour-based reminders ("3/4 hours before")
+
+Household asked (right after v3.2.1 shipped) for a more granular
+option alongside the existing 0/1/3-*day* lead times, specifically for
+things that have a real time of day — a class, or an event logged with
+a specific time — not for trips or the static school calendars.
+
+- **Scope, exactly as asked**: recurring calendar event rules (already
+  had a real `start_time`) and manually-logged calendar events (gained
+  an *optional* new `start_time` — the household explicitly wanted "to
+  add the time for events getting logged into the screen"). Trips stay
+  day-before-only, no time field, per explicit instruction ("even for
+  trips, we can have it a day before, don't need time"). The static
+  Ahaana/Rohana school calendars are untouched — same reasoning as
+  v3.2.1's own scoping, no time data exists in that source at all.
+- **New `remind_lead_hours` column** on both `calendar_events` and
+  `recurring_calendar_events` (nullable, `check (> 0)`, unconstrained
+  beyond that — same "don't over-constrain a column for a UI-level
+  choice" precedent `remind_lead_days` already set; the UI only offers
+  3/4 hours). Mutually exclusive with `remind_lead_days` in practice:
+  a row with `remind_lead_hours` set is skipped entirely by the
+  day-based detectors and picked up only by the new hourly ones — see
+  `detect-reminders.ts`'s comments on each detector for exactly how.
+  Migration:
+  `supabase/migrations/20260822102845_add_hourly_reminders.sql` — same
+  "apply this in the Supabase SQL editor before the code that depends
+  on it ships" requirement v3.2.1's own migration had.
+- **`notification_log` gained `lead_time_unit`** (`'days'` default |
+  `'hours'`), part of the sent-dedupe key now alongside
+  `lead_time_days` — without it, a 3-day and a 3-hour reminder for the
+  same event would collide in the dedupe index, each looking like a
+  duplicate of the other. The partial unique index was dropped and
+  recreated to include it (Postgres has no in-place "add a column to
+  an index").
+- **Two new pure detectors**
+  (`detectCalendarEventHourlyReminders`/`detectRecurringEventHourlyReminders`,
+  `lib/notifications/detect-reminders.ts`) — unlike every day-based
+  detector, these compare a real UTC instant, not a date string:
+  `istDateTimeToUtcMillis` combines a date+time as an **IST**
+  wall-clock value (this household's real timezone; Vercel's servers
+  aren't in it) into the equivalent UTC instant, and a candidate is
+  "due" for the whole window between the reminder threshold and the
+  event's own start — same "due for a while, dedup makes repeat runs
+  harmless" shape the day-based detectors already use, just measured
+  in hours instead of a day.
+- **A second, more frequent Vercel Cron** — `/api/cron/reminders-hourly`
+  (new route, same `checkCronAuth` bearer-token check as the original
+  route, now factored into `src/lib/cron-auth.ts` so the two can't
+  drift), `every 15 minutes` in `vercel.json`. Deliberate architecture
+  choice, asked directly: keep the existing 4-hour cron exactly as
+  infrequent as it already was for day-level reminders, add a
+  dedicated frequent one only for the new hour-based case, rather than
+  tightening the single existing schedule (worst-case lag on an
+  hour-based reminder is therefore ~15 minutes).
+  `ReminderService.runHourlyReminders()` is the new engine function
+  this route calls, alongside the existing `runReminders()` (day-based,
+  unchanged) — both now share a `sendCandidates()` helper for the
+  actual dedupe/send/record loop, factored out of `runReminders` during
+  this pass.
+- **UI**: `ReminderFields` (`src/features/calendar/components/`) gained
+  an opt-in `allowHourly` prop and a Days-before/Hours-before segmented
+  toggle — `AddTripModal` never passes it (unchanged, byte-for-byte the
+  same submitted fields as before this existed);
+  `AddRecurringEventModal` always passes it true (a rule always has a
+  time); `AddEventModal` passes `Boolean(startTime)` — the Hours option
+  only appears once the event's own new, optional Time field has a
+  value, and clearing that field also clears any active hour-based
+  reminder rather than leaving it pointing at nothing.
+- **Verified**: `npx tsc --noEmit && npx eslint . && npx prettier
+  --check . && npx vitest run` all pass (510 passed). A full local
+  `npm run build` also completed successfully. New UI verified visually
+  via the `/calendar/preview-temp` scratch-page pattern (deleted before
+  committing) — confirmed the Time field, the Days/Hours toggle
+  appearing only once a time is set (AddEventModal) vs. always
+  (AddRecurringEventModal), and the 3/4-hour option list.
 
 ## What's actually built
 

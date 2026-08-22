@@ -57,9 +57,11 @@ export async function createCalendarEventAction(
     people: eventPeople(formData),
     startDate: formValue(formData, "startDate"),
     endDate: formValue(formData, "endDate"),
+    startTime: formValue(formData, "startTime") ?? null,
     notes: formValue(formData, "notes") ?? null,
     remindEnabled: formValue(formData, "remindEnabled"),
     remindLeadDays: formValue(formData, "remindLeadDays"),
+    remindLeadHours: formValue(formData, "remindLeadHours") ?? null,
   });
 
   if (!parsed.success) {
@@ -89,9 +91,11 @@ export async function updateCalendarEventAction(
     people: eventPeople(formData),
     startDate: formValue(formData, "startDate"),
     endDate: formValue(formData, "endDate"),
+    startTime: formValue(formData, "startTime") ?? null,
     notes: formValue(formData, "notes") ?? null,
     remindEnabled: formValue(formData, "remindEnabled"),
     remindLeadDays: formValue(formData, "remindLeadDays"),
+    remindLeadHours: formValue(formData, "remindLeadHours") ?? null,
   });
 
   if (!parsed.success) {
@@ -153,6 +157,7 @@ export async function createRecurringCalendarEventAction(
     notes: formValue(formData, "notes") ?? null,
     remindEnabled: formValue(formData, "remindEnabled"),
     remindLeadDays: formValue(formData, "remindLeadDays"),
+    remindLeadHours: formValue(formData, "remindLeadHours") ?? null,
   });
 
   if (!parsed.success) {
@@ -188,6 +193,7 @@ export async function updateRecurringCalendarEventAction(
     notes: formValue(formData, "notes") ?? null,
     remindEnabled: formValue(formData, "remindEnabled"),
     remindLeadDays: formValue(formData, "remindLeadDays"),
+    remindLeadHours: formValue(formData, "remindLeadHours") ?? null,
   });
 
   if (!parsed.success) {

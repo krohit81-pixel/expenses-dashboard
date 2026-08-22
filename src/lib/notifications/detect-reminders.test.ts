@@ -5,7 +5,9 @@ import type { Trip } from "@/services/TripService";
 import type { RecurringCalendarEvent } from "@/services/RecurringCalendarEventService";
 import type { SchoolCalendarItem } from "@/features/travel/school-items";
 import {
+  detectCalendarEventHourlyReminders,
   detectCalendarEventReminders,
+  detectRecurringEventHourlyReminders,
   detectRecurringEventReminders,
   detectSchoolCalendarReminders,
   detectTripReminders,
@@ -19,9 +21,11 @@ function calendarEvent(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
     people: [],
     startDate: "2026-10-15",
     endDate: "2026-10-15",
+    startTime: null,
     notes: null,
     remindEnabled: true,
     remindLeadDays: 3,
+    remindLeadHours: null,
     ...overrides,
   };
 }
@@ -57,6 +61,7 @@ function recurringRule(
     notes: null,
     remindEnabled: true,
     remindLeadDays: 0,
+    remindLeadHours: null,
     ...overrides,
   };
 }
@@ -71,6 +76,26 @@ describe("detectCalendarEventReminders", () => {
     expect(result[0].eventKey).toBe("calendar_event:e1");
     expect(result[0].eventType).toBe("calendar_event");
     expect(result[0].leadTimeDays).toBe(3);
+    expect(result[0].leadTimeUnit).toBe("days");
+  });
+
+  it("skips an event using an hour-based reminder instead (mutual exclusivity, v3.2.2)", () => {
+    // remindLeadDays is still 0 (whatever it was last set to in the
+    // UI) but remindLeadHours being set means the hourly detector
+    // owns this event now — the day-based one must not also fire for
+    // it on the day itself.
+    const result = detectCalendarEventReminders(
+      [
+        calendarEvent({
+          startDate: "2026-10-15",
+          remindLeadDays: 0,
+          remindLeadHours: 3,
+          startTime: "09:00",
+        }),
+      ],
+      "2026-10-15",
+    );
+    expect(result).toHaveLength(0);
   });
 
   it("does not fire on any other day", () => {
@@ -212,6 +237,16 @@ describe("detectRecurringEventReminders", () => {
     );
     expect(result).toHaveLength(1);
     expect(result[0].eventKey).toBe("recurring_calendar_event:r1:2026-08-11");
+    expect(result[0].leadTimeUnit).toBe("days");
+  });
+
+  it("skips a rule using an hour-based reminder instead (mutual exclusivity, v3.2.2)", () => {
+    const result = detectRecurringEventReminders(
+      [recurringRule({ remindLeadDays: 0, remindLeadHours: 3 })],
+      "2026-08-11",
+      7,
+    );
+    expect(result).toHaveLength(0);
   });
 
   it("respects a non-zero lead time against each occurrence's own date", () => {
@@ -244,6 +279,124 @@ describe("detectRecurringEventReminders", () => {
       ],
       "2026-08-14", // after the rule's own end_date
       7,
+    );
+    expect(result).toHaveLength(0);
+  });
+});
+
+describe("detectCalendarEventHourlyReminders", () => {
+  // startDate "2026-10-15" + startTime "09:00" (IST wall clock) is
+  // 2026-10-15T03:30:00Z in UTC (IST is UTC+5:30). remindLeadHours: 3
+  // means the reminder window is [00:30Z, 03:30Z) that same UTC date.
+  const event = (overrides: Partial<CalendarEvent> = {}) =>
+    calendarEvent({
+      startDate: "2026-10-15",
+      startTime: "09:00",
+      remindLeadDays: 0,
+      remindLeadHours: 3,
+      ...overrides,
+    });
+
+  it("fires once now is inside the [reminderInstant, eventInstant) window", () => {
+    const result = detectCalendarEventHourlyReminders(
+      [event()],
+      "2026-10-15T01:00:00.000Z",
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].eventKey).toBe("calendar_event:e1");
+    expect(result[0].leadTimeDays).toBe(3);
+    expect(result[0].leadTimeUnit).toBe("hours");
+  });
+
+  it("does not fire before the reminder threshold", () => {
+    const result = detectCalendarEventHourlyReminders(
+      [event()],
+      "2026-10-15T00:00:00.000Z",
+    );
+    expect(result).toHaveLength(0);
+  });
+
+  it("does not fire once the event itself has started", () => {
+    const result = detectCalendarEventHourlyReminders(
+      [event()],
+      "2026-10-15T04:00:00.000Z",
+    );
+    expect(result).toHaveLength(0);
+  });
+
+  it("ignores an event with no startTime, even if remindLeadHours is set", () => {
+    const result = detectCalendarEventHourlyReminders(
+      [event({ startTime: null })],
+      "2026-10-15T01:00:00.000Z",
+    );
+    expect(result).toHaveLength(0);
+  });
+
+  it("ignores an event with no remindLeadHours set (day-based only)", () => {
+    const result = detectCalendarEventHourlyReminders(
+      [event({ remindLeadHours: null })],
+      "2026-10-15T01:00:00.000Z",
+    );
+    expect(result).toHaveLength(0);
+  });
+
+  it("ignores an event with reminders disabled", () => {
+    const result = detectCalendarEventHourlyReminders(
+      [event({ remindEnabled: false })],
+      "2026-10-15T01:00:00.000Z",
+    );
+    expect(result).toHaveLength(0);
+  });
+});
+
+describe("detectRecurringEventHourlyReminders", () => {
+  // recurringRule()'s Tue/Fri occurrences start with 2026-08-11
+  // (Tuesday) at startTime "08:00" IST = 2026-08-11T02:30:00Z. A
+  // 4-hour lead time puts the reminder threshold at
+  // 2026-08-10T22:30:00Z — the DAY BEFORE the occurrence's own date in
+  // UTC, exercising the -1 day rangeStart slack this detector adds
+  // specifically for this IST/UTC gap.
+  it("fires once now is inside the window, even though that's the day before the occurrence in UTC", () => {
+    const result = detectRecurringEventHourlyReminders(
+      [recurringRule({ remindLeadDays: 0, remindLeadHours: 4 })],
+      "2026-08-10T23:00:00.000Z",
+      2,
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].eventKey).toBe("recurring_calendar_event:r1:2026-08-11");
+    expect(result[0].leadTimeDays).toBe(4);
+    expect(result[0].leadTimeUnit).toBe("hours");
+  });
+
+  it("does not fire before the reminder threshold", () => {
+    const result = detectRecurringEventHourlyReminders(
+      [recurringRule({ remindLeadDays: 0, remindLeadHours: 4 })],
+      "2026-08-10T21:00:00.000Z",
+      2,
+    );
+    expect(result).toHaveLength(0);
+  });
+
+  it("ignores a rule with no remindLeadHours set (day-based only)", () => {
+    const result = detectRecurringEventHourlyReminders(
+      [recurringRule({ remindLeadDays: 0, remindLeadHours: null })],
+      "2026-08-10T23:00:00.000Z",
+      2,
+    );
+    expect(result).toHaveLength(0);
+  });
+
+  it("ignores a rule with reminders disabled", () => {
+    const result = detectRecurringEventHourlyReminders(
+      [
+        recurringRule({
+          remindEnabled: false,
+          remindLeadDays: 0,
+          remindLeadHours: 4,
+        }),
+      ],
+      "2026-08-10T23:00:00.000Z",
+      2,
     );
     expect(result).toHaveLength(0);
   });
