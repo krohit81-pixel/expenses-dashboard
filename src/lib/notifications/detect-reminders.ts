@@ -44,10 +44,36 @@ function formatDate(date: string): string {
   }).format(new Date(`${date}T00:00:00Z`));
 }
 
-function whenLabel(leadTimeDays: number): string {
-  return leadTimeDays === 0
-    ? "today"
-    : `in ${leadTimeDays} day${leadTimeDays === 1 ? "" : "s"}`;
+/** "6:00 PM" from a stored "HH:MM" 24-hour time — v3.3.2, the notification body's own time line (Telegram bodies used to just say "at 18:00"). */
+function formatTime12h(time: string): string {
+  const [hours, minutes] = time.split(":").map(Number);
+  const period = hours >= 12 ? "PM" : "AM";
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  return `${hour12}:${String(minutes).padStart(2, "0")} ${period}`;
+}
+
+/** "Today" / "1 day before" / "3 days before" — the day-based lead-time line. */
+function daysBeforeLabel(days: number): string {
+  return days === 0 ? "Today" : `${days} day${days === 1 ? "" : "s"} before`;
+}
+
+/** "3h before" — the hour-based lead-time line. */
+function hoursBeforeLabel(hours: number): string {
+  return `${hours}h before`;
+}
+
+/**
+ * v3.3.2 — every reminder body is now a handful of emoji-labeled
+ * lines built through this one function, instead of each detector
+ * hand-rolling an "X — Y (Z)" sentence that repeated the title
+ * TelegramProvider already bolds on its own line above the body (see
+ * that provider's `*${title}*\n${body}` — a real household-reported
+ * issue: "There is quite a repeat of info"). A `null`/`undefined`
+ * entry (no time set, no notes) is dropped rather than rendered as an
+ * empty line.
+ */
+function buildBody(lines: Array<string | null | undefined>): string {
+  return lines.filter((line): line is string => Boolean(line)).join("\n");
 }
 
 export function detectCalendarEventReminders(
@@ -72,7 +98,13 @@ export function detectCalendarEventReminders(
       leadTimeDays: event.remindLeadDays,
       leadTimeUnit: "days" as const,
       title: event.title,
-      body: `${event.title} — ${formatDate(event.startDate)} (${whenLabel(event.remindLeadDays)})`,
+      body: buildBody([
+        event.startTime
+          ? `📅 ${formatDate(event.startDate)} at ${formatTime12h(event.startTime)}`
+          : `📅 ${formatDate(event.startDate)}`,
+        `⏰ ${daysBeforeLabel(event.remindLeadDays)}`,
+        event.notes ? `📝 ${event.notes}` : null,
+      ]),
     }));
 }
 
@@ -92,7 +124,12 @@ export function detectTripReminders(
       leadTimeDays: trip.remindLeadDays,
       leadTimeUnit: "days" as const,
       title: `Trip to ${trip.destination}`,
-      body: `Trip to ${trip.destination} — departs ${formatDate(trip.startDate)} (${whenLabel(trip.remindLeadDays)})${trip.flight ? `, flight ${trip.flight}` : ""}`,
+      body: buildBody([
+        `📅 Departs ${formatDate(trip.startDate)}`,
+        trip.flight ? `✈️ ${trip.flight}` : null,
+        `⏰ ${daysBeforeLabel(trip.remindLeadDays)}`,
+        trip.notes ? `📝 ${trip.notes}` : null,
+      ]),
     }));
 }
 
@@ -132,7 +169,11 @@ export function detectRecurringEventReminders(
       leadTimeDays: rule.remindLeadDays,
       leadTimeUnit: "days",
       title: occurrence.title,
-      body: `${occurrence.title} — ${formatDate(occurrence.date)} at ${occurrence.startTime} (${whenLabel(rule.remindLeadDays)})`,
+      body: buildBody([
+        `📅 ${formatDate(occurrence.date)} at ${formatTime12h(occurrence.startTime)}`,
+        `⏰ ${daysBeforeLabel(rule.remindLeadDays)}`,
+        occurrence.notes ? `📝 ${occurrence.notes}` : null,
+      ]),
     });
   }
   return candidates;
@@ -206,7 +247,11 @@ export function detectCalendarEventHourlyReminders(
       leadTimeDays: event.remindLeadHours!,
       leadTimeUnit: "hours" as const,
       title: event.title,
-      body: `${event.title} — ${formatDate(event.startDate)} at ${event.startTime} (${event.remindLeadHours}h before)`,
+      body: buildBody([
+        `📅 ${formatDate(event.startDate)} at ${formatTime12h(event.startTime)}`,
+        `⏰ ${hoursBeforeLabel(event.remindLeadHours!)}`,
+        event.notes ? `📝 ${event.notes}` : null,
+      ]),
     }));
 }
 
@@ -260,7 +305,11 @@ export function detectRecurringEventHourlyReminders(
         leadTimeDays: rule.remindLeadHours,
         leadTimeUnit: "hours",
         title: occurrence.title,
-        body: `${occurrence.title} — ${formatDate(occurrence.date)} at ${occurrence.startTime} (${rule.remindLeadHours}h before)`,
+        body: buildBody([
+          `📅 ${formatDate(occurrence.date)} at ${formatTime12h(occurrence.startTime)}`,
+          `⏰ ${hoursBeforeLabel(rule.remindLeadHours)}`,
+          occurrence.notes ? `📝 ${occurrence.notes}` : null,
+        ]),
       });
     }
   }
@@ -316,6 +365,10 @@ export function detectSchoolCalendarReminders(
       leadTimeDays: leadDays,
       leadTimeUnit: "days" as const,
       title: item.title,
-      body: `${PERSON_LABEL[item.person]}: ${item.title} — ${formatDate(item.startDate)} (${whenLabel(leadDays)})`,
+      body: buildBody([
+        `👤 ${PERSON_LABEL[item.person]}`,
+        `📅 ${formatDate(item.startDate)}`,
+        `⏰ ${daysBeforeLabel(leadDays)}`,
+      ]),
     }));
 }
