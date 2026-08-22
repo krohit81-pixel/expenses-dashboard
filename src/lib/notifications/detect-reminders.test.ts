@@ -172,6 +172,22 @@ describe("detectCalendarEventReminders", () => {
       );
       expect(result[0].body).toBe("📅 Oct 15, 2026\n⏰ Today\n📝 Bring wine");
     });
+
+    it("adds a people line, first, when someone's tagged (household-reported gap)", () => {
+      const result = detectCalendarEventReminders(
+        [
+          calendarEvent({
+            startDate: "2026-10-15",
+            remindLeadDays: 0,
+            people: ["Rohit", "Ahaana"],
+          }),
+        ],
+        "2026-10-15",
+      );
+      expect(result[0].body).toBe(
+        "👥 Rohit, Ahaana\n📅 Oct 15, 2026\n⏰ Today",
+      );
+    });
   });
 });
 
@@ -209,7 +225,7 @@ describe("detectTripReminders", () => {
     );
     expect(result[0].body).not.toContain("Trip to Goa");
     expect(result[0].body).toBe(
-      "📅 Departs Oct 15, 2026\n✈️ 6E 204\n⏰ 1 day before\n📝 Terminal 2",
+      "👥 Rohit\n📅 Departs Oct 15, 2026\n✈️ 6E 204\n⏰ 1 day before\n📝 Terminal 2",
     );
   });
 });
@@ -357,7 +373,7 @@ describe("detectRecurringEventReminders", () => {
     );
     expect(result[0].body).not.toContain("Calculus");
     expect(result[0].body).toBe(
-      "📅 Aug 11, 2026 at 8:00 AM\n⏰ Today\n📝 Zoom link in the LMS",
+      "👥 Rohana\n📅 Aug 11, 2026 at 8:00 AM\n⏰ Today\n📝 Zoom link in the LMS",
     );
   });
 });

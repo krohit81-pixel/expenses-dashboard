@@ -79,7 +79,8 @@ they say so.
   reminder's Telegram body text — no more repeating the title
   (Telegram already bolds it as its own line), and now showing a time
   line and a notes line when either is actually set — see doc 00's
-  v3.3.2 section.
+  v3.3.2 section. v3.3.3 added a people/tagged line (👥) as the first
+  line of that same body, for calendar events/trips/recurring events.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement
