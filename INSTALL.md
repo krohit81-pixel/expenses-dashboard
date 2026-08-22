@@ -236,3 +236,43 @@ the viewed `cycleMonth`, and the action scopes catch-up to that
 cycle's own window (`cycleWindowEnd`, `lib/dates/month.ts`) instead of
 literal today. If you're on an older build and see tagging land in a
 cycle other than the one shown, update.
+
+### `/calendar` broke right after deploying v3.2.0 (Failed to load trips/calendar events/recurring calendar events: column ... does not exist)
+
+Deploying v3.2.0's code before applying its migration
+(`supabase/migrations/20260822061100_create_notifications.sql`) breaks
+`/calendar` immediately — `listCalendarEvents`/`listTrips`/
+`listRecurringCalendarEvents` all select the new
+`remind_enabled`/`remind_lead_days` columns, which don't exist until
+the migration runs. Since `/calendar` is the one gate-free route, this
+is a real public-facing outage, not just a broken settings page. Fix:
+apply the migration (Supabase dashboard SQL editor, or `supabase db
+push`) — no redeploy needed, the running app picks up the new
+columns/tables on the very next request. General lesson for any future
+migration-plus-code PR: apply the migration first, or expect a window
+where the new code is live before the schema is, on any page that
+touches the changed tables.
+
+### Telegram "Send test message" → `Bad Request: chat not found`
+
+Two real causes hit while rolling out v3.2.0, in order of how likely
+they are:
+
+1. **The bot in the group isn't the one the token belongs to.** Visit
+   `https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/getMe` (your own
+   browser, using the exact token set in Vercel) to see which bot that
+   token is for, then check the group's member list for that same
+   username. A `401 Unauthorized` here means the token itself is bad
+   (regenerate it via @BotFather); a `200` with the wrong bot means
+   the wrong bot was added to the group.
+2. **The chat ID is missing its leading `-`.** A Telegram group's chat
+   ID is always negative (e.g. `-4930398936`); a personal DM's is
+   positive. The chat-ID field in Settings is a plain text input with
+   no numeric sanitization — nothing in the app strips a `-` — so if
+   this happens it was dropped when the value was typed/pasted in, not
+   a code bug. A basic `"group"`-type chat (not `"supergroup"`) uses
+   its id exactly as `getUpdates` reports it, no `-100` prefix needed.
+
+If both check out and the error persists, remove the bot from the
+group and re-add it — this forces Telegram to re-register the
+bot↔chat relationship — then retry.

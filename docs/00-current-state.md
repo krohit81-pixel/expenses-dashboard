@@ -323,13 +323,14 @@ actually shipped.
   separate rule object to create/manage for this pass, since "add
   event → toggle a reminder" is naturally a couple of columns on the
   event itself. Migration:
-  `supabase/migrations/20260822061100_create_notifications.sql`. **Not
-  yet applied to the real Supabase project or reflected in a real
-  `npm run db:types` run** — `src/lib/db/database-types.ts` was
-  hand-extended the same way `trips`/`recurring_calendar_events` were
-  (no live Supabase CLI in this session, same documented fallback).
-  Apply the migration (Supabase dashboard SQL editor or CLI) and
-  re-run `npm run db:types` before trusting these types further.
+  `supabase/migrations/20260822061100_create_notifications.sql` —
+  **applied to the real Supabase project** (household ran it directly
+  via the SQL editor after the v3.2.0 deploy briefly broke `/calendar`
+  — see the troubleshooting note below). `src/lib/db/database-types.ts`
+  is still the hand-extended version from this session, though (no
+  live Supabase CLI available) — a real `npm run db:types` run once
+  someone has CLI access would confirm/replace it, not urgent since
+  the hand-added shape has been running in production without issue.
 - **No new "future expense" event-source table.** Confirmed during
   research: `finance.recurring_transactions` (any `frequency`, plus
   `ends_on` capping it to a single occurrence) already covers both
@@ -358,11 +359,6 @@ actually shipped.
   the manual trigger — same role `GenerateDueTransactionsButton` plays
   for `generateDueTransactions`, lets the whole pipeline be exercised
   before any scheduler exists.
-- **Not built yet, deliberately**: `/api/cron/reminders` and the
-  Vercel Cron wiring (`vercel.json`) — confirmed viable (this
-  project's Vercel plan is Pro, no Hobby once-daily ceiling), just not
-  wired up this pass. Until then, reminders only send when someone
-  clicks "Run reminders now."
 - **UI**: `ReminderFields` (`src/features/calendar/components/`) is
   the one shared checkbox+lead-time-select component used by
   `AddEventModal`, `AddTripModal`, and `AddRecurringEventModal` — a
@@ -371,6 +367,31 @@ actually shipped.
   `remindLeadDays` offers 0/1/3 days in the UI but the column itself
   isn't constrained to those values, so a richer picker later needs no
   migration.
+- **End-to-end confirmed working in production**, post-deploy:
+  `TELEGRAM_BOT_TOKEN` and `CRON_SECRET` are set in Vercel; the
+  household linked a Telegram **group** (not a personal DM) as the
+  destination — `finance.notification_channels.config.chat_id` holds
+  the group's id as a negative number string (e.g. `"-4930398936"`,
+  no `-100` prefix since it's a plain `"group"` type chat, not a
+  `"supergroup"`); `verified_at` is set after a real "Send test
+  message" landed in the group. "Run reminders now" (Settings) has
+  been used successfully. One real bug hit and fixed along the way,
+  worth knowing if it resurfaces: the chat-ID `<Input>` is a plain
+  text field with no numeric sanitization, so nothing in the app
+  strips a leading `-` — the one time it went missing was a pure
+  data-entry slip when the id was first pasted in, not a code issue.
+- **Not built yet**: `/api/cron/reminders` and the Vercel Cron wiring
+  (`vercel.json`) — confirmed viable (this project's Vercel plan is
+  Pro, no Hobby once-daily ceiling), deliberately deferred until the
+  manual path above was proven end-to-end, which it now is. **This is
+  the next task** — a new session can start directly on it: add a
+  `CRON_SECRET`-authenticated Route Handler at `/api/cron/reminders`
+  that calls `ReminderService.runReminders()` (already fully built and
+  tested), add a `crons` entry to `vercel.json`, verify the route
+  rejects an unauthenticated request, then confirm a real scheduled
+  run actually lands in the "RAR" Telegram group. Nothing else about
+  the reminder feature is unfinished — this is purely "put the
+  already-working manual trigger on a timer."
 
 ## What's actually built
 
