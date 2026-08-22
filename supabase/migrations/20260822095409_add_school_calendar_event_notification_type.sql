@@ -1,0 +1,31 @@
+-- v3.2.1 follow-up: a fourth reminder source, alongside calendar_event/
+-- trip/recurring_calendar_event (see 20260822061100_create_notifications.sql).
+--
+-- Ahaana's CNS school calendar (holidays, CA1/CA2 exam dates, term
+-- events) and Rohana's NUS academic calendar are static, hand-typed
+-- data in src/features/calendar/data.ts, not rows in
+-- finance.calendar_events — see that file's own header comment for why
+-- ("no calendar/events table in the schema, and building one wasn't
+-- asked for yet"). They therefore have no remind_enabled/
+-- remind_lead_days columns to toggle, and deliberately never will:
+-- turning every one of these into a real calendar_events row would
+-- make each show up TWICE on /calendar (once from the static list,
+-- once as a new DB-backed event) — the app's own display code treats
+-- "static school calendar" and "DB calendar_events" as separate,
+-- both-rendered sources.
+--
+-- Instead of reusing the existing 'calendar_event' enum value for
+-- these (which would blur "a real calendar_events row" and "a static
+-- data-file entry" under the exact same log/event type, in a table
+-- whose whole point is per-type dedupe bookkeeping), this adds a
+-- distinct 'school_calendar_event' value. The reminder is a fixed,
+-- always-on 1-day-before lead time for every entry in both static
+-- calendars (household request, no per-item toggle needed since there
+-- is no UI for these) — see detectSchoolCalendarReminders in
+-- src/lib/notifications/detect-reminders.ts.
+--
+-- ALTER TYPE ... ADD VALUE only, nothing else in this file uses the
+-- new value — the one Postgres restriction here (can't read/write a
+-- brand-new enum value in the same transaction that added it) doesn't
+-- apply since this migration does nothing else.
+alter type finance.notification_event_type add value 'school_calendar_event';

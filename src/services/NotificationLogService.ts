@@ -5,7 +5,14 @@ import { OWNER_USER_ID } from "@/lib/owner";
 import type { ChannelType } from "@/lib/notifications/provider";
 
 export type NotificationEventType =
-  "calendar_event" | "trip" | "recurring_calendar_event";
+  | "calendar_event"
+  | "trip"
+  | "recurring_calendar_event"
+  // v3.2.1 — the static Ahaana/Rohana school calendars
+  // (src/features/calendar/data.ts), not a finance.calendar_events row
+  // (see detectSchoolCalendarReminders' comment for why this is a
+  // separate type rather than reusing "calendar_event").
+  | "school_calendar_event";
 
 export interface NotificationLogKey {
   eventType: NotificationEventType;

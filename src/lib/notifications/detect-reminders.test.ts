@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import type { CalendarEvent } from "@/services/CalendarEventService";
 import type { Trip } from "@/services/TripService";
 import type { RecurringCalendarEvent } from "@/services/RecurringCalendarEventService";
+import type { SchoolCalendarItem } from "@/features/travel/school-items";
 import {
   detectCalendarEventReminders,
   detectRecurringEventReminders,
+  detectSchoolCalendarReminders,
   detectTripReminders,
 } from "./detect-reminders";
 
@@ -120,6 +122,83 @@ describe("detectTripReminders", () => {
       "2026-10-14",
     );
     expect(result).toHaveLength(0);
+  });
+});
+
+function schoolItem(
+  overrides: Partial<SchoolCalendarItem> = {},
+): SchoolCalendarItem {
+  return {
+    person: "ahaana",
+    title: "CA 1 – Mathematics",
+    tag: "exam",
+    startDate: "2026-08-10",
+    endDate: "2026-08-10",
+    ...overrides,
+  };
+}
+
+describe("detectSchoolCalendarReminders", () => {
+  it("fires exactly leadDays before a single-day item's startDate", () => {
+    const result = detectSchoolCalendarReminders(
+      [schoolItem({ startDate: "2026-08-10" })],
+      "2026-08-09",
+      1,
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].eventType).toBe("school_calendar_event");
+    expect(result[0].eventKey).toBe(
+      "school_calendar_event:ahaana:2026-08-10:ca-1-mathematics",
+    );
+    expect(result[0].title).toBe("CA 1 – Mathematics");
+    expect(result[0].body).toContain("Ahaana");
+  });
+
+  it("does not fire on any other day", () => {
+    const result = detectSchoolCalendarReminders(
+      [schoolItem({ startDate: "2026-08-10" })],
+      "2026-08-08",
+      1,
+    );
+    expect(result).toHaveLength(0);
+  });
+
+  it("keys a multi-day (vacation) item off its startDate, not endDate", () => {
+    const result = detectSchoolCalendarReminders(
+      [
+        schoolItem({
+          person: "rohana",
+          title: "Recess Week",
+          tag: "vacation",
+          startDate: "2026-09-19",
+          endDate: "2026-09-27",
+        }),
+      ],
+      "2026-09-18",
+      1,
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].eventKey).toBe(
+      "school_calendar_event:rohana:2026-09-19:recess-week",
+    );
+  });
+
+  it("applies the same leadDays to every item regardless of person or tag", () => {
+    const result = detectSchoolCalendarReminders(
+      [
+        schoolItem({ person: "ahaana", startDate: "2026-08-10" }),
+        schoolItem({
+          person: "rohana",
+          title: "National Day",
+          tag: "holiday",
+          startDate: "2026-08-10",
+          endDate: "2026-08-10",
+        }),
+      ],
+      "2026-08-09",
+      1,
+    );
+    expect(result).toHaveLength(2);
   });
 });
 

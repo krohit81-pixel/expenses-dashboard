@@ -2,6 +2,7 @@ import type { CalendarEvent } from "@/services/CalendarEventService";
 import type { Trip } from "@/services/TripService";
 import type { RecurringCalendarEvent } from "@/services/RecurringCalendarEventService";
 import type { NotificationEventType } from "@/services/NotificationLogService";
+import type { SchoolCalendarItem } from "@/features/travel/school-items";
 import { expandRecurringOccurrences } from "@/lib/dates/recurring-calendar-events";
 
 /**
@@ -124,4 +125,50 @@ function addDays(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+const PERSON_LABEL: Record<SchoolCalendarItem["person"], string> = {
+  ahaana: "Ahaana",
+  rohana: "Rohana",
+};
+
+/** Lowercase, alnum-and-dash only — just enough to make a title safe as part of a notification_log event_key, not a general-purpose slugify. */
+function slugifyTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Every entry in both static school calendars (v3.2.1, household
+ * request) — Ahaana's CNS calendar/CA1-CA2 dates and Rohana's NUS
+ * calendar, ALL tags (holiday/exam/vacation/event/trip), not a
+ * filtered subset. Fixed lead time for every item, not per-item —
+ * these are static data-file rows with no remind_enabled/
+ * remind_lead_days columns to toggle (see the migration comment for
+ * why this deliberately isn't a finance.calendar_events row).
+ *
+ * eventKey has no stable DB id to key off, unlike the other three
+ * detectors — built instead from person + startDate + a slugified
+ * title. That means editing an item's title text later (a typo fix in
+ * data.ts) changes its key and lets that one item's reminder resend
+ * once more; an accepted tradeoff for static, once-a-year data rather
+ * than inventing a synthetic id that would need to live in data.ts
+ * itself just for this.
+ */
+export function detectSchoolCalendarReminders(
+  items: SchoolCalendarItem[],
+  today: string,
+  leadDays: number,
+): ReminderCandidate[] {
+  return items
+    .filter((item) => daysUntil(today, item.startDate) === leadDays)
+    .map((item) => ({
+      eventType: "school_calendar_event" as const,
+      eventKey: `school_calendar_event:${item.person}:${item.startDate}:${slugifyTitle(item.title)}`,
+      leadTimeDays: leadDays,
+      title: item.title,
+      body: `${PERSON_LABEL[item.person]}: ${item.title} — ${formatDate(item.startDate)} (${whenLabel(leadDays)})`,
+    }));
 }

@@ -432,6 +432,49 @@ nothing about the reminder detection/send logic itself changed.
   session — see the handoff note in this doc's version-history commit
   for what's still open.
 
+**Same PR, a second reminder source added on request**: the static
+Ahaana/Rohana school calendars (`src/features/calendar/data.ts` — CNS
+holidays, CA1/CA2 exam dates, NUS calendar, every tag: holiday/exam/
+vacation/event/trip, 105 entries total) now get an automatic,
+always-on 1-day-before reminder, same delivery pipeline as everything
+else. Household asked directly ("for all the school calendars ... I
+would want a notification reminder created for all that events for 1
+day before") and confirmed scope as literally everything, not a
+holiday/exam-only subset, when asked to choose.
+
+- **New `school_calendar_event` notification type**
+  (`supabase/migrations/20260822095409_add_school_calendar_event_notification_type.sql`
+  — `ALTER TYPE ... ADD VALUE`, **not yet applied to the real Supabase
+  project as of this PR** — same "apply the migration before the code
+  that depends on it goes live" lesson v3.2.0 already hit once with
+  `/calendar`. This one's blast radius is smaller (only reminder sends
+  touch this column, not every page load), but still: **apply this
+  migration before merging/deploying**, or `ReminderService.runReminders()`
+  will throw the first time a school-calendar candidate is actually due
+  and the insert into `notification_log` fails on the missing enum
+  value.
+- **Deliberately a distinct type, not reusing `'calendar_event'`** —
+  these are static data-file rows, not `finance.calendar_events` rows,
+  and never will be: turning all 105 into real DB rows would make each
+  show up twice on `/calendar` (once from the static list already
+  rendered via `buildSchoolCalendarItems()`, once as a new DB-backed
+  event). No new table, no UI, no per-item toggle — see the migration's
+  own comment.
+- **`detectSchoolCalendarReminders`** (`lib/notifications/detect-reminders.ts`)
+  is the new pure detector, wired into `ReminderService.runReminders()`
+  alongside the other three. Fixed lead time
+  (`SCHOOL_CALENDAR_LEAD_DAYS = 1`), not per-item — there's no toggle
+  UI for static data. `eventKey` is built from person + startDate +
+  slugified title (no stable id exists on a data-file row); a later
+  edit to a title string in `data.ts` will cause that one item's
+  reminder to resend once — an accepted tradeoff, not a bug, for
+  static once-a-year data.
+- **Dedup already covers this correctly, no extra logic needed**: it's
+  the same `notification_log` partial-unique-index mechanism every
+  other event type uses — a school-calendar reminder fires once, ever,
+  per (item, lead time, channel), regardless of how many times the
+  4-hourly cron ticks on its due day.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions
