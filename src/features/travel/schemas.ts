@@ -12,6 +12,18 @@ const zTravelerNames = z
   .min(1, "Tag at least one traveller")
   .transform((names) => Array.from(new Set(names)));
 
+/** v3.2.0 — the same reminder toggle + lead time shared by calendar
+ * events and recurring calendar event rules (see zReminderFields in
+ * features/calendar/schemas.ts, that feature's own copy). Duplicated
+ * here rather than imported across the calendar/travel feature
+ * boundary, matching this file's existing convention of its own
+ * formValue/travelerNames helpers in api/actions.ts rather than
+ * sharing calendar's. */
+const zReminderFields = z.object({
+  remindEnabled: z.coerce.boolean().default(false),
+  remindLeadDays: z.coerce.number().int().min(0).max(365).default(0),
+});
+
 const baseTripFields = z.object({
   destination: z.string().trim().min(1, "Destination is required").max(200),
   startDate: z.iso.date(),
@@ -19,6 +31,7 @@ const baseTripFields = z.object({
   flight: z.string().trim().max(60).nullable().optional(),
   travelerNames: zTravelerNames,
   notes: z.string().trim().max(1000).nullable().optional(),
+  ...zReminderFields.shape,
 });
 
 function refineDateOrder<T extends { startDate: string; endDate: string }>(

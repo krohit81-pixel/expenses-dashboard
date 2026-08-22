@@ -22,10 +22,14 @@ export interface CalendarEvent {
   startDate: string;
   endDate: string;
   notes: string | null;
+  /** v3.2.0 — see supabase/migrations/20260822061100_create_notifications.sql. Whether ReminderService should notify about this event. */
+  remindEnabled: boolean;
+  /** Days before startDate to send the reminder (0 = the morning of). Only meaningful when remindEnabled is true. */
+  remindLeadDays: number;
 }
 
 const CALENDAR_EVENT_SELECT =
-  "id, title, tag, people, start_date, end_date, notes";
+  "id, title, tag, people, start_date, end_date, notes, remind_enabled, remind_lead_days";
 
 function mapRow(row: {
   id: string;
@@ -35,6 +39,8 @@ function mapRow(row: {
   start_date: string;
   end_date: string;
   notes: string | null;
+  remind_enabled: boolean;
+  remind_lead_days: number;
 }): CalendarEvent {
   return {
     id: row.id,
@@ -44,6 +50,8 @@ function mapRow(row: {
     startDate: row.start_date,
     endDate: row.end_date,
     notes: row.notes,
+    remindEnabled: row.remind_enabled,
+    remindLeadDays: row.remind_lead_days,
   };
 }
 
@@ -81,6 +89,8 @@ export async function createCalendarEvent(
       start_date: parsed.startDate,
       end_date: parsed.endDate,
       notes: parsed.notes ?? null,
+      remind_enabled: parsed.remindEnabled,
+      remind_lead_days: parsed.remindLeadDays,
     })
     .select(CALENDAR_EVENT_SELECT)
     .single();
@@ -107,6 +117,8 @@ export async function updateCalendarEvent(
       start_date: parsed.startDate,
       end_date: parsed.endDate,
       notes: parsed.notes ?? null,
+      remind_enabled: parsed.remindEnabled,
+      remind_lead_days: parsed.remindLeadDays,
     })
     .eq("id", parsed.id)
     .eq("user_id", OWNER_USER_ID)

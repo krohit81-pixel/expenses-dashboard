@@ -20,6 +20,7 @@ import {
   knownTravelers,
   travelerColorClass,
 } from "@/features/travel/travelers";
+import { ReminderFields } from "@/features/calendar/components/ReminderFields";
 import type { CalendarEvent } from "@/services/CalendarEventService";
 
 const initialState: CalendarEventFormState = {};
@@ -73,6 +74,8 @@ export function AddEventModal({
   const [selectedPeople, setSelectedPeople] = useState<string[]>([]);
   const [customPerson, setCustomPerson] = useState("");
   const [extraPeopleOptions, setExtraPeopleOptions] = useState<string[]>([]);
+  const [remindEnabled, setRemindEnabled] = useState(false);
+  const [remindLeadDays, setRemindLeadDays] = useState(0);
 
   useEffect(() => {
     if (!open) return;
@@ -94,6 +97,8 @@ export function AddEventModal({
       setNotes(editingEvent.notes ?? "");
       setSelectedPeople(editingEvent.people);
       setExtraPeopleOptions(editingEvent.people);
+      setRemindEnabled(editingEvent.remindEnabled);
+      setRemindLeadDays(editingEvent.remindLeadDays);
     } else {
       setTitle("");
       setTag("event");
@@ -102,6 +107,8 @@ export function AddEventModal({
       setNotes("");
       setSelectedPeople([]);
       setExtraPeopleOptions([]);
+      setRemindEnabled(false);
+      setRemindLeadDays(0);
     }
   }, [open, editingEvent, initialDate]);
 
@@ -298,6 +305,14 @@ export function AddEventModal({
               </Button>
             </div>
           </div>
+
+          <ReminderFields
+            idPrefix="event"
+            enabled={remindEnabled}
+            onEnabledChange={setRemindEnabled}
+            leadDays={remindLeadDays}
+            onLeadDaysChange={setRemindLeadDays}
+          />
 
           <div className="space-y-1.5">
             <Label htmlFor="event-notes">

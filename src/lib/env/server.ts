@@ -93,6 +93,22 @@ const serverEnvSchema = z.object({
       32,
       "APP_SESSION_SECRET must be at least 32 characters — generate a random one, don't reuse another secret",
     ),
+  // v3.2.0 — the bot token from @BotFather, powering the first
+  // notification channel (src/lib/notifications/providers/telegram.ts).
+  // Optional, same reasoning as the AI provider keys above: without it,
+  // TelegramProvider.isConfigured() returns false and ReminderService
+  // just skips sending (logged, not crashed) rather than the app
+  // failing to boot over an opt-in feature. Never exposed to the
+  // client — only ever read server-side when actually sending.
+  TELEGRAM_BOT_TOKEN: optionalEnvString(),
+  // v3.2.0 — authenticates the cron-triggered reminder route
+  // (/api/cron/reminders, added in a later pass) so it isn't reachable
+  // by anyone who finds the URL. Vercel automatically sends this exact
+  // value as `Authorization: Bearer $CRON_SECRET` when a Vercel Cron
+  // job invokes the route, as long as the env var is named exactly
+  // this — see Vercel's own Cron Jobs docs. Optional here (the route
+  // doesn't exist yet); required once it does.
+  CRON_SECRET: optionalEnvString(),
 });
 
 function formatZodError(prefix: string, error: z.ZodError): string {
@@ -116,6 +132,8 @@ function parseServerEnv() {
     ICICI_STATEMENT_PASSWORD: process.env.ICICI_STATEMENT_PASSWORD,
     APP_ACCESS_PASSWORD: process.env.APP_ACCESS_PASSWORD,
     APP_SESSION_SECRET: process.env.APP_SESSION_SECRET,
+    TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+    CRON_SECRET: process.env.CRON_SECRET,
   });
 
   if (!result.success) {

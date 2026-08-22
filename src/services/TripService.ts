@@ -20,10 +20,14 @@ export interface Trip {
   flight: string | null;
   travelerNames: string[];
   notes: string | null;
+  /** v3.2.0 — see supabase/migrations/20260822061100_create_notifications.sql. Whether ReminderService should notify about this trip. */
+  remindEnabled: boolean;
+  /** Days before startDate (departure) to send the reminder (0 = the morning of). Only meaningful when remindEnabled is true. */
+  remindLeadDays: number;
 }
 
 const TRIP_SELECT =
-  "id, destination, start_date, end_date, flight, traveler_names, notes";
+  "id, destination, start_date, end_date, flight, traveler_names, notes, remind_enabled, remind_lead_days";
 
 function mapRow(row: {
   id: string;
@@ -33,6 +37,8 @@ function mapRow(row: {
   flight: string | null;
   traveler_names: string[];
   notes: string | null;
+  remind_enabled: boolean;
+  remind_lead_days: number;
 }): Trip {
   return {
     id: row.id,
@@ -42,6 +48,8 @@ function mapRow(row: {
     flight: row.flight,
     travelerNames: row.traveler_names,
     notes: row.notes,
+    remindEnabled: row.remind_enabled,
+    remindLeadDays: row.remind_lead_days,
   };
 }
 
@@ -77,6 +85,8 @@ export async function createTrip(input: CreateTripInput): Promise<Trip> {
       flight: parsed.flight ?? null,
       traveler_names: parsed.travelerNames,
       notes: parsed.notes ?? null,
+      remind_enabled: parsed.remindEnabled,
+      remind_lead_days: parsed.remindLeadDays,
     })
     .select(TRIP_SELECT)
     .single();
@@ -101,6 +111,8 @@ export async function updateTrip(input: UpdateTripInput): Promise<Trip> {
       flight: parsed.flight ?? null,
       traveler_names: parsed.travelerNames,
       notes: parsed.notes ?? null,
+      remind_enabled: parsed.remindEnabled,
+      remind_lead_days: parsed.remindLeadDays,
     })
     .eq("id", parsed.id)
     .eq("user_id", OWNER_USER_ID)

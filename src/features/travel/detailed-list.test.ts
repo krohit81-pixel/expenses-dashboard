@@ -40,6 +40,8 @@ const trips: Trip[] = [
     flight: "6E 5123",
     travelerNames: ["Rohit", "Ahaana"],
     notes: null,
+    remindEnabled: false,
+    remindLeadDays: 0,
   },
 ];
 
@@ -114,6 +116,8 @@ describe("buildDetailedGroups", () => {
         startDate: "2026-07-20",
         endDate: "2026-07-20",
         notes: null,
+        remindEnabled: false,
+        remindLeadDays: 0,
       },
     ];
     // Empty trips/schoolItems here — this test is isolating the manual
@@ -210,6 +214,8 @@ describe("buildDetailedGroups", () => {
         startDate: "2026-07-20",
         endDate: "2026-07-20",
         notes: null,
+        remindEnabled: false,
+        remindLeadDays: 0,
       },
     ];
     const groups = buildDetailedGroups(
@@ -231,6 +237,8 @@ describe("buildDetailedGroups", () => {
         startDate: "2026-07-20",
         endDate: "2026-07-20",
         notes: null,
+        remindEnabled: false,
+        remindLeadDays: 0,
       },
     ];
     const groups = buildDetailedGroups(

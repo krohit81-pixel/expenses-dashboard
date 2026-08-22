@@ -19,6 +19,7 @@ import {
   knownTravelers,
   travelerColorClass,
 } from "@/features/travel/travelers";
+import { ReminderFields } from "@/features/calendar/components/ReminderFields";
 import type { Trip } from "@/services/TripService";
 
 const initialTripState: TripFormState = {};
@@ -52,6 +53,8 @@ export function AddTripModal({
   const [extraTravelerOptions, setExtraTravelerOptions] = useState<string[]>(
     [],
   );
+  const [remindEnabled, setRemindEnabled] = useState(false);
+  const [remindLeadDays, setRemindLeadDays] = useState(0);
 
   // Re-seed every field whenever the modal opens (or switches between add
   // and edit) rather than only on mount — this is a modal that gets
@@ -81,6 +84,8 @@ export function AddTripModal({
       setNotes(editingTrip.notes ?? "");
       setSelectedTravelers(editingTrip.travelerNames);
       setExtraTravelerOptions(editingTrip.travelerNames);
+      setRemindEnabled(editingTrip.remindEnabled);
+      setRemindLeadDays(editingTrip.remindLeadDays);
     } else {
       setDestination("");
       setStartDate(initialDate ?? "");
@@ -89,6 +94,8 @@ export function AddTripModal({
       setNotes("");
       setSelectedTravelers([]);
       setExtraTravelerOptions([]);
+      setRemindEnabled(false);
+      setRemindLeadDays(0);
       setEntryTab(defaultEntryTab);
     }
     setParseNote(null);
@@ -414,6 +421,14 @@ export function AddTripModal({
               </Button>
             </div>
           </div>
+
+          <ReminderFields
+            idPrefix="trip"
+            enabled={remindEnabled}
+            onEnabledChange={setRemindEnabled}
+            leadDays={remindLeadDays}
+            onLeadDaysChange={setRemindLeadDays}
+          />
 
           <div className="space-y-1.5">
             <Label htmlFor="trip-notes">

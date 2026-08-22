@@ -46,6 +46,8 @@ describe("serverEnv", () => {
     expect(serverEnv.SUPABASE_SERVICE_ROLE_KEY).toBe("service-role-key");
     expect(serverEnv.ANTHROPIC_API_KEY).toBeUndefined();
     expect(serverEnv.GEMINI_API_KEY).toBeUndefined();
+    expect(serverEnv.TELEGRAM_BOT_TOKEN).toBeUndefined();
+    expect(serverEnv.CRON_SECRET).toBeUndefined();
   });
 
   it("throws with a readable message when a required var is missing", async () => {
@@ -64,6 +66,15 @@ describe("serverEnv", () => {
     const { serverEnv } = await import("./server");
 
     expect(serverEnv.GEMINI_API_KEY).toBe("AIzaSyRealKeyHere");
+  });
+
+  it("keeps a real value for TELEGRAM_BOT_TOKEN", async () => {
+    stubRequiredEnv();
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", "123456:ABC-DEF");
+
+    const { serverEnv } = await import("./server");
+
+    expect(serverEnv.TELEGRAM_BOT_TOKEN).toBe("123456:ABC-DEF");
   });
 
   // The actual production bug this covers: Vercel's env var UI (among
