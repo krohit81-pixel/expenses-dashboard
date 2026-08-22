@@ -65,7 +65,14 @@ they say so.
   field is set; trips and the school calendars stay day-before-only —
   on a second, more frequent Vercel Cron (`/api/cron/reminders-hourly`,
   every 15 minutes) so precision matches the shorter lead time; see
-  doc 00's v3.2.2 section.
+  doc 00's v3.2.2 section. v3.3.0 restyled `/calendar` to match
+  Dashboard's v3.1.0 look (the same numbered/accent-bar `SectionHeading`
+  pattern, now shared rather than Dashboard-only), reordered the
+  Summary/Log/Details switcher to Summary/**Log**/Details with Log
+  reading visually bigger, reordered Log's own cards (event first,
+  bigger cards, the standalone recurring-event card removed), and
+  folded "repeats weekly" directly into Add Event as a toggle — see
+  doc 00's v3.3.0 section.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement

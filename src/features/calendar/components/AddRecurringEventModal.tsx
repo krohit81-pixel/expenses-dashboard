@@ -23,10 +23,15 @@ import type { RecurringCalendarEvent } from "@/services/RecurringCalendarEventSe
 
 const initialState: RecurringCalendarEventFormState = {};
 
-/** Displayed Monday-first (matching the rest of the calendar UI's
+/**
+ * Displayed Monday-first (matching the rest of the calendar UI's
  * Monday-start grid), but the stored value is 0=Sunday..6=Saturday —
- * see the finance.recurring_calendar_events migration comment. */
-const DAY_OPTIONS: { value: number; label: string }[] = [
+ * see the finance.recurring_calendar_events migration comment.
+ * Exported (v3.3.0) — AddEventModal's own "Repeats weekly" toggle
+ * reuses this exact list rather than duplicating it, now that
+ * creating a recurring rule is reachable from that modal too.
+ */
+export const DAY_OPTIONS: { value: number; label: string }[] = [
   { value: 1, label: "M" },
   { value: 2, label: "T" },
   { value: 3, label: "W" },

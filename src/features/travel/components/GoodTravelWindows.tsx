@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { SectionHeading } from "@/features/dashboard/components/SectionHeading";
 import {
   travelerColorClass,
   travelerSoftColorClass,
@@ -32,30 +31,16 @@ export function GoodTravelWindows({
 
   return (
     <section>
-      <button
-        type="button"
+      <SectionHeading
+        index="01"
+        title="Good Windows For Travel"
+        meta={`${shown.length}`}
         onClick={() => setCollapsed((c) => !c)}
-        className="mb-3 flex w-full items-center justify-between gap-3 text-left"
-        aria-expanded={!collapsed}
-      >
-        <div>
-          <h2 className="font-display text-[15px] font-bold text-ink">
-            Good windows for travel
-          </h2>
-          <p className="mt-0.5 text-[11.5px] text-ink-faint">
-            School-free stretches worth booking around
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <span className="text-xs text-ink-faint">{shown.length}</span>
-          <ChevronDown
-            className={cn(
-              "size-4 text-ink-faint transition-transform",
-              !collapsed && "rotate-180",
-            )}
-          />
-        </div>
-      </button>
+        expanded={!collapsed}
+      />
+      <p className="-mt-1.5 mb-3 text-[11.5px] text-ink-faint">
+        School-free stretches worth booking around
+      </p>
 
       {!collapsed &&
         (shown.length === 0 ? (

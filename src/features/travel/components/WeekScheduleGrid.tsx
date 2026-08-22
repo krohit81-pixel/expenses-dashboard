@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { SectionHeading } from "@/features/dashboard/components/SectionHeading";
 import {
   getWeekDates,
   shiftDate,
@@ -93,41 +94,40 @@ export function WeekScheduleGrid({
 
   return (
     <section>
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div>
-          <h2 className="font-display text-[15px] font-bold text-ink">
-            This week&apos;s schedule
-          </h2>
-          <span className="text-[10.5px] text-ink-faint">{rangeLabel}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          {weekOffset !== 0 && (
+      <SectionHeading
+        index="01"
+        title="This Week's Schedule"
+        meta={rangeLabel}
+        right={
+          <div className="flex items-center gap-1.5">
+            {weekOffset !== 0 && (
+              <button
+                type="button"
+                onClick={goToThisWeek}
+                className="rounded-full px-2.5 py-1.5 font-display text-[10.5px] font-bold text-accent"
+              >
+                This week
+              </button>
+            )}
             <button
               type="button"
-              onClick={goToThisWeek}
-              className="rounded-full px-2.5 py-1.5 font-display text-[10.5px] font-bold text-accent"
+              aria-label="Previous week"
+              onClick={() => goToWeek(-1)}
+              className="flex size-8 items-center justify-center rounded-full border border-line text-ink-soft hover:bg-bg"
             >
-              This week
+              <ChevronLeft className="size-4" />
             </button>
-          )}
-          <button
-            type="button"
-            aria-label="Previous week"
-            onClick={() => goToWeek(-1)}
-            className="flex size-8 items-center justify-center rounded-full border border-line text-ink-soft hover:bg-bg"
-          >
-            <ChevronLeft className="size-4" />
-          </button>
-          <button
-            type="button"
-            aria-label="Next week"
-            onClick={() => goToWeek(1)}
-            className="flex size-8 items-center justify-center rounded-full border border-line text-ink-soft hover:bg-bg"
-          >
-            <ChevronRight className="size-4" />
-          </button>
-        </div>
-      </div>
+            <button
+              type="button"
+              aria-label="Next week"
+              onClick={() => goToWeek(1)}
+              className="flex size-8 items-center justify-center rounded-full border border-line text-ink-soft hover:bg-bg"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+        }
+      />
 
       <div className="rounded-[20px] bg-surface p-3.5 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
         <div className="space-y-[3px]">

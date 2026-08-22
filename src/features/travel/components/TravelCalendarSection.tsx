@@ -25,10 +25,17 @@ import type { Trip } from "@/services/TripService";
 type Visibility = VisibilityFilter;
 type SectionTab = "dashboard" | "report" | "log";
 
+/**
+ * v3.3.0 — Log moved from last to the middle (was Summary/Details/Log,
+ * household request) and reads visually bigger than its two siblings
+ * in the switcher below — it's the tab that actually gets tapped most
+ * (adding something), not just a place to review data like the other
+ * two.
+ */
 const SECTION_TABS: { key: SectionTab; label: string }[] = [
   { key: "dashboard", label: "Summary" },
-  { key: "report", label: "Details" },
   { key: "log", label: "Log" },
+  { key: "report", label: "Details" },
 ];
 
 /**
@@ -165,11 +172,6 @@ export function TravelCalendarSection({
     setEventModalOpen(true);
   }
 
-  function openAddRecurringModal() {
-    setEditingRecurringRule(null);
-    setRecurringModalOpen(true);
-  }
-
   function openEditRecurringModal(ruleId: string) {
     const rule = recurringRules.find((r) => r.id === ruleId);
     if (!rule) return;
@@ -203,7 +205,12 @@ export function TravelCalendarSection({
           switched to bg-accent/text-white, the same selection color
           used for the selected day ring elsewhere on this page, so
           "selected" reads consistently rather than defaulting to black
-          here specifically. */}
+          here specifically.
+
+          v3.3.0: Log gets more flex-grow and a bigger label than
+          Summary/Details (flex-[1.4] + text-[13.5px] vs flex-1 +
+          text-[12.5px]) — "make the log little big," since it's the
+          tab people actually tap to do something, not just review. */}
       <div className="flex gap-1 rounded-full bg-line p-1">
         {SECTION_TABS.map((tab) => (
           <button
@@ -211,7 +218,10 @@ export function TravelCalendarSection({
             type="button"
             onClick={() => setActiveTab(tab.key)}
             className={cn(
-              "flex-1 rounded-full py-2 text-center font-display text-[12.5px] font-bold transition-colors",
+              "rounded-full py-2 text-center font-display font-bold transition-colors",
+              tab.key === "log"
+                ? "flex-[1.4] text-[13.5px]"
+                : "flex-1 text-[12.5px]",
               activeTab === tab.key ? "bg-accent text-white" : "text-ink-soft",
             )}
           >
@@ -275,7 +285,6 @@ export function TravelCalendarSection({
           onUploadTrip={() => openAddModal("upload")}
           onManualTrip={() => openAddModal("manual")}
           onAddEvent={openAddEventModal}
-          onAddRecurring={openAddRecurringModal}
         />
       )}
 

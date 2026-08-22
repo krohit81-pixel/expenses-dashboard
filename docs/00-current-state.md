@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.2.2**
+correction layer: what's actually true today, current as of **v3.3.0**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -550,6 +550,83 @@ a specific time — not for trips or the static school calendars.
   committing) — confirmed the Time field, the Days/Hours toggle
   appearing only once a time is set (AddEventModal) vs. always
   (AddRecurringEventModal), and the 3/4-hour option list.
+
+## v3.3.0: Calendar restyle + Log reorder + recurring folded into Add Event
+
+Household: `/calendar` "looks so outdated" next to Dashboard's v3.1.0
+"classy and sleek" rebuild — asked to reuse Dashboard's visual
+language, reorder Log to the middle and make it bigger, and let
+"Repeats weekly" happen right inside Add Event instead of needing a
+separate section. Purely a UI/UX pass — no schema change, no new
+migration.
+
+- **`SectionHeading` (`src/features/dashboard/components/`) is now
+  shared, not Dashboard-only.** Extended with two optional additions
+  so Calendar's more varied headers (some collapsible, a couple with
+  their own extra nav controls) can reuse the exact same numbered/
+  accent-bar/uppercase-title look without forcing every call site
+  through a rigid shape: `right` (arbitrary content after `meta` — a
+  "this week" jump button, month-nav arrows) and `onClick`/`expanded`
+  (turns the whole heading into a real collapse/expand toggle, chevron
+  included, instead of Dashboard's always-static one). Applied to
+  `WeekScheduleGrid`, `GoodTravelWindows`, `TripDetailedList`,
+  `RecurringEventsList`, and `LoggingSection` — replacing each one's
+  old plain `<h2 className="font-display text-[15px] font-bold...">`.
+  `TripCalendarGrid`'s own month-label header was deliberately left
+  alone — it's a card-internal month-nav row (same role as
+  Dashboard's `DashboardMonthNav` living inside `CycleBriefCard`), not
+  a page-level section, so the numbered treatment would be a style
+  mismatch there.
+- **Log moved from last to the middle of the Summary/Details/Log
+  pill switcher** (`TravelCalendarSection.tsx`) — now Summary/Log/
+  Details — and reads visually bigger than its two siblings
+  (`flex-[1.4]` + `text-[13.5px]` vs `flex-1` + `text-[12.5px]`),
+  since it's the tab people actually tap to do something on, not just
+  review data like the other two.
+- **`LoggingSection` reordered and trimmed**: Add an event now comes
+  first (opened by default, since it's the more common action) with
+  Add a trip below it — was Trip/Event/Recurring. Each `LogCard` is
+  sized up a notch too (bigger icon tile, `rounded-[22px]`, more
+  padding, a larger title) as part of Log reading like the primary
+  tab it now visually is.
+- **The standalone "Add a recurring event" card is gone.**
+  `AddEventModal` itself gained a "Repeats weekly" checkbox
+  (add-flow only, `!isEditing` — see its own comment for why editing
+  an existing single event was deliberately left out of scope: there's
+  no obviously-right meaning for "turn this existing event into a
+  recurring rule mid-edit"). Toggling it on:
+  - swaps which server action the same `<form>` submits to
+    (`createRecurringCalendarEventAction` instead of
+    `createCalendarEventAction` — both actions happen to already share
+    almost every field name: title, people, notes,
+    remindEnabled/remindLeadDays/remindLeadHours, startDate, endDate,
+    startTime; only mode/daysOfWeek/endTime are recurring-specific
+    additions rendered conditionally into the same form)
+  - hides the Category select (recurring rules have no `tag` column)
+  - relabels Start/End date as "From"/"Until"
+  - adds a day-of-week picker (reuses `AddRecurringEventModal`'s own
+    now-exported `DAY_OPTIONS`, not a second copy) and an "Ends" time
+    alongside the existing Start time field, defaulting both times in
+    (08:00/09:30) the moment the toggle flips on rather than leaving a
+    required field empty
+  - changes the submit button to "Save recurring event"
+
+  `AddRecurringEventModal` itself is **unchanged** and still exists —
+  it's what opens when an existing rule is tapped for editing
+  (grid/week view/Recurring events list all still call
+  `onRecurringClick` → the same edit modal as before). Only the
+  standalone **add** entry point moved into `AddEventModal`.
+- **Verified visually** against the real `/calendar` page (public
+  route, no scratch page needed): tab reorder/sizing, the restyled
+  numbered section headers on Details and Summary, `LoggingSection`'s
+  new order/sizing, and the "Repeats weekly" toggle actually
+  transforming the Add Event form (Category disappears, From/Until +
+  Starts/Ends + day picker + Mode appear, button label changes) —
+  screenshots taken during the session. `npx tsc --noEmit && npx
+  eslint . && npx prettier --check . && npx vitest run` all still
+  pass (510 passed, unchanged — this pass added no new pure-function
+  logic to unit test, it's forms/layout), and a full local `npm run
+  build` completed successfully.
 
 ## What's actually built
 
