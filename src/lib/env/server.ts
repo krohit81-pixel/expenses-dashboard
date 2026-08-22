@@ -101,13 +101,17 @@ const serverEnvSchema = z.object({
   // failing to boot over an opt-in feature. Never exposed to the
   // client — only ever read server-side when actually sending.
   TELEGRAM_BOT_TOKEN: optionalEnvString(),
-  // v3.2.0 — authenticates the cron-triggered reminder route
-  // (/api/cron/reminders, added in a later pass) so it isn't reachable
-  // by anyone who finds the URL. Vercel automatically sends this exact
-  // value as `Authorization: Bearer $CRON_SECRET` when a Vercel Cron
-  // job invokes the route, as long as the env var is named exactly
-  // this — see Vercel's own Cron Jobs docs. Optional here (the route
-  // doesn't exist yet); required once it does.
+  // v3.2.0, wired to a real route in v3.2.1 — authenticates the
+  // cron-triggered reminder route (src/app/api/cron/reminders/route.ts)
+  // so it isn't reachable by anyone who finds the URL. Vercel
+  // automatically sends this exact value as
+  // `Authorization: Bearer $CRON_SECRET` when the vercel.json `crons`
+  // entry invokes the route, as long as the env var is named exactly
+  // this — see Vercel's own Cron Jobs docs. Still optional at the env
+  // schema level (the app must still boot in a fresh environment before
+  // anyone's set it in Vercel) — but the route itself refuses every
+  // request with a 503 until this is set, rather than running
+  // unauthenticated.
   CRON_SECRET: optionalEnvString(),
 });
 

@@ -22,8 +22,15 @@ import { ACCESS_COOKIE_NAME, verifyAccessToken } from "@/lib/access-gate";
  * self-signed cookie (src/lib/access-gate.ts), not tied to Supabase Auth
  * at all. No external call, no rate limit surface, same reasoning as
  * above for staying away from Supabase's sign-in endpoint.
+ *
+ * /api/cron is also public here for a different reason (v3.2.1): Vercel
+ * Cron invokes /api/cron/reminders directly with no browser and no
+ * access-gate cookie to send, so the cookie check below would otherwise
+ * always redirect it to /login. That route authenticates itself instead
+ * via a CRON_SECRET bearer token (see its own file) — this bypass only
+ * skips the cookie gate, not authentication generally.
  */
-const PUBLIC_PATHS = ["/calendar", "/login"];
+const PUBLIC_PATHS = ["/calendar", "/login", "/api/cron"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(

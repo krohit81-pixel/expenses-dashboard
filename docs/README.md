@@ -51,8 +51,11 @@ they say so.
   nav already had. v3.2.0 added reminders — a "Remind me" toggle on
   calendar events/trips/recurring events, sent via Telegram once linked
   in Settings; see doc 00's v3.2.0 section for the full architecture
-  (generic notification provider, dedupe log, no scheduler wired up
-  yet — reminders send on a manual "Run reminders now" click today).
+  (generic notification provider, dedupe log). v3.2.1 put that pipeline
+  on a real schedule — a `CRON_SECRET`-authenticated
+  `/api/cron/reminders` route plus a `vercel.json` cron entry running
+  every 4 hours — see doc 00's v3.2.1 section; the manual "Run
+  reminders now" button in Settings still works too.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement
