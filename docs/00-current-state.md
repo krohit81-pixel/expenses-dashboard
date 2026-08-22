@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.3.1**
+correction layer: what's actually true today, current as of **v3.3.2**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -665,6 +665,54 @@ switching to the Log tab first. Both addressed:
   `npx tsc --noEmit && npx eslint . && npx prettier --check . && npx
   vitest run` all pass (510 passed, unchanged), and a full local `npm
   run build` completed successfully.
+
+## v3.3.2: reminder notification text — no repeated title, time/notes shown
+
+The very first real reminder to fire on the new cron (the "VJ Flat
+visit with Daddy" one, confirmed landing at the 5:30pm IST tick right
+on schedule) surfaced a real readability issue: `TelegramProvider`
+sends `*{title}*\n{body}` — bold title, then body — but every
+detector's `body` string repeated the full title again inside itself
+("VJ Flat visit with Daddy — Aug 23, 2026 (in 1 day)"), so the actual
+message read the same sentence twice. Household asked to see mockups
+before changing anything (via a couple of format options with
+previews); chose "labeled lines with emoji," applied to all four
+reminder types, not just calendar events.
+
+- **`buildBody()`** (`lib/notifications/detect-reminders.ts`, new) —
+  joins an array of lines, dropping any `null`/`undefined` entry
+  (no time set, no notes) instead of rendering an empty line. Every
+  detector's body is now built through this instead of a hand-rolled
+  "X — Y (Z)" sentence.
+- **Calendar events**: `📅 {date}[ at {time}]` (time line only when
+  `startTime` is set) → `⏰ {N days before / Today}` → `📝 {notes}`
+  (only when set). Same shape for the hourly variant, just `⏰ Nh
+  before` and time is always present (hourly reminders require a
+  `startTime` to exist at all).
+- **Trips**: `📅 Departs {date}` → `✈️ {flight}` (only when set) →
+  `⏰ {lead label}` → `📝 {notes}` (only when set).
+- **Recurring events**: `📅 {occurrence date} at {time}` → `⏰ {lead
+  label}` → `📝 {notes}` (only when set, read from the occurrence's
+  own `notes`, copied from the rule). Same shape hourly.
+- **School calendar events**: `👤 {person}` → `📅 {date}` → `⏰ {lead
+  label}` — no time/notes fields exist on the static source data, so
+  those lines just never applied here; person replaces the old
+  "Ahaana: " prefix as its own line instead.
+- New helpers: `formatTime12h` ("6:00 PM" from a stored "HH:MM"
+  24-hour time) and `daysBeforeLabel`/`hoursBeforeLabel` (replacing
+  the old `whenLabel`, which produced "in N days" for use mid-sentence
+  — these produce "N days before"/"Today"/"Nh before" for use as their
+  own line).
+- **Verified**: new unit tests per detector (`detect-reminders.test.ts`)
+  assert the exact new body string for both the bare case (no time, no
+  notes) and the richer case (time and/or notes set), plus that the
+  title never appears inside the body. `npx tsc --noEmit && npx eslint
+  . && npx prettier --check . && npx vitest run` all pass (515 passed
+  — +5 new). A full local `npm run build` completed successfully. Not
+  re-verified against a real Telegram send in this session (that would
+  require waiting for a real event to come due, or clicking a real
+  send button, which this session doesn't do) — the exact body strings
+  are unit-tested directly instead.
 
 ## What's actually built
 

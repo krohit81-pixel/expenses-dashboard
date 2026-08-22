@@ -127,6 +127,52 @@ describe("detectCalendarEventReminders", () => {
     );
     expect(result).toHaveLength(1);
   });
+
+  describe("body (v3.3.2 — no repeated title, time/notes when present)", () => {
+    it("omits the title, a time line, and a notes line when neither is set", () => {
+      const result = detectCalendarEventReminders(
+        [
+          calendarEvent({
+            startDate: "2026-10-15",
+            remindLeadDays: 3,
+            startTime: null,
+            notes: null,
+          }),
+        ],
+        "2026-10-12",
+      );
+      expect(result[0].body).not.toContain("Camera insurance renewal");
+      expect(result[0].body).toBe("📅 Oct 15, 2026\n⏰ 3 days before");
+    });
+
+    it("adds a time line when startTime is set", () => {
+      const result = detectCalendarEventReminders(
+        [
+          calendarEvent({
+            startDate: "2026-10-15",
+            remindLeadDays: 1,
+            startTime: "18:00",
+          }),
+        ],
+        "2026-10-14",
+      );
+      expect(result[0].body).toContain("📅 Oct 15, 2026 at 6:00 PM");
+    });
+
+    it("adds a notes line when notes is set", () => {
+      const result = detectCalendarEventReminders(
+        [
+          calendarEvent({
+            startDate: "2026-10-15",
+            remindLeadDays: 0,
+            notes: "Bring wine",
+          }),
+        ],
+        "2026-10-15",
+      );
+      expect(result[0].body).toBe("📅 Oct 15, 2026\n⏰ Today\n📝 Bring wine");
+    });
+  });
 });
 
 describe("detectTripReminders", () => {
@@ -147,6 +193,24 @@ describe("detectTripReminders", () => {
       "2026-10-14",
     );
     expect(result).toHaveLength(0);
+  });
+
+  it("body (v3.3.2) has no repeated title, includes flight and notes when set", () => {
+    const result = detectTripReminders(
+      [
+        trip({
+          startDate: "2026-10-15",
+          remindLeadDays: 1,
+          flight: "6E 204",
+          notes: "Terminal 2",
+        }),
+      ],
+      "2026-10-14",
+    );
+    expect(result[0].body).not.toContain("Trip to Goa");
+    expect(result[0].body).toBe(
+      "📅 Departs Oct 15, 2026\n✈️ 6E 204\n⏰ 1 day before\n📝 Terminal 2",
+    );
   });
 });
 
@@ -176,7 +240,9 @@ describe("detectSchoolCalendarReminders", () => {
       "school_calendar_event:ahaana:2026-08-10:ca-1-mathematics",
     );
     expect(result[0].title).toBe("CA 1 – Mathematics");
-    expect(result[0].body).toContain("Ahaana");
+    // v3.3.2 — person/date/lead-time lines, no repeated title (Telegram
+    // already bolds the title as its own line).
+    expect(result[0].body).toBe("👤 Ahaana\n📅 Aug 10, 2026\n⏰ 1 day before");
   });
 
   it("does not fire on any other day", () => {
@@ -282,6 +348,18 @@ describe("detectRecurringEventReminders", () => {
     );
     expect(result).toHaveLength(0);
   });
+
+  it("body (v3.3.2) has no repeated title, includes time and notes when set", () => {
+    const result = detectRecurringEventReminders(
+      [recurringRule({ remindLeadDays: 0, notes: "Zoom link in the LMS" })],
+      "2026-08-11",
+      7,
+    );
+    expect(result[0].body).not.toContain("Calculus");
+    expect(result[0].body).toBe(
+      "📅 Aug 11, 2026 at 8:00 AM\n⏰ Today\n📝 Zoom link in the LMS",
+    );
+  });
 });
 
 describe("detectCalendarEventHourlyReminders", () => {
@@ -306,6 +384,9 @@ describe("detectCalendarEventHourlyReminders", () => {
     expect(result[0].eventKey).toBe("calendar_event:e1");
     expect(result[0].leadTimeDays).toBe(3);
     expect(result[0].leadTimeUnit).toBe("hours");
+    // v3.3.2 — no repeated title, time always shown (hourly reminders
+    // require a startTime to exist at all).
+    expect(result[0].body).toBe("📅 Oct 15, 2026 at 9:00 AM\n⏰ 3h before");
   });
 
   it("does not fire before the reminder threshold", () => {

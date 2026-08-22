@@ -75,7 +75,11 @@ they say so.
   doc 00's v3.3.0 section. v3.3.1 numbered Summary's month grid as "01
   Monthly Schedule" (This Week's Schedule became "02"), and added a
   new "03 Add Event" quick-access card on Summary itself, opening the
-  same Add Event modal Log's own card does.
+  same Add Event modal Log's own card does. v3.3.2 rewrote every
+  reminder's Telegram body text — no more repeating the title
+  (Telegram already bolds it as its own line), and now showing a time
+  line and a notes line when either is actually set — see doc 00's
+  v3.3.2 section.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement
