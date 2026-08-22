@@ -3,6 +3,7 @@ import type { Trip } from "@/services/TripService";
 import type { RecurringCalendarEvent } from "@/services/RecurringCalendarEventService";
 import type { NotificationEventType } from "@/services/NotificationLogService";
 import type { SchoolCalendarItem } from "@/features/travel/school-items";
+import type { EventTag } from "@/features/calendar/data";
 import { expandRecurringOccurrences } from "@/lib/dates/recurring-calendar-events";
 
 /**
@@ -337,6 +338,26 @@ const PERSON_LABEL: Record<SchoolCalendarItem["person"], string> = {
   rohana: "Rohana",
 };
 
+/**
+ * v3.3.4 — a short, encouraging line for every school-calendar
+ * reminder (household request: "put something smart in the notes").
+ * Derived purely from the item's own `tag`, not typed per item — over
+ * 100 static entries across both calendars, so a per-item note would
+ * be a lot of upkeep for very little actual variation in what's worth
+ * saying. "exam" already covers Ahaana's CA1/CA2 subject tests (a CA
+ * IS an exam-tagged entry — no separate case needed, confirmed with
+ * the household) as well as Rohana's own examination-period entries.
+ * A `Record`, not `Partial`, on purpose: every tag gets a line, so the
+ * reminder never looks like it forgot to say anything.
+ */
+const TAG_SMART_NOTE: Record<EventTag, string> = {
+  exam: "All the best! Prepare well.",
+  holiday: "Enjoy the holiday — make the most of it!",
+  vacation: "Enjoy the break — make the most of it!",
+  event: "Hope it goes well!",
+  trip: "Have a safe and fun trip!",
+};
+
 /** Lowercase, alnum-and-dash only — just enough to make a title safe as part of a notification_log event_key, not a general-purpose slugify. */
 function slugifyTitle(title: string): string {
   return title
@@ -379,6 +400,7 @@ export function detectSchoolCalendarReminders(
         `👤 ${PERSON_LABEL[item.person]}`,
         `📅 ${formatDate(item.startDate)}`,
         `⏰ ${daysBeforeLabel(leadDays)}`,
+        `📝 ${TAG_SMART_NOTE[item.tag]}`,
       ]),
     }));
 }

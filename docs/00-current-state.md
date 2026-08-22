@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.3.3**
+correction layer: what's actually true today, current as of **v3.3.4**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -746,6 +746,44 @@ and displays, just never surfaced in the reminder message itself.
   entirely. `npx tsc --noEmit && npx eslint . && npx prettier --check
   . && npx vitest run` all pass (516 passed — +1 new). A full local
   `npm run build` completed successfully.
+
+## v3.3.4: school-calendar reminders — a tag-derived "smart note"
+
+Household request: "put something smart in the notes" for the
+CNS/CA/NUS school-calendar reminders — an exam gets encouragement, a
+holiday gets a "make the most of it," etc. Over 100 static entries
+across both calendars, so this is derived purely from each item's own
+`tag`, not typed per item — one lookup table to tweak wording for
+every entry, rather than 100+ individual notes to maintain.
+
+- **`TAG_SMART_NOTE`** (`lib/notifications/detect-reminders.ts`, new)
+  — a `Record<EventTag, string>` (every tag gets a line, not a
+  `Partial`, so the reminder never looks like it forgot to say
+  anything):
+  - `exam`: "All the best! Prepare well." — covers Ahaana's CA1/CA2
+    subject tests too (a CA *is* an exam-tagged entry — no separate
+    case needed, confirmed with the household) and Rohana's own
+    examination-period entries.
+  - `holiday`: "Enjoy the holiday — make the most of it!"
+  - `vacation`: "Enjoy the break — make the most of it!" (a longer
+    stretch than a single holiday, worded slightly differently but
+    same spirit — household only specified exam/holiday explicitly;
+    this and the two below are a reasonable extension, open to
+    adjustment).
+  - `event`: "Hope it goes well!" — the one tag broad enough (Orientation,
+    PTM, Sports Day, subject-choice deadlines...) that nothing more
+    specific fits every case.
+  - `trip`: "Have a safe and fun trip!" (the one static "Educational
+    Trip, Grades 6–8" entry).
+- Rendered as the reminder's 4th line, after person/date/lead-time:
+  e.g. `👤 Ahaana` → `📅 Aug 10, 2026` → `⏰ 1 day before` → `📝 All
+  the best! Prepare well.`
+- **Verified**: updated/added unit tests in
+  `detect-reminders.test.ts` confirming the exact body string
+  (person/date/lead-time/note, in that order) and that different tags
+  produce different notes. `npx tsc --noEmit && npx eslint . && npx
+  prettier --check . && npx vitest run` all pass (517 passed — +1
+  new). A full local `npm run build` completed successfully.
 
 ## What's actually built
 

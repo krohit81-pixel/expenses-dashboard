@@ -257,8 +257,37 @@ describe("detectSchoolCalendarReminders", () => {
     );
     expect(result[0].title).toBe("CA 1 – Mathematics");
     // v3.3.2 — person/date/lead-time lines, no repeated title (Telegram
-    // already bolds the title as its own line).
-    expect(result[0].body).toBe("👤 Ahaana\n📅 Aug 10, 2026\n⏰ 1 day before");
+    // already bolds the title as its own line). v3.3.4 — a smart note
+    // line derived from the item's tag ("exam" here, same as every
+    // CA1/CA2 subject test).
+    expect(result[0].body).toBe(
+      "👤 Ahaana\n📅 Aug 10, 2026\n⏰ 1 day before\n📝 All the best! Prepare well.",
+    );
+  });
+
+  it("uses a different smart note per tag (v3.3.4)", () => {
+    const result = detectSchoolCalendarReminders(
+      [
+        schoolItem({
+          title: "Diwali Vacations",
+          tag: "vacation",
+          startDate: "2026-08-10",
+        }),
+        schoolItem({
+          title: "Independence Day",
+          tag: "holiday",
+          startDate: "2026-08-10",
+        }),
+      ],
+      "2026-08-09",
+      1,
+    );
+    expect(result[0].body).toContain(
+      "📝 Enjoy the break — make the most of it!",
+    );
+    expect(result[1].body).toContain(
+      "📝 Enjoy the holiday — make the most of it!",
+    );
   });
 
   it("does not fire on any other day", () => {
