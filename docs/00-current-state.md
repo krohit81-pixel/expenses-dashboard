@@ -368,8 +368,14 @@ actually shipped.
   isn't constrained to those values, so a richer picker later needs no
   migration.
 - **End-to-end confirmed working in production**, post-deploy:
-  `TELEGRAM_BOT_TOKEN` and `CRON_SECRET` are set in Vercel; the
-  household linked a Telegram **group** (not a personal DM) as the
+  `TELEGRAM_BOT_TOKEN` is set in Vercel (this line previously also
+  claimed `CRON_SECRET` was already set as of v3.2.0 — **that was
+  wrong**, caught in the v3.2.1 session by actually checking
+  `vercel env ls production` instead of trusting this doc: the var
+  didn't exist yet, and `/api/cron/reminders` 503'd until it was added
+  and Production was redeployed — see the v3.2.1 section below for
+  the real timeline); the household linked a Telegram **group** (not a
+  personal DM) as the
   destination — `finance.notification_channels.config.chat_id` holds
   the group's id as a negative number string (e.g. `"-4930398936"`,
   no `-100` prefix since it's a plain `"group"` type chat, not a
