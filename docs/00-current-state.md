@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.4.9**
+correction layer: what's actually true today, current as of **v3.4.10**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -1315,6 +1315,66 @@ wraps an existing call in an existing, already-tested helper) and
 vars. Can't be reproduced on demand (it only ever happens after real
 idle time, not on a warm dev server) — confirmed correct by the same
 retry pattern already proven out on `/calendar`'s own identical fix.
+
+## v3.4.10: tab-highlight bug fix + alternate-week recurring activities
+
+Two requests.
+
+- **Bug fix: the "Log Activity" tab highlighted correctly, but
+  "Dashboard" stayed blue too.** Root cause: `(gated)/layout.tsx`
+  computed the active tab from a server-side `headers()` read
+  (v3.4.8), but that layout segment is *shared* between `/ahaana` and
+  `/ahaana/manage` — Next.js's App Router reuses an already-rendered
+  shared layout across a client-side navigation between siblings under
+  it rather than re-rendering it, so that server-computed value never
+  updated after the first load. Fixed by moving the tab nav into its
+  own new Client Component, `AhaanaTabs.tsx`, using `usePathname()` —
+  a reactive hook that updates on every client-side navigation
+  regardless of which layouts are shared, same pattern
+  `components/app-nav.tsx`'s own `TopNav`/`BottomNav` already use
+  (in production, working correctly) for the main app's nav. Also
+  added `(gated)/loading.tsx` (reusing the existing `Spinner`
+  component) for the "ring load" buffering feedback asked for — same
+  role `(app)/loading.tsx` already plays for the main app: Next.js
+  swaps it in for `{children}` while the destination page's data
+  loads, leaving the header/tabs/footer mounted and interactive the
+  whole time.
+- **Alternate-week recurring activities** — the household's own
+  example: History on Sundays one week, Geography the next. New
+  `alternate_weeks` boolean column (migration, **not yet applied**),
+  a checkbox in the Add/Edit forms ("Every other week"). Implemented
+  as two ordinary, independent activities, each flagged
+  `alternateWeeks` with `startDate`s a week apart — `expandAhaanaOccurrences`
+  (new `isOnKeptWeek` helper) keeps only occurrences whose whole-weeks-
+  since-the-activity's-own-`startDate` count is even, so each
+  activity only needs to know about its own anchor date, not the
+  other's — they interleave without any explicit "which week" field
+  or coordination between the two rows. No change to the every-week
+  (default, `false`) case at all.
+- **Verified**: 3 new unit tests for the alternation logic (kept/
+  skipped weeks, two activities interleaving, unaffected when false).
+  `npx tsc --noEmit && npx eslint . && npx prettier --check . && npx
+  vitest run` all pass (553, +3 new) and `npm run build` completed
+  successfully. Browser-verified via a temporary fixture-backed
+  `preview-temp` scratch page (deleted before commit) since the real
+  `/ahaana` pages need this pass's own migration applied first: two
+  activities (History/Geography, `startDate`s a week apart) correctly
+  showed only History on their shared start week and only Geography
+  the following week, the checkbox rendered/toggled correctly in the
+  Add form, row summaries correctly showed "every other week" only for
+  the two alternating activities (not a third, unaffected one), and
+  the Edit form correctly pre-filled the checkbox both checked and
+  unchecked. The tab-highlight/loading fixes weren't independently
+  re-verified live in this same pass (the underlying pages can't run
+  against real data until the migration below is applied) — confidence
+  comes from matching the identical, already-proven-working
+  `usePathname()` pattern this codebase already ships in production
+  for its own main nav.
+
+**Pending (household to do)**: apply
+`supabase/migrations/20260823200810_add_ahaana_alternate_weeks.sql` to
+the real Supabase instance. Until then, `/ahaana` and its cron route
+will error (missing `alternate_weeks` column).
 
 ## What's actually built
 

@@ -1161,6 +1161,8 @@ export type Database = {
       // see 20260823032457_add_web_push_and_ahaana_reminders.sql.
       // remind_lead_hours hand-added (v3.4.3) — see
       // 20260823105636_add_ahaana_hourly_reminders.sql.
+      // alternate_weeks hand-added (v3.4.10) — see
+      // 20260823200810_add_ahaana_alternate_weeks.sql.
       ahaana_activities: {
         Row: {
           id: string;
@@ -1177,6 +1179,7 @@ export type Database = {
           remind_enabled: boolean;
           remind_lead_days: number;
           remind_lead_hours: number | null;
+          alternate_weeks: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -1195,6 +1198,7 @@ export type Database = {
           remind_enabled?: boolean;
           remind_lead_days?: number;
           remind_lead_hours?: number | null;
+          alternate_weeks?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -1213,6 +1217,7 @@ export type Database = {
           remind_enabled?: boolean;
           remind_lead_days?: number;
           remind_lead_hours?: number | null;
+          alternate_weeks?: boolean;
           created_at?: string;
           updated_at?: string;
         };

@@ -21,6 +21,7 @@ function activity(overrides: Partial<AhaanaActivity> = {}): AhaanaActivity {
     remindEnabled: false,
     remindLeadDays: 0,
     remindLeadHours: null,
+    alternateWeeks: false,
     ...overrides,
   };
 }
@@ -78,6 +79,85 @@ describe("expandAhaanaOccurrences", () => {
 
   it("produces nothing for an empty activity list", () => {
     expect(expandAhaanaOccurrences([], "2026-08-01", "2026-08-31")).toEqual([]);
+  });
+
+  describe("alternateWeeks", () => {
+    // 2026-08-23 is a Sunday.
+    it("keeps the start week and every other week after, skipping the ones in between", () => {
+      const history = activity({
+        id: "history",
+        title: "History",
+        daysOfWeek: [0],
+        startDate: "2026-08-23",
+        endDate: "2026-10-04",
+        alternateWeeks: true,
+      });
+      const occurrences = expandAhaanaOccurrences(
+        [history],
+        "2026-08-23",
+        "2026-10-04",
+      );
+      expect(occurrences.map((o) => o.date)).toEqual([
+        "2026-08-23", // week 0 (its own start) — kept
+        "2026-09-06", // week 2 — kept
+        "2026-09-20", // week 4 — kept
+        "2026-10-04", // week 6 — kept
+      ]);
+    });
+
+    it("interleaves two alternateWeeks activities whose startDates are a week apart", () => {
+      // The household's own example: History one Sunday, Geography the next.
+      const history = activity({
+        id: "history",
+        title: "History",
+        daysOfWeek: [0],
+        startDate: "2026-08-23",
+        endDate: "2026-09-27",
+        alternateWeeks: true,
+      });
+      const geography = activity({
+        id: "geography",
+        title: "Geography",
+        daysOfWeek: [0],
+        startDate: "2026-08-30",
+        endDate: "2026-09-27",
+        alternateWeeks: true,
+      });
+      const occurrences = expandAhaanaOccurrences(
+        [history, geography],
+        "2026-08-23",
+        "2026-09-27",
+      );
+      expect(occurrences.map((o) => `${o.date}:${o.title}`)).toEqual([
+        "2026-08-23:History",
+        "2026-08-30:Geography",
+        "2026-09-06:History",
+        "2026-09-13:Geography",
+        "2026-09-20:History",
+        "2026-09-27:Geography",
+      ]);
+    });
+
+    it("ignores alternateWeeks entirely when false (every matching week, unchanged)", () => {
+      const occurrences = expandAhaanaOccurrences(
+        [
+          activity({
+            daysOfWeek: [0],
+            startDate: "2026-08-23",
+            endDate: "2026-09-13",
+            alternateWeeks: false,
+          }),
+        ],
+        "2026-08-23",
+        "2026-09-13",
+      );
+      expect(occurrences.map((o) => o.date)).toEqual([
+        "2026-08-23",
+        "2026-08-30",
+        "2026-09-06",
+        "2026-09-13",
+      ]);
+    });
   });
 });
 

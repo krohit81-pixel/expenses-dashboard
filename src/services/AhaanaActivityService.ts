@@ -39,10 +39,12 @@ export interface AhaanaActivity {
   remindLeadDays: number;
   /** v3.4.3 — hours before each occurrence's own date+startTime, as an alternative to remindLeadDays. Null means "use remindLeadDays instead"; the two are mutually exclusive in practice, same convention as calendar_events/recurring_calendar_events. */
   remindLeadHours: number | null;
+  /** v3.4.10 — when true, this activity only occurs every OTHER week (counted from its own startDate) instead of every week. See expandAhaanaOccurrences for the exact math; the household's own use case is two separate activities, each alternate_weeks, with startDates a week apart, that naturally interleave. */
+  alternateWeeks: boolean;
 }
 
 const AHAANA_ACTIVITY_SELECT =
-  "id, title, category, days_of_week, start_time, end_time, start_date, end_date, plan_notes, active, remind_enabled, remind_lead_days, remind_lead_hours";
+  "id, title, category, days_of_week, start_time, end_time, start_date, end_date, plan_notes, active, remind_enabled, remind_lead_days, remind_lead_hours, alternate_weeks";
 
 function mapRow(row: {
   id: string;
@@ -58,6 +60,7 @@ function mapRow(row: {
   remind_enabled: boolean;
   remind_lead_days: number;
   remind_lead_hours: number | null;
+  alternate_weeks: boolean;
 }): AhaanaActivity {
   return {
     id: row.id,
@@ -75,6 +78,7 @@ function mapRow(row: {
     remindEnabled: row.remind_enabled,
     remindLeadDays: row.remind_lead_days,
     remindLeadHours: row.remind_lead_hours,
+    alternateWeeks: row.alternate_weeks,
   };
 }
 
@@ -129,6 +133,7 @@ export async function createAhaanaActivity(
       remind_enabled: parsed.remindEnabled,
       remind_lead_days: parsed.remindLeadDays,
       remind_lead_hours: parsed.remindLeadHours,
+      alternate_weeks: parsed.alternateWeeks,
     })
     .select(AHAANA_ACTIVITY_SELECT)
     .single();
@@ -160,6 +165,7 @@ export async function updateAhaanaActivity(
       remind_enabled: parsed.remindEnabled,
       remind_lead_days: parsed.remindLeadDays,
       remind_lead_hours: parsed.remindLeadHours,
+      alternate_weeks: parsed.alternateWeeks,
     })
     .eq("id", parsed.id)
     .eq("user_id", OWNER_USER_ID)

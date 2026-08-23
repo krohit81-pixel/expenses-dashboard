@@ -36,6 +36,12 @@ const baseActivityFields = z.object({
   startDate: z.iso.date(),
   endDate: z.iso.date(),
   planNotes: z.string().trim().max(1000).nullable().optional(),
+  // v3.4.10 — a plain checkbox field (unchecked = omitted from
+  // FormData entirely, checked = "true"), same convention
+  // remindEnabled already uses — safe with z.coerce.boolean() here
+  // unlike `active` below, since this field is never asked to
+  // represent an explicit "false" string the way that toggle is.
+  alternateWeeks: z.coerce.boolean().default(false),
   ...zReminderFields.shape,
   ...zHourlyReminderFields.shape,
 });

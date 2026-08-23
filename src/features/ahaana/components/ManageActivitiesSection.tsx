@@ -53,6 +53,7 @@ interface ActivityDefaults {
   remindEnabled: boolean;
   remindLeadDays: number;
   remindLeadHours: number | null;
+  alternateWeeks: boolean;
 }
 
 const EMPTY_DEFAULTS: ActivityDefaults = {
@@ -67,6 +68,7 @@ const EMPTY_DEFAULTS: ActivityDefaults = {
   remindEnabled: false,
   remindLeadDays: 0,
   remindLeadHours: null,
+  alternateWeeks: false,
 };
 
 /**
@@ -92,6 +94,7 @@ function ActivityFormFields({
   const [remindLeadHours, setRemindLeadHours] = useState<number | null>(
     defaults.remindLeadHours,
   );
+  const [alternateWeeks, setAlternateWeeks] = useState(defaults.alternateWeeks);
 
   function toggleDay(value: number) {
     setDaysOfWeek((prev) =>
@@ -153,6 +156,36 @@ function ActivityFormFields({
           <input key={d} type="hidden" name="daysOfWeek" value={d} />
         ))}
       </div>
+
+      {/* v3.4.10 — "alternate weeks" per the household's own example:
+          History on Sundays one week, Geography the next — set up as
+          two separate activities, each with this checked and a
+          startDate a week apart (see expandAhaanaOccurrences for why
+          that's enough on its own, no extra "which week" field
+          needed). */}
+      <label
+        htmlFor={`${idPrefix}-alternateWeeks`}
+        className="flex cursor-pointer items-center gap-2.5 rounded-[14px] border-[1.5px] border-line p-3"
+      >
+        <input
+          id={`${idPrefix}-alternateWeeks`}
+          type="checkbox"
+          name="alternateWeeks"
+          value="true"
+          checked={alternateWeeks}
+          onChange={(e) => setAlternateWeeks(e.target.checked)}
+          className="size-[18px] shrink-0 accent-accent"
+        />
+        <div>
+          <span className="font-display text-[13px] font-bold text-ink">
+            Every other week
+          </span>
+          <p className="text-[11px] text-ink-faint">
+            Skips alternate weeks, starting from &ldquo;From&rdquo; below —
+            handy for pairing with another activity on the same day.
+          </p>
+        </div>
+      </label>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
@@ -301,6 +334,7 @@ function EditActivityForm({
           remindEnabled: activity.remindEnabled,
           remindLeadDays: activity.remindLeadDays,
           remindLeadHours: activity.remindLeadHours,
+          alternateWeeks: activity.alternateWeeks,
         }}
       />
       <FieldError message={state.error} />
@@ -349,6 +383,7 @@ function ActivityRow({ activity }: { activity: AhaanaActivity }) {
                     ? "on the day"
                     : `${activity.remindLeadDays}d before`
               }`}
+            {activity.alternateWeeks && " · every other week"}
             {!activity.active && " · inactive"}
           </div>
         </div>
@@ -395,6 +430,9 @@ function ActivityRow({ activity }: { activity: AhaanaActivity }) {
             name="remindLeadHours"
             value={activity.remindLeadHours ?? ""}
           />
+          {activity.alternateWeeks && (
+            <input type="hidden" name="alternateWeeks" value="true" />
+          )}
           {/* The one field this form actually changes — the literal
               OPPOSITE of the current value, since this button's whole
               job is to flip it. See the schema's own comment on why

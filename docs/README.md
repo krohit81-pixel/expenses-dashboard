@@ -122,8 +122,15 @@ they say so.
   and "Log Activity" tabs. v3.4.9 fixed a "first login errors, next
   one doesn't" report — the two Ahaana reads her own pages make had
   simply never been wrapped in the same Supabase auth-timing retry
-  every other `list*()` in this app already uses — see doc 00's v3.4.4
-  through v3.4.9 sections.
+  every other `list*()` in this app already uses. v3.4.10 fixed the
+  Dashboard/Log Activity tab highlighting getting stuck (a Client
+  Component with `usePathname()`, `AhaanaTabs.tsx`, replacing a
+  server-side computation that couldn't react to a client-side
+  navigation between two pages sharing one layout), added a loading
+  spinner during tab switches, and added alternate-week recurring
+  activities (a checkbox, two ordinary activities with `startDate`s a
+  week apart interleaving on their own) — see doc 00's v3.4.4 through
+  v3.4.10 sections.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement
