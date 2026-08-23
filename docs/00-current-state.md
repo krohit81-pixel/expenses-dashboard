@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.4.6**
+correction layer: what's actually true today, current as of **v3.4.7**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -1184,6 +1184,38 @@ application/javascript` and the real script body, not a redirect.
 `npx tsc --noEmit && npx eslint . && npx prettier --check . && npx
 vitest run` all pass (547, unchanged) and `npm run build` completed
 successfully. No new migration, no new env vars.
+
+## v3.4.7: third real-device retry, third real bug — `InvalidStateError`
+
+Household's retry after v3.4.6: `InvalidStateError: Subscribing for
+push requires an active service worker`.
+
+`EnablePushButton.tsx`'s `handleEnable` called
+`registration.pushManager.subscribe()` right on the object
+`navigator.serviceWorker.register()` resolved with — but `register()`
+resolves as soon as the worker starts *installing*, not once it's
+*active*, and `pushManager.subscribe()` requires an active one. Fixed
+by awaiting `navigator.serviceWorker.ready` (resolves only once an
+active worker actually controls the scope) before subscribing, instead
+of using the registration object from `register()` directly.
+
+Also hardened `public/ahaana-sw.js` itself against the same class of
+issue recurring on a future edit to that file: added `skipWaiting()`
+on `install` and `clients.claim()` on `activate` — without them, an
+updated version of the worker would sit "waiting" behind whatever
+version already controls the page until every open tab/instance
+closes, which would make `navigator.serviceWorker.ready` hang the same
+way. Safe here specifically because this worker does nothing but show
+notifications (no versioned cache to worry about stepping on
+mid-use).
+
+Verified: `npx tsc --noEmit && npx eslint . && npx prettier --check .
+&& npx vitest run` all pass (547, unchanged) and `npm run build`
+completed successfully. No new migration, no new env vars. Not yet
+confirmed against a real device — this is the third fix in the same
+retry loop, each one caught by the previous fix's own improved error
+surfacing (v3.4.5); waiting on the household's next retry to confirm
+this is the last one.
 
 ## What's actually built
 

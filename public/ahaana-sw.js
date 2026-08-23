@@ -11,6 +11,26 @@
  * simple to reason about.
  */
 
+// v3.4.7 — without these two, an UPDATED version of this file (any
+// future edit to it) would sit "waiting" behind whatever version
+// already controls the page until every open tab/instance of the app
+// closes — which would make navigator.serviceWorker.ready hang
+// waiting for activation (EnablePushButton's own fix for the sibling
+// InvalidStateError bug this same pass), not just on first install.
+// skipWaiting() activates a new worker immediately instead of waiting;
+// clients.claim() lets it start controlling already-open pages right
+// away instead of only new ones. Safe here specifically because this
+// worker has no versioned cache to worry about stepping on mid-use
+// (it does nothing but show notifications) — a worker doing real
+// caching would need more care around this.
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 self.addEventListener("push", (event) => {
   let payload = { title: "Ahaana's Studies", body: "You have a reminder." };
   if (event.data) {

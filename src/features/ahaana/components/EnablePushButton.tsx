@@ -89,8 +89,15 @@ export function EnablePushButton({
         return;
       }
 
-      const registration =
-        await navigator.serviceWorker.register("/ahaana-sw.js");
+      await navigator.serviceWorker.register("/ahaana-sw.js");
+      // v3.4.7 — register() resolves as soon as the worker starts
+      // installing, not once it's actually active; pushManager.subscribe()
+      // needs an ACTIVE worker and throws InvalidStateError otherwise
+      // (a real bug caught from the household's own retry, not a
+      // hypothetical). navigator.serviceWorker.ready resolves only once
+      // there's an active worker controlling this scope, on a fresh
+      // registration or an existing one alike.
+      const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         // TS's lib.dom types for BufferSource want a Uint8Array backed
