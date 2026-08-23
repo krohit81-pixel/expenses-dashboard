@@ -92,9 +92,13 @@ they say so.
   v3.4.1 added Phase 2 — real device push notifications (she has no
   Telegram), genuinely new infrastructure for this app (VAPID keys, a
   service worker, a new `web_push` notification channel alongside
-  `telegram`). A parent-facing weekly report/progress page (Phase 3)
-  is still a follow-up release, not built yet; see doc 00's v3.4.0/
-  v3.4.1 sections for the full plan.
+  `telegram`). v3.4.2 closed the loop with Phase 3 — a weekly summary
+  of her activity sent to the parent's existing Telegram channel every
+  Sunday (or on demand from Settings), plus a read-only "Ahaana's
+  Progress" page under `/more` (completion-rate trend + recent notes),
+  reachable only through the main household gate, never from `/ahaana`
+  itself; see doc 00's v3.4.0/v3.4.1/v3.4.2 sections for the full
+  three-phase build.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement

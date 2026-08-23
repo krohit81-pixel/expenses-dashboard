@@ -5,6 +5,7 @@ import {
   ListTree,
   LogOut,
   Settings,
+  Sparkles,
   Store,
   TrendingUp,
 } from "lucide-react";
@@ -58,6 +59,13 @@ const ITEMS = [
     description:
       "Annual Information Statement, FY 2025-26 — income, TDS/TCS, and big transactions explained.",
     icon: FileText,
+  },
+  {
+    href: "/ahaana-progress",
+    label: "Ahaana's Progress",
+    description:
+      "Her weekly schedule, completion rate, and session notes — read-only, from her own mini app.",
+    icon: Sparkles,
   },
   {
     href: "/settings",

@@ -6,7 +6,7 @@
  * obvious which release is actually live without checking a deploy
  * log or git history.
  */
-export const APP_VERSION = "3.4.1";
+export const APP_VERSION = "3.4.2";
 
 /**
  * v1.1.6: the top-right date used to be APP_VERSION_DATE, a hardcoded

@@ -1788,15 +1788,16 @@ export type Database = {
       // v3.4.0 Phase 2 — see
       // 20260823032457_add_web_push_and_ahaana_reminders.sql.
       notification_channel_type: "telegram" | "web_push";
-      // notification_event_type's 5th member, ahaana_activity, added
-      // v3.4.0 Phase 2 — see
-      // 20260823032457_add_web_push_and_ahaana_reminders.sql.
+      // notification_event_type's 6th member, ahaana_weekly_report,
+      // added v3.4.0 Phase 3 — see
+      // 20260823041400_add_ahaana_weekly_report_event_type.sql.
       notification_event_type:
         | "calendar_event"
         | "trip"
         | "recurring_calendar_event"
         | "school_calendar_event"
-        | "ahaana_activity";
+        | "ahaana_activity"
+        | "ahaana_weekly_report";
       notification_status: "sent" | "failed";
     };
     CompositeTypes: Record<string, never>;

@@ -7,6 +7,7 @@ import { Hero } from "@/components/ui/hero";
 import { SettingsForm } from "@/features/onboarding/components/SettingsForm";
 import { TelegramSettingsForm } from "@/features/notifications/components/TelegramSettingsForm";
 import { RunRemindersButton } from "@/features/notifications/components/RunRemindersButton";
+import { RunAhaanaWeeklyReportButton } from "@/features/notifications/components/RunAhaanaWeeklyReportButton";
 
 export const metadata: Metadata = {
   title: "Settings",
@@ -51,6 +52,22 @@ export default async function SettingsPage() {
             </p>
             <RunRemindersButton />
           </div>
+        </div>
+
+        {/* v3.4.0 Phase 3 — the weekly summary of Ahaana's mini-app
+            activity (her weekly schedule + completion notes), sent to
+            this same Telegram channel above every Sunday. See
+            docs/00-current-state.md's v3.4.0 section. */}
+        <div className="rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+          <h2 className="mb-3 font-display text-[15px] font-bold text-ink">
+            Ahaana&rsquo;s weekly report
+          </h2>
+          <p className="mb-2 text-xs text-ink-faint">
+            Sends a summary of Ahaana&rsquo;s scheduled activities, what she
+            marked complete, and her notes for the week — automatically every
+            Sunday, or run it by hand any time.
+          </p>
+          <RunAhaanaWeeklyReportButton />
         </div>
       </div>
     </div>

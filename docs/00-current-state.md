@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.4.1**
+correction layer: what's actually true today, current as of **v3.4.2**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -936,6 +936,84 @@ before this pass (checked: no service worker, no VAPID keys, no
   "don't click a real mutating external send from this session"
   reasoning as every other notification feature's rollout) once this
   is deployed and the household tries it on Ahaana's own device.
+
+## v3.4.2: Ahaana's mini app (Phase 3 of 3 — weekly parent report + progress page)
+
+Third and final phase. Closes the loop the household asked for: a
+weekly summary of what she actually did, sent to the parent, plus a
+read-only "how's it going" view.
+
+- **New `notification_event_type` member, `ahaana_weekly_report`**
+  (migration: `supabase/migrations/20260823041400_add_ahaana_weekly_report_event_type.sql`,
+  **not yet applied** — see "Pending" below), same reasoning as
+  `ahaana_activity`'s own addition in v3.4.1: a distinct type keeps
+  `notification_log`'s per-type dedupe/audit trail meaningful. No new
+  table — the report is built on the fly from the existing
+  `finance.ahaana_activities`/`ahaana_activity_logs` rows.
+- **`detectAhaanaWeeklyReport`** (new, in the existing
+  `lib/notifications/detect-ahaana-reminders.ts`) — pure, day-of-week
+  gated: only ever produces a candidate on Sunday (this app's own
+  Monday-start week convention, `getWeekDates`), summarizing that
+  week's occurrences (`expandAhaanaOccurrences`) against what's
+  actually logged — a completed count, one line per session with its
+  `coveredNotes`, `nextNotes` carried in as a "→ Next:" line, and
+  "not logged" for anything scheduled but never marked complete.
+  Produces nothing at all if nothing was scheduled that week. A
+  `force` option bypasses the Sunday gate for the manual trigger below
+  — `notification_log`'s own dedupe (keyed by the week's Monday date)
+  still prevents a second real send for a week already reported on.
+- **Sent via the EXISTING day-based cron**, not a fourth one:
+  `ReminderService.runReminders()` (the 4-hourly `/api/cron/reminders`
+  route) now also fetches Ahaana's activities/logs for the current
+  week and runs them through `detectAhaanaWeeklyReport`, targeting
+  `["telegram"]` — the household's own channel, the opposite direction
+  from `ahaana_activity`'s `web_push`-only reminders. The existing
+  4-hourly schedule already ticks often enough to catch Sunday; no new
+  `vercel.json` entry needed.
+- **Manual "Send Ahaana's weekly report now"** (Settings page) — new
+  `runAhaanaWeeklyReportNow()` in `ReminderService.ts` (forces past the
+  Sunday gate) plus `runAhaanaWeeklyReportAction` and
+  `RunAhaanaWeeklyReportButton`, mirroring `runRemindersAction`/
+  `RunRemindersButton`'s existing shape exactly.
+- **New `/ahaana-progress` page** (under the main `(app)` route
+  group's own household gate — not reachable from `/ahaana` and not
+  reachable with Ahaana's own password): a completion-rate trend (6
+  weeks, div-based bars matching `intel/page.tsx`'s own "Month on
+  month" chart idiom — this codebase doesn't use Recharts anywhere
+  despite it being a listed `package.json` dependency, so this page
+  doesn't introduce it either) plus a recent-notes list (what she
+  covered, what she flagged for next). Backed by new pure functions in
+  `lib/ahaana/progress-stats.ts` (`computeAhaanaWeeklyStats`,
+  `buildAhaanaRecentLogEntries`), unit-tested the same way
+  `expandAhaanaOccurrences` is. Linked from `/more`.
+- **Verified**: new unit tests for `detectAhaanaWeeklyReport` and both
+  `progress-stats.ts` functions. `npx tsc --noEmit && npx eslint . &&
+  npx prettier --check . && npx vitest run` all pass (555 passed — +12
+  new). A full local `npm run build` completed successfully, including
+  the new `/ahaana-progress` route. The new progress page's actual
+  rendering (chart bars, category badges, recent-notes list) was
+  browser-verified against real fixture data via a temporary
+  `preview-temp` scratch page (deleted before committing, same pattern
+  used throughout this app's history) — confirmed correct completion
+  percentages, correct week labels, and correct note/category
+  rendering. **Not verified**: an actual Sunday-triggered send or a
+  real "Send now" click (deferred, same "don't trigger a real
+  mutating external send from this session" reasoning as every other
+  notification feature's rollout).
+
+**Pending (household to do, all three Ahaana-mini-app migrations at
+once)**: apply
+`20260823024123_create_ahaana_activities.sql`,
+`20260823032457_add_web_push_and_ahaana_reminders.sql`, and
+`20260823041400_add_ahaana_weekly_report_event_type.sql` to the real
+Supabase instance (in that order — the second and third each depend on
+enum/table state the previous one creates), then set
+`AHAANA_ACCESS_PASSWORD`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and
+`VAPID_SUBJECT` in Vercel's env vars before merging/deploying this PR.
+Until then, `/ahaana` and its cron routes will error against the real
+database — this is expected and doesn't block Phase 3's own code from
+being correct, same as Phase 1/2's own migrations sitting unapplied
+while their code was built and verified against fixtures.
 
 ## What's actually built
 

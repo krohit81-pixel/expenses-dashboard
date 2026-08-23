@@ -10,7 +10,9 @@
  */
 
 import type { AhaanaActivity } from "@/services/AhaanaActivityService";
+import type { AhaanaActivityLog } from "@/services/AhaanaActivityLogService";
 import { expandAhaanaOccurrences } from "@/lib/dates/ahaana-activities";
+import { getWeekDates } from "@/lib/dates/calendar-grid";
 import type { ReminderCandidate } from "@/lib/notifications/detect-reminders";
 
 /** Whole days from `today` to `date` (both "YYYY-MM-DD"), positive when `date` is in the future — same UTC-based convention as detect-reminders.ts's own daysUntil. */
@@ -91,4 +93,79 @@ function addDays(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * v3.4.0 Phase 3 — the weekly summary sent to the parent's Telegram
+ * (opposite direction from detectAhaanaActivityReminders above: this
+ * one only ever targets `telegram`, never `web_push` — see
+ * ReminderService.runReminders' explicit channel list). Only ever
+ * produces a candidate on Sunday, the last day of this app's
+ * Monday-start week convention (getWeekDates, lib/dates/calendar-grid.ts)
+ * — that keeps the report a genuine "week just ended" summary rather
+ * than a rolling window, and `today` (Sunday)'s own `getWeekDates`
+ * call already returns exactly that week's Mon-Sun range with no
+ * extra date math needed. `force` (the manual "Send weekly report
+ * now" button's own use, mirroring RunRemindersButton's role for the
+ * day-based reminders) bypasses the Sunday gate — notification_log's
+ * own dedupe (keyed by the week's Monday date) still prevents a
+ * duplicate real send for a week already reported on.
+ *
+ * Produces nothing at all if nothing was scheduled that week (e.g.
+ * before any activity existed yet) — there's no meaningful "0 of 0"
+ * report worth sending.
+ */
+export function detectAhaanaWeeklyReport(
+  activities: AhaanaActivity[],
+  logs: AhaanaActivityLog[],
+  today: string,
+  options: { force?: boolean } = {},
+): ReminderCandidate[] {
+  const isSunday = new Date(`${today}T00:00:00Z`).getUTCDay() === 0;
+  if (!isSunday && !options.force) return [];
+
+  const [weekStart, , , , , , weekEnd] = getWeekDates(today);
+  const activeActivities = activities.filter((a) => a.active);
+  const occurrences = expandAhaanaOccurrences(
+    activeActivities,
+    weekStart,
+    weekEnd,
+  );
+  if (occurrences.length === 0) return [];
+
+  const logByKey = new Map(
+    logs.map((log) => [`${log.activityId}-${log.occurrenceDate}`, log]),
+  );
+  const completedCount = occurrences.filter((o) =>
+    logByKey.has(`${o.activityId}-${o.date}`),
+  ).length;
+
+  const lines: string[] = [
+    `✅ ${completedCount} of ${occurrences.length} sessions completed`,
+  ];
+  for (const occurrence of occurrences) {
+    const log = logByKey.get(`${occurrence.activityId}-${occurrence.date}`);
+    const dateLabel = formatShortDate(occurrence.date);
+    if (!log) {
+      lines.push(`⏳ ${occurrence.title} (${dateLabel}) — not logged`);
+      continue;
+    }
+    lines.push(
+      `${occurrence.title} (${dateLabel})${log.coveredNotes ? `: ${log.coveredNotes}` : ""}`,
+    );
+    if (log.nextNotes) {
+      lines.push(`  → Next: ${log.nextNotes}`);
+    }
+  }
+
+  return [
+    {
+      eventType: "ahaana_weekly_report",
+      eventKey: `ahaana_weekly_report:${weekStart}`,
+      leadTimeDays: 0,
+      leadTimeUnit: "days",
+      title: "Ahaana's Weekly Report",
+      body: lines.join("\n"),
+    },
+  ];
 }
