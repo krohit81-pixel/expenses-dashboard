@@ -1,9 +1,12 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { headers } from "next/headers";
 
 import { ahaanaLogoutAction } from "@/features/ahaana/api/actions";
 import { RefreshOnShow } from "@/features/ahaana/components/RefreshOnShow";
 import { todayISODate } from "@/lib/dates/calendar-grid";
+import { APP_VERSION } from "@/lib/version";
+import { cn } from "@/lib/utils";
 
 /**
  * v3.4.0 — the chrome for every gated page under /ahaana (the weekly
@@ -15,6 +18,12 @@ import { todayISODate } from "@/lib/dates/calendar-grid";
  * renders once that's already passed.
  */
 export const dynamic = "force-dynamic";
+
+/** v3.4.8 — two tabs: the weekly schedule ("Dashboard") and the add/edit/delete screen ("Log Activity"). */
+const TABS = [
+  { href: "/ahaana", label: "Dashboard" },
+  { href: "/ahaana/manage", label: "Log Activity" },
+] as const;
 
 /**
  * v3.4.3 — a small, rotating, age-appropriate line at the bottom of
@@ -44,32 +53,62 @@ function footerLineForToday(): string {
   return FOOTER_LINES[dayOfYear % FOOTER_LINES.length];
 }
 
-export default function AhaanaGatedLayout({
+export default async function AhaanaGatedLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
+  // v3.4.8 — which tab is "active" depends on the exact current path,
+  // read from the header middleware.ts already forwards to every
+  // request (nextWithPathname, added in v3.4.4 for the root layout's
+  // own manifest choice) — cheaper than making this a client component
+  // just to call usePathname() for a single highlight.
+  const pathname = (await headers()).get("x-pathname") ?? "";
+
   return (
     <div className="min-h-dvh bg-bg">
       <RefreshOnShow />
-      <header className="flex items-center justify-between border-b border-line bg-surface px-5 py-4 sm:px-8">
-        <div>
-          <div className="font-display text-[15px] font-extrabold text-ink">
-            Ahaana&apos;s Studies
+      <header className="border-b border-line bg-surface px-5 pt-4 sm:px-8">
+        <div className="flex items-center justify-between pb-3">
+          <div className="flex items-baseline gap-1.5">
+            <span className="font-display text-[15px] font-extrabold text-ink">
+              Ahaana&apos;s Studies
+            </span>
+            {/* v3.4.8 — "so we know whether she is using latest," same
+                v{APP_VERSION} convention the main app's own Hero uses. */}
+            <span className="shrink-0 whitespace-nowrap font-display text-[10px] font-bold text-ink-faint">
+              v{APP_VERSION}
+            </span>
           </div>
-          <Link
-            href="/ahaana/manage"
-            className="text-[11px] font-semibold text-accent"
-          >
-            Manage activities
-          </Link>
+          <form action={ahaanaLogoutAction}>
+            <button
+              type="submit"
+              className="rounded-full border border-line px-3 py-1.5 font-display text-[11px] font-bold text-ink-soft"
+            >
+              Log out
+            </button>
+          </form>
         </div>
-        <form action={ahaanaLogoutAction}>
-          <button
-            type="submit"
-            className="rounded-full border border-line px-3 py-1.5 font-display text-[11px] font-bold text-ink-soft"
-          >
-            Log out
-          </button>
-        </form>
+        <nav className="flex gap-1.5 pb-3">
+          {TABS.map((tab) => {
+            const isActive =
+              tab.href === "/ahaana"
+                ? pathname === "/ahaana"
+                : pathname === tab.href || pathname.startsWith(`${tab.href}/`);
+            return (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                className={cn(
+                  "rounded-full px-3.5 py-1.5 font-display text-[12.5px] font-bold transition-colors",
+                  isActive
+                    ? "bg-accent text-white"
+                    : "bg-bg text-ink-faint hover:text-ink-soft",
+                )}
+              >
+                {tab.label}
+              </Link>
+            );
+          })}
+        </nav>
       </header>
       <main className="p-5 sm:p-8">{children}</main>
       <footer className="px-5 pb-8 text-center text-[12px] font-medium text-ink-faint sm:px-8">

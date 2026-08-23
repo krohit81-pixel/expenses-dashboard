@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.4.7**
+correction layer: what's actually true today, current as of **v3.4.8**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -1216,6 +1216,74 @@ confirmed against a real device — this is the third fix in the same
 retry loop, each one caught by the previous fix's own improved error
 surfacing (v3.4.5); waiting on the household's next retry to confirm
 this is the last one.
+
+**Confirmed working** on the household's real device shortly after —
+push reminders are live end to end.
+
+## v3.4.8: version number, activity editing, Dashboard/Log Activity tabs
+
+Four requests from the household once push reminders were confirmed
+working:
+
+- **Version number, visible without logging in.** `v{APP_VERSION}`
+  now shows on `/ahaana/login` (next to the heading) and in the gated
+  header (next to "Ahaana's Studies") — same convention the main app's
+  own `Hero` uses. Lets anyone glance and confirm which release her
+  device is actually running.
+- **Editing an activity** — previously only Add/Activate-Deactivate/
+  Delete existed ("editing isn't in this first pass," per the original
+  v3.4.0 comment). `ManageActivitiesSection.tsx` now extracts the field
+  set both the Add form and each row's own inline Edit form share
+  (`ActivityFormFields`) — same fields, different defaults/action/
+  submit button. A new pencil button per row expands `EditActivityForm`
+  (pre-filled from that activity, submits to the existing
+  `updateAhaanaActivityAction`, auto-collapses on a successful save).
+  **A real bug found and fixed in the same pass**: the
+  Activate/Deactivate toggle's `active` field went through
+  `z.coerce.boolean()`, which runs plain JS `Boolean(value)` — any
+  non-empty string is truthy, *including the literal string "false"*.
+  Combined with the toggle's own `""`/`"true"` hidden-value trick, both
+  branches always resolved to `true` — **Deactivate has silently never
+  actually worked**, since day one. Fixed by comparing the raw string
+  explicitly in the action (`formValue(...) === "true"`, same
+  convention `features/merchants`/`features/categories`'s own
+  active-toggle actions already use) and changing the schema to a
+  plain `z.boolean()`; the toggle button and the new Edit form's own
+  hidden `active` field (which preserves the current value unchanged,
+  not inverted) both now send real `"true"`/`"false"` strings.
+  Confirmed against a real (disposable, self-created, self-deleted)
+  test activity: edited the title/notes/reminder, saved, then toggled
+  Deactivate and watched "· inactive" actually appear for the first
+  time.
+- **A "Dashboard" tab** — the existing weekly view (renamed from "This
+  Week"), switched to a **Sunday-start** week
+  (`getAhaanaWeekDates`, new in `lib/dates/ahaana-activities.ts`) per
+  her own explicit request — a genuinely different convention from the
+  household calendar's own Monday-start `getWeekDates` (which the
+  parent-facing weekly report/progress page still uses, unchanged;
+  this is scoped to just her Dashboard). `WeeklyScheduleView`'s
+  `DAY_NAMES` reordered to match (Sun...Sat).
+- **A "Log Activity" tab** — the existing Add/Edit/Deactivate/Delete
+  screen (`/ahaana/manage`, unchanged URL), renamed to match. Both
+  tabs now live in a real two-tab nav in `(gated)/layout.tsx`'s header
+  (replacing the old single "Manage activities" text link) — active
+  tab highlighted by reading the current path from the same
+  `x-pathname` header `middleware.ts` already forwards for the root
+  layout's own manifest choice (v3.4.4), rather than making this a
+  client component just for one highlight.
+- **Verified**: 3 new unit tests for `getAhaanaWeekDates`. `npx tsc
+  --noEmit && npx eslint . && npx prettier --check . && npx vitest
+  run` all pass (550, +3 new) and `npm run build` completed
+  successfully. Browser-verified against the real dev server (real
+  Supabase data, not fixtures — the pending migration from v3.4.3 has
+  since been applied): logged in, confirmed the Dashboard tab's
+  Sunday-start week and real occurrences render correctly, confirmed
+  tab highlighting on both tabs, then ran a full add → edit → toggle
+  Deactivate → delete cycle against a disposable
+  `ZZ_TEST_DELETE_ME`/`ZZ_TEST_EDITED` activity created and removed
+  for this test — never touched her 12 real activities' own data.
+
+No new migration, no new env vars.
 
 ## What's actually built
 

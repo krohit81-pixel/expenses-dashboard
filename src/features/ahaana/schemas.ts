@@ -71,7 +71,21 @@ export type CreateAhaanaActivityInput = z.infer<
 >;
 
 export const updateAhaanaActivityInputSchema = baseActivityFields
-  .extend({ id: z.uuid(), active: z.coerce.boolean().default(true) })
+  .extend({
+    id: z.uuid(),
+    // v3.4.8 — plain z.boolean(), not z.coerce.boolean(): coerce runs
+    // JS's own Boolean(value), which treats ANY non-empty string as
+    // true — including the literal string "false". That made the
+    // Deactivate button a no-op from day one (its hidden field's
+    // "false" string silently coerced back to true) — a real,
+    // previously-undiscovered bug, not a hypothetical one. The route
+    // in from a raw form value now does the string comparison itself
+    // (`formValue(...) === "true"`, in activity-actions.ts), same
+    // convention already used for this exact shape in
+    // features/merchants/categories' own active-toggle actions — so
+    // this schema only ever receives a real boolean already.
+    active: z.boolean().default(true),
+  })
   .superRefine(refineOrder);
 export type UpdateAhaanaActivityInput = z.infer<
   typeof updateAhaanaActivityInputSchema

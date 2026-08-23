@@ -13,7 +13,11 @@ import {
 import type { AhaanaOccurrence } from "@/lib/dates/ahaana-activities";
 import type { AhaanaActivityLog } from "@/services/AhaanaActivityLogService";
 
-const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+// v3.4.8 — Sunday-start, matching `weekDates` now being built by
+// `getAhaanaWeekDates` (her own explicit "new week starts at Sunday"
+// request) instead of the household calendar's Monday-start
+// `getWeekDates`.
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const CATEGORY_STYLE: Record<AhaanaOccurrence["category"], string> = {
   class: "bg-accent-soft text-accent",
