@@ -48,6 +48,7 @@ describe("serverEnv", () => {
     expect(serverEnv.GEMINI_API_KEY).toBeUndefined();
     expect(serverEnv.TELEGRAM_BOT_TOKEN).toBeUndefined();
     expect(serverEnv.CRON_SECRET).toBeUndefined();
+    expect(serverEnv.AHAANA_ACCESS_PASSWORD).toBeUndefined();
   });
 
   it("throws with a readable message when a required var is missing", async () => {

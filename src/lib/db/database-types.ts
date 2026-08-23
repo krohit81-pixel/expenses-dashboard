@@ -1154,6 +1154,90 @@ export type Database = {
         };
         Relationships: [];
       };
+      // Hand-added (v3.4.0) the same way as every other table in this
+      // file — see this file's header disclaimer. Matches
+      // supabase/migrations/20260823024123_create_ahaana_activities.sql.
+      ahaana_activities: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          category: string;
+          days_of_week: number[];
+          start_time: string;
+          end_time: string;
+          start_date: string;
+          end_date: string;
+          plan_notes: string | null;
+          active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          title: string;
+          category?: string;
+          days_of_week: number[];
+          start_time: string;
+          end_time: string;
+          start_date: string;
+          end_date: string;
+          plan_notes?: string | null;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string;
+          category?: string;
+          days_of_week?: number[];
+          start_time?: string;
+          end_time?: string;
+          start_date?: string;
+          end_date?: string;
+          plan_notes?: string | null;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      ahaana_activity_logs: {
+        Row: {
+          id: string;
+          user_id: string;
+          activity_id: string;
+          occurrence_date: string;
+          completed_at: string;
+          covered_notes: string | null;
+          next_notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          activity_id: string;
+          occurrence_date: string;
+          completed_at?: string;
+          covered_notes?: string | null;
+          next_notes?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          activity_id?: string;
+          occurrence_date?: string;
+          completed_at?: string;
+          covered_notes?: string | null;
+          next_notes?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       credit_card_statements: {
         Row: {
           id: string;

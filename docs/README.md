@@ -84,6 +84,14 @@ they say so.
   v3.3.4 gave school-calendar reminders a tag-derived "smart note" — an
   encouraging line (exam/holiday/vacation/event/trip each get their own
   wording) appended automatically, no per-item authoring needed.
+  v3.4.0 added **Ahaana's mini app** (`/ahaana/*`) — a fully separate,
+  separately-password-gated section (her password never unlocks the
+  rest of Atlas, and vice versa) covering her own weekly activities
+  and studies: a recurring-activity schedule (French, Kickboxing,
+  Horse Riding, study blocks) and a mark-complete-with-notes flow.
+  Phase 1 of 3 — push reminders and a parent-facing weekly report/
+  progress page are follow-up releases, not built yet; see doc 00's
+  v3.4.0 section for the full plan.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement

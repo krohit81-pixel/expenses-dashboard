@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.3.4**
+correction layer: what's actually true today, current as of **v3.4.0**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -784,6 +784,74 @@ every entry, rather than 100+ individual notes to maintain.
   produce different notes. `npx tsc --noEmit && npx eslint . && npx
   prettier --check . && npx vitest run` all pass (517 passed — +1
   new). A full local `npm run build` completed successfully.
+
+## v3.4.0: Ahaana's mini app (Phase 1 of 3 — access, schedule, completion+notes)
+
+Household request: a self-contained section of Atlas only Ahaana can
+reach, covering her weekly activities and studies, planned and built
+across three phases. Phase 1 (this release): access
+gate, schema, the weekly schedule view, mark-complete + notes. Phase 2
+(real push notifications, since she has no Telegram) and Phase 3
+(weekly Telegram report to the parent + a progress/intel page) are
+**not built yet** — separate follow-up releases.
+
+- **A second, fully separate access gate.** New `AHAANA_ACCESS_PASSWORD`
+  env var (optional at the schema level, same reasoning as
+  `CRON_SECRET` — the app must still boot before anyone's set it in
+  Vercel; her gate just refuses every `/ahaana` request until it is).
+  `src/lib/ahaana-gate.ts` mirrors `access-gate.ts`, but — real
+  correction made mid-build, not merely planned — signs her cookie
+  with a **derived** key (`APP_SESSION_SECRET + ":ahaana-gate"`), not
+  the raw `APP_SESSION_SECRET` the main gate uses. Reusing the exact
+  same secret would have meant a valid `app_access` cookie value,
+  copied into the `ahaana_access` slot, would also verify successfully
+  (`access-gate-core.ts`'s sign/verify functions only check an HMAC
+  signature — they carry no notion of *which* gate issued a token) —
+  precisely the "her password is the only key that works there"
+  guarantee this gate exists to provide, broken. The derived key needs
+  no new env var and fixes this completely.
+  `middleware.ts` branches on `/ahaana` **before** the main gate check
+  and returns early either way, so her section never falls through to
+  the household password check, and vice versa. Verified directly in
+  this session: wrong password rejected, correct password redirects
+  to `/ahaana`, her cookie does **not** grant access to `/dashboard`
+  (redirects to the main `/login`).
+- **Schema**: `finance.ahaana_activities` (the recurring weekly
+  template — French, Kickboxing, Horse Riding, a study block; same
+  shape as `finance.recurring_calendar_events` but kept as its own
+  table since that one feeds the shared family `/calendar` page and
+  this one never should) and `finance.ahaana_activity_logs` (one row
+  per occurrence once marked complete — `covered_notes`/`next_notes`,
+  unique on `(activity_id, occurrence_date)` so resubmitting edits
+  rather than duplicates). Migration:
+  `supabase/migrations/20260823024123_create_ahaana_activities.sql` —
+  **not yet applied to the real Supabase project** (same
+  household-runs-it-in-the-SQL-editor step every migration in this
+  app needs) — until it is, `/ahaana` and `/ahaana/manage` both 500
+  with "Could not find the table" (confirmed directly — the gate
+  itself works, only the DB call fails, exactly the expected failure
+  mode).
+- **`expandAhaanaOccurrences`** (`lib/dates/ahaana-activities.ts`) — a
+  near-identical sibling of `expandRecurringOccurrences`, not a
+  generalization of it; unit-tested the same way.
+- **UI**: `/ahaana` (this week's occurrences, grouped by day, each
+  expandable to a "mark complete" form) and `/ahaana/manage` (add,
+  deactivate, delete a recurring activity — editing an existing one's
+  fields isn't in this pass; deactivate + re-add covers it for now).
+  Both live in a new `src/app/ahaana/` tree, deliberately outside the
+  `(app)` route group (no `BottomNav`/`TopNav`, no
+  `requireUser()`/household-gate assumptions) with their own minimal
+  layout.
+- **Verified**: unit tests for `expandAhaanaOccurrences`
+  (`npx tsc --noEmit && npx eslint . && npx prettier --check . && npx
+  vitest run` all pass, 522 passed — +5 new). A full local
+  `npm run build` completed successfully. Browser-verified end to end
+  in this session: the gate's password/redirect/cross-section
+  behavior against the real dev server, and both new pages' actual UI
+  (weekly view, mark-complete form, add-activity form, activity list)
+  against fixture props via a temporary `preview-temp` scratch page
+  under `/ahaana/(gated)/` (deleted before committing, same pattern
+  used throughout this app's history).
 
 ## What's actually built
 

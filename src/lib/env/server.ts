@@ -113,6 +113,18 @@ const serverEnvSchema = z.object({
   // request with a 503 until this is set, rather than running
   // unauthenticated.
   CRON_SECRET: optionalEnvString(),
+  // v3.4.0 — Ahaana's own access gate (src/lib/ahaana-gate.ts), a
+  // second, separate password scoped only to /ahaana/* (see
+  // middleware.ts) — deliberately a different value than
+  // APP_ACCESS_PASSWORD, so knowing hers never unlocks the rest of
+  // Atlas and vice versa. Optional at the schema level for the same
+  // reason CRON_SECRET is: the app must still boot in a fresh
+  // environment before anyone's set this in Vercel. Unlike
+  // APP_ACCESS_PASSWORD (required — the whole app is unusable
+  // without it), her gate simply refuses every /ahaana request until
+  // this is set, rather than crashing the entire app's boot over one
+  // section's password being missing.
+  AHAANA_ACCESS_PASSWORD: optionalEnvString(),
 });
 
 function formatZodError(prefix: string, error: z.ZodError): string {
@@ -138,6 +150,7 @@ function parseServerEnv() {
     APP_SESSION_SECRET: process.env.APP_SESSION_SECRET,
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
     CRON_SECRET: process.env.CRON_SECRET,
+    AHAANA_ACCESS_PASSWORD: process.env.AHAANA_ACCESS_PASSWORD,
   });
 
   if (!result.success) {
