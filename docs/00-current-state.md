@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.4.8**
+correction layer: what's actually true today, current as of **v3.4.9**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -1284,6 +1284,37 @@ working:
   for this test — never touched her 12 real activities' own data.
 
 No new migration, no new env vars.
+
+## v3.4.9: fixed "first login errors, next one doesn't" — a real query missing the auth-timing retry
+
+Household report: `/ahaana`'s first load after logging in threw
+`Error: Failed to load activity logs: JWT issued at future` — gone on
+the next load, no code change. This is Supabase/PostgREST's known
+transient clock-sync artifact on the first query after a stretch of no
+traffic (see `lib/supabase/retry.ts`'s own comment, first documented
+against `/calendar`'s first cold load) — and Ahaana's actual usage
+pattern (once a day, long idle gaps between sessions) is exactly the
+worst case for it.
+
+Every other `list*()` read in this app already retries once through
+`withAuthTimingRetry` for exactly this reason
+(`CalendarEventService`, `TripService`,
+`RecurringCalendarEventService`) — `AhaanaActivityService.listAhaanaActivities`
+and `AhaanaActivityLogService.listAhaanaActivityLogs` (the two reads
+`/ahaana`'s own page makes, and `listAhaanaActivities` alone on
+`/ahaana/manage`) were simply never wrapped when they were first
+written. Now both are, matching the exact same pattern. Create/update/
+delete are deliberately left unwrapped, same convention the other
+three services use — a cold-start race matters most for the read that
+happens on first page load, not a write a person triggers mid-session.
+
+Verified: `npx tsc --noEmit && npx eslint . && npx prettier --check .
+&& npx vitest run` all pass (550, unchanged — no new test surface, this
+wraps an existing call in an existing, already-tested helper) and
+`npm run build` completed successfully. No new migration, no new env
+vars. Can't be reproduced on demand (it only ever happens after real
+idle time, not on a warm dev server) — confirmed correct by the same
+retry pattern already proven out on `/calendar`'s own identical fix.
 
 ## What's actually built
 

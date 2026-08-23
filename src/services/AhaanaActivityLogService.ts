@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service";
+import { withAuthTimingRetry } from "@/lib/supabase/retry";
 import { OWNER_USER_ID } from "@/lib/owner";
 import {
   logAhaanaActivityInputSchema,
@@ -40,19 +41,35 @@ function mapRow(row: {
   };
 }
 
-/** Every log entry within a date range (inclusive) — used by the weekly view (this week's range) and, later, the weekly report/intel pass (a wider range). */
+/**
+ * Every log entry within a date range (inclusive) — used by the
+ * weekly view (this week's range) and, later, the weekly report/intel
+ * pass (a wider range).
+ *
+ * v3.4.9 — wrapped in withAuthTimingRetry, fixing a real reported bug:
+ * "first time login gives error, next time it disappears" — exactly
+ * Supabase's transient "JWT issued at future" clock-sync artifact on
+ * the first query after idle traffic (her actual usage pattern: once
+ * a day, long gaps between sessions), the same one CalendarEventService/
+ * TripService/RecurringCalendarEventService already retry through this
+ * helper. This was the query actually throwing in the reported error
+ * log; listAhaanaActivities got the identical fix alongside it, since
+ * it's the other read on the same page and just as exposed.
+ */
 export async function listAhaanaActivityLogs(
   rangeStart: string,
   rangeEnd: string,
 ): Promise<AhaanaActivityLog[]> {
   const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from("ahaana_activity_logs")
-    .select(LOG_SELECT)
-    .eq("user_id", OWNER_USER_ID)
-    .gte("occurrence_date", rangeStart)
-    .lte("occurrence_date", rangeEnd)
-    .order("occurrence_date");
+  const { data, error } = await withAuthTimingRetry(() =>
+    supabase
+      .from("ahaana_activity_logs")
+      .select(LOG_SELECT)
+      .eq("user_id", OWNER_USER_ID)
+      .gte("occurrence_date", rangeStart)
+      .lte("occurrence_date", rangeEnd)
+      .order("occurrence_date"),
+  );
 
   if (error) {
     throw new Error(`Failed to load activity logs: ${error.message}`);
