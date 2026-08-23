@@ -119,8 +119,11 @@ they say so.
   activities (also fixing a real, previously-silent bug where
   Deactivate never actually worked), and split her single page into
   "Dashboard" (the weekly view, now Sunday-start at her own request)
-  and "Log Activity" tabs — see doc 00's v3.4.4 through v3.4.8
-  sections.
+  and "Log Activity" tabs. v3.4.9 fixed a "first login errors, next
+  one doesn't" report — the two Ahaana reads her own pages make had
+  simply never been wrapped in the same Supabase auth-timing retry
+  every other `list*()` in this app already uses — see doc 00's v3.4.4
+  through v3.4.9 sections.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service";
+import { withAuthTimingRetry } from "@/lib/supabase/retry";
 import { OWNER_USER_ID } from "@/lib/owner";
 import {
   createAhaanaActivityInputSchema,
@@ -77,14 +78,28 @@ function mapRow(row: {
   };
 }
 
-/** Every activity, active or not, soonest start first — the manage page needs to show inactive ones too (to reactivate), the weekly view filters to active itself. */
+/**
+ * Every activity, active or not, soonest start first — the manage
+ * page needs to show inactive ones too (to reactivate), the weekly
+ * view filters to active itself.
+ *
+ * v3.4.9 — wrapped in withAuthTimingRetry: her own real-world usage
+ * pattern (once a day, long idle gaps between sessions) is exactly
+ * the "first request after idle" case that transient error hits, and
+ * this was the one read query on her page that had been missed —
+ * every other list*() in this app already goes through this same
+ * helper (TripService, CalendarEventService,
+ * RecurringCalendarEventService).
+ */
 export async function listAhaanaActivities(): Promise<AhaanaActivity[]> {
   const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from("ahaana_activities")
-    .select(AHAANA_ACTIVITY_SELECT)
-    .eq("user_id", OWNER_USER_ID)
-    .order("start_date");
+  const { data, error } = await withAuthTimingRetry(() =>
+    supabase
+      .from("ahaana_activities")
+      .select(AHAANA_ACTIVITY_SELECT)
+      .eq("user_id", OWNER_USER_ID)
+      .order("start_date"),
+  );
 
   if (error) {
     throw new Error(`Failed to load Ahaana's activities: ${error.message}`);
