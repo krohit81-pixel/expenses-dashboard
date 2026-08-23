@@ -5,11 +5,12 @@ import type { ReactNode } from "react";
  * v3.4.3 — metadata-only wrapper for the entire /ahaana tree (both
  * `/ahaana/login` and the `(gated)` group), so "Add to Home Screen"
  * shows her own app identity instead of inheriting the root layout's
- * `manifest`/`appleWebApp` (which point at Atlas itself, name "Atlas",
- * start_url "/"). Metadata fields not re-declared by a page under here
- * (most only set `title`) inherit these — same Next.js metadata
- * cascade every other nested layout/page pair in this app already
- * relies on.
+ * `appleWebApp` (title "Atlas"). `title`/`appleWebApp` both override
+ * correctly from a nested layout like this one — Next.js resolves them
+ * per-segment as expected. `manifest` does NOT (a verified, production
+ * -only quirk — see src/app/layout.tsx's own comment for the full
+ * story), so it's deliberately NOT set here; the root layout computes
+ * it instead, conditionally, based on path.
  *
  * Renders `children` directly with no DOM of its own — the actual
  * chrome for the gated pages lives in `(gated)/layout.tsx`, and
@@ -31,7 +32,6 @@ export const metadata: Metadata = {
     absolute: "Ahaana's Studies",
     template: "%s | Ahaana's Studies",
   },
-  manifest: "/ahaana-manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

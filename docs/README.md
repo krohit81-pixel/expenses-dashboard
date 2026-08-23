@@ -105,6 +105,14 @@ they say so.
   a stale-after-reopening-from-Home-Screen fix, an encouraging footer
   line, and an hour-based reminder option (1/2/3/4 hours before,
   alongside the existing day-based one) — see doc 00's v3.4.3 section.
+  v3.4.3's own manifest fix didn't actually work in production (verified
+  against the dev server, which resolves that one field differently);
+  v3.4.4 root-caused and properly fixed it — an `app/manifest.ts`
+  file-convention route auto-injects its manifest link into every page
+  regardless of any layout's own override, so both manifests are now
+  plain static files under `public/`, chosen by an explicit,
+  path-aware `<link>` the root layout renders itself — see doc 00's
+  v3.4.4 section.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement
