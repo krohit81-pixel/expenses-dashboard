@@ -1,0 +1,15 @@
+{
+  "name": "Ahaana's Studies",
+  "short_name": "Ahaana",
+  "description": "Ahaana's weekly schedule, reminders, and progress notes.",
+  "start_url": "/ahaana",
+  "scope": "/ahaana",
+  "display": "standalone",
+  "background_color": "#f5eff3",
+  "theme_color": "#241457",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

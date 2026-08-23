@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   detectAhaanaActivityReminders,
+  detectAhaanaActivityHourlyReminders,
   detectAhaanaWeeklyReport,
 } from "./detect-ahaana-reminders";
 import type { AhaanaActivity } from "@/services/AhaanaActivityService";
@@ -21,6 +22,7 @@ function activity(overrides: Partial<AhaanaActivity> = {}): AhaanaActivity {
     active: true,
     remindEnabled: true,
     remindLeadDays: 1,
+    remindLeadHours: null,
     ...overrides,
   };
 }
@@ -109,6 +111,82 @@ describe("detectAhaanaActivityReminders", () => {
       7,
     );
     expect(result).toHaveLength(0);
+  });
+
+  it("skips an activity using hour-based reminders instead (mutual exclusivity)", () => {
+    // Would otherwise fire on 2026-08-11 (1 day before), same as the
+    // very first test above — remindLeadHours being set means the
+    // hourly detector owns this activity instead.
+    const result = detectAhaanaActivityReminders(
+      [activity({ remindLeadDays: 1, remindLeadHours: 2 })],
+      "2026-08-10",
+      7,
+    );
+    expect(result).toHaveLength(0);
+  });
+});
+
+describe("detectAhaanaActivityHourlyReminders", () => {
+  it("fires once the reminder threshold passes, until the occurrence starts", () => {
+    // French, Tue/Fri 17:00 IST = 11:30 UTC. 2h before 2026-08-11 (Tue)
+    // is 2026-08-11T09:30:00Z.
+    const activityRow = activity({
+      remindLeadDays: 0,
+      remindLeadHours: 2,
+    });
+
+    const tooEarly = detectAhaanaActivityHourlyReminders(
+      [activityRow],
+      "2026-08-11T09:00:00Z",
+      2,
+    );
+    expect(tooEarly).toHaveLength(0);
+
+    const withinWindow = detectAhaanaActivityHourlyReminders(
+      [activityRow],
+      "2026-08-11T10:00:00Z",
+      2,
+    );
+    expect(withinWindow).toHaveLength(1);
+    expect(withinWindow[0].eventType).toBe("ahaana_activity");
+    expect(withinWindow[0].eventKey).toBe(
+      "ahaana_activity:activity-1:2026-08-11",
+    );
+    expect(withinWindow[0].leadTimeUnit).toBe("hours");
+    expect(withinWindow[0].leadTimeDays).toBe(2);
+    expect(withinWindow[0].body).toContain("2h before");
+
+    const afterStart = detectAhaanaActivityHourlyReminders(
+      [activityRow],
+      "2026-08-11T12:00:00Z",
+      2,
+    );
+    expect(afterStart).toHaveLength(0);
+  });
+
+  it("ignores an activity using day-based reminders instead", () => {
+    const result = detectAhaanaActivityHourlyReminders(
+      [activity({ remindLeadDays: 1, remindLeadHours: null })],
+      "2026-08-11T10:00:00Z",
+      2,
+    );
+    expect(result).toHaveLength(0);
+  });
+
+  it("ignores a disabled or inactive activity", () => {
+    const disabled = detectAhaanaActivityHourlyReminders(
+      [activity({ remindEnabled: false, remindLeadHours: 2 })],
+      "2026-08-11T10:00:00Z",
+      2,
+    );
+    expect(disabled).toHaveLength(0);
+
+    const inactive = detectAhaanaActivityHourlyReminders(
+      [activity({ active: false, remindLeadHours: 2 })],
+      "2026-08-11T10:00:00Z",
+      2,
+    );
+    expect(inactive).toHaveLength(0);
   });
 });
 

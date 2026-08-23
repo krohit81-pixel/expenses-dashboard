@@ -46,6 +46,14 @@ export async function createAhaanaActivityAction(
     startDate: formValue(formData, "startDate"),
     endDate: formValue(formData, "endDate"),
     planNotes: formValue(formData, "planNotes") ?? null,
+    // v3.4.3: these two were missing entirely — every activity silently
+    // saved with reminders off regardless of what ReminderFields
+    // actually submitted, since zod's own .default(false)/.default(0)
+    // kicked in on the resulting `undefined`. remindLeadHours is new in
+    // this same pass, so it never had the chance to go missing.
+    remindEnabled: formValue(formData, "remindEnabled"),
+    remindLeadDays: formValue(formData, "remindLeadDays"),
+    remindLeadHours: formValue(formData, "remindLeadHours") ?? null,
   });
 
   if (!parsed.success) {
@@ -80,6 +88,9 @@ export async function updateAhaanaActivityAction(
     endDate: formValue(formData, "endDate"),
     planNotes: formValue(formData, "planNotes") ?? null,
     active: formValue(formData, "active"),
+    remindEnabled: formValue(formData, "remindEnabled"),
+    remindLeadDays: formValue(formData, "remindLeadDays"),
+    remindLeadHours: formValue(formData, "remindLeadHours") ?? null,
   });
 
   if (!parsed.success) {

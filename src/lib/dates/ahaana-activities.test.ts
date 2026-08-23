@@ -17,6 +17,7 @@ function activity(overrides: Partial<AhaanaActivity> = {}): AhaanaActivity {
     active: true,
     remindEnabled: false,
     remindLeadDays: 0,
+    remindLeadHours: null,
     ...overrides,
   };
 }
