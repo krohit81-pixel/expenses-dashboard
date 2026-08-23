@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.4.4**
+correction layer: what's actually true today, current as of **v3.4.5**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -1134,6 +1134,26 @@ was a routing/metadata fix, no new test surface). A full `npm run
 build` completed successfully with every route now `ƒ` (dynamic).
 
 No new migration, no new env vars.
+
+## v3.4.5: EnablePushButton surfaces the real error instead of a fixed string
+
+The household hit "Couldn't enable reminders — try again" on a real
+iOS device (past the Home Screen install step, so `pushManager.subscribe()`
+itself was rejected by WebKit — the specific `DOMException` name/message
+that would explain why was being thrown away in the `catch` and
+replaced with that one fixed string). `EnablePushButton.tsx`'s catch
+block now shows the real `error.name: error.message` instead — costs
+nothing (this only ever runs on Ahaana's own device; a `DOMException`
+name/message carries no sensitive data) and turns "it didn't work" into
+something a report can actually be diagnosed from. Checked Vercel's
+actual production env vars for `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/
+`VAPID_SUBJECT` directly (`vercel env pull`, lengths/whitespace only,
+never the values themselves) while investigating — all three are
+correctly formatted, so a malformed key isn't the cause; the real
+`DOMException` from a retry will say what is. `npx tsc --noEmit && npx
+eslint . && npx prettier --check . && npx vitest run` all pass (547,
+unchanged) and `npm run build` completed successfully. No new
+migration, no new env vars.
 
 ## What's actually built
 
