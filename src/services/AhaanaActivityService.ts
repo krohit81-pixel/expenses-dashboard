@@ -32,10 +32,14 @@ export interface AhaanaActivity {
   endDate: string;
   planNotes: string | null;
   active: boolean;
+  /** v3.4.0 Phase 2 — whether ReminderService should push-notify before each occurrence. */
+  remindEnabled: boolean;
+  /** Days before each occurrence's date to send the reminder (0 = the morning of). */
+  remindLeadDays: number;
 }
 
 const AHAANA_ACTIVITY_SELECT =
-  "id, title, category, days_of_week, start_time, end_time, start_date, end_date, plan_notes, active";
+  "id, title, category, days_of_week, start_time, end_time, start_date, end_date, plan_notes, active, remind_enabled, remind_lead_days";
 
 function mapRow(row: {
   id: string;
@@ -48,6 +52,8 @@ function mapRow(row: {
   end_date: string;
   plan_notes: string | null;
   active: boolean;
+  remind_enabled: boolean;
+  remind_lead_days: number;
 }): AhaanaActivity {
   return {
     id: row.id,
@@ -62,6 +68,8 @@ function mapRow(row: {
     endDate: row.end_date,
     planNotes: row.plan_notes,
     active: row.active,
+    remindEnabled: row.remind_enabled,
+    remindLeadDays: row.remind_lead_days,
   };
 }
 
@@ -99,6 +107,8 @@ export async function createAhaanaActivity(
       end_date: parsed.endDate,
       plan_notes: parsed.planNotes ?? null,
       active: true,
+      remind_enabled: parsed.remindEnabled,
+      remind_lead_days: parsed.remindLeadDays,
     })
     .select(AHAANA_ACTIVITY_SELECT)
     .single();
@@ -127,6 +137,8 @@ export async function updateAhaanaActivity(
       end_date: parsed.endDate,
       plan_notes: parsed.planNotes ?? null,
       active: parsed.active,
+      remind_enabled: parsed.remindEnabled,
+      remind_lead_days: parsed.remindLeadDays,
     })
     .eq("id", parsed.id)
     .eq("user_id", OWNER_USER_ID)

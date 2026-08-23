@@ -10,7 +10,7 @@ import {
   type NotificationLogKey,
 } from "@/services/NotificationLogService";
 import { getSendTarget } from "@/services/NotificationChannelService";
-import { listChannelTypes, getProvider } from "@/lib/notifications/registry";
+import { getProvider } from "@/lib/notifications/registry";
 import { buildSchoolCalendarItems } from "@/features/travel/school-items";
 import {
   detectCalendarEventHourlyReminders,
@@ -21,6 +21,9 @@ import {
   detectTripReminders,
   type ReminderCandidate,
 } from "@/lib/notifications/detect-reminders";
+import { detectAhaanaActivityReminders } from "@/lib/notifications/detect-ahaana-reminders";
+import { listAhaanaActivities } from "@/services/AhaanaActivityService";
+import type { ChannelType } from "@/lib/notifications/provider";
 
 export interface ReminderRunResult {
   candidates: number;
@@ -38,17 +41,27 @@ const SCHOOL_CALENDAR_LEAD_DAYS = 1;
 /** v3.2.2 — how far ahead an hour-based recurring occurrence search needs to expand. Only needs to cover the longest hour lead time in play (< 24h, given the 3/4-hour UI options) plus a day of IST/UTC slack — see detectRecurringEventHourlyReminders' own comment. */
 const RECURRING_HOURLY_LOOKAHEAD_DAYS = 2;
 
+/** v3.4.0 Phase 2 — same reasoning as RECURRING_LOOKAHEAD_DAYS, for Ahaana's own recurring activities. */
+const AHAANA_LOOKAHEAD_DAYS = 14;
+
 /**
  * The actual "dedupe, find a channel, send, record" loop — shared by
- * runReminders (day-based) and runHourlyReminders (v3.2.2, hour-based)
- * so the two don't drift in how a candidate becomes a real send.
- * Sequential, not Promise.all: single-owner, a handful of candidates
- * per run; this keeps it simple and avoids racing duplicate sends
- * against notification_log's own dedupe check, same reasoning as
- * applyCycleTags' loop.
+ * every runX function below so none of them drift in how a candidate
+ * becomes a real send. Sequential, not Promise.all: single-owner, a
+ * handful of candidates per run; this keeps it simple and avoids
+ * racing duplicate sends against notification_log's own dedupe check,
+ * same reasoning as applyCycleTags' loop.
+ *
+ * `channelTypes` is a required, explicit list, not a default of
+ * "every registered channel" — v3.4.0 Phase 2 added `web_push`
+ * (targeting Ahaana's device specifically) alongside `telegram`
+ * (targeting the household), and a candidate from one domain must
+ * never fire at the other's channel. See registry.ts's own comment on
+ * `listChannelTypes()` for why that default isn't used here anymore.
  */
 async function sendCandidates(
   candidates: ReminderCandidate[],
+  channelTypes: ChannelType[],
 ): Promise<ReminderRunResult> {
   const result: ReminderRunResult = {
     candidates: candidates.length,
@@ -60,8 +73,6 @@ async function sendCandidates(
   if (candidates.length === 0) {
     return result;
   }
-
-  const channelTypes = listChannelTypes();
 
   for (const candidate of candidates) {
     for (const channelType of channelTypes) {
@@ -156,7 +167,7 @@ export async function runReminders(
     ),
   ];
 
-  return sendCandidates(candidates);
+  return sendCandidates(candidates, ["telegram"]);
 }
 
 /**
@@ -192,5 +203,28 @@ export async function runHourlyReminders(
     ),
   ];
 
-  return sendCandidates(candidates);
+  return sendCandidates(candidates, ["telegram"]);
+}
+
+/**
+ * v3.4.0 Phase 2 — Ahaana's own reminder engine, run on its own Vercel
+ * Cron route (`/api/cron/ahaana-reminders`) and targeting `web_push`
+ * only — never `telegram`, so her activity reminders only ever reach
+ * her device, never the household Telegram group (and vice versa: her
+ * device never receives the household's own calendar/trip/school
+ * reminders either, since those explicitly target `["telegram"]`
+ * above).
+ */
+export async function runAhaanaReminders(
+  asOf: string = new Date().toISOString().slice(0, 10),
+): Promise<ReminderRunResult> {
+  const activities = await listAhaanaActivities();
+
+  const candidates = detectAhaanaActivityReminders(
+    activities,
+    asOf,
+    AHAANA_LOOKAHEAD_DAYS,
+  );
+
+  return sendCandidates(candidates, ["web_push"]);
 }

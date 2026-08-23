@@ -1,12 +1,13 @@
 import { z } from "zod";
 
-import { zTimeOfDay } from "@/features/calendar/schemas";
+import { zTimeOfDay, zReminderFields } from "@/features/calendar/schemas";
 
 /**
  * Validation for finance.ahaana_activities / ahaana_activity_logs
- * (v3.4.0). zTimeOfDay is reused from features/calendar/schemas.ts —
- * same "HH:MM" 24-hour shape every time-of-day field in this app
- * already validates against, no reason for a second copy.
+ * (v3.4.0). zTimeOfDay/zReminderFields are reused from
+ * features/calendar/schemas.ts — same "HH:MM" 24-hour shape and same
+ * remindEnabled/remindLeadDays pair every reminder-capable table in
+ * this app already validates against, no reason for a second copy.
  */
 
 const zAhaanaCategory = z.enum(["class", "sport", "study", "other"]);
@@ -25,6 +26,7 @@ const baseActivityFields = z.object({
   startDate: z.iso.date(),
   endDate: z.iso.date(),
   planNotes: z.string().trim().max(1000).nullable().optional(),
+  ...zReminderFields.shape,
 });
 
 function refineOrder<

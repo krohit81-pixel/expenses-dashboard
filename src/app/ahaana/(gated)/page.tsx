@@ -4,7 +4,9 @@ import { listAhaanaActivities } from "@/services/AhaanaActivityService";
 import { listAhaanaActivityLogs } from "@/services/AhaanaActivityLogService";
 import { expandAhaanaOccurrences } from "@/lib/dates/ahaana-activities";
 import { getWeekDates, todayISODate } from "@/lib/dates/calendar-grid";
+import { serverEnv } from "@/lib/env/server";
 import { WeeklyScheduleView } from "@/features/ahaana/components/WeeklyScheduleView";
+import { EnablePushButton } from "@/features/ahaana/components/EnablePushButton";
 
 export const metadata: Metadata = {
   title: "This Week",
@@ -35,10 +37,13 @@ export default async function AhaanaWeeklyPage() {
   );
 
   return (
-    <WeeklyScheduleView
-      weekDates={weekDates}
-      occurrences={occurrences}
-      logs={logs}
-    />
+    <div className="space-y-5">
+      <EnablePushButton vapidPublicKey={serverEnv.VAPID_PUBLIC_KEY ?? null} />
+      <WeeklyScheduleView
+        weekDates={weekDates}
+        occurrences={occurrences}
+        logs={logs}
+      />
+    </div>
   );
 }

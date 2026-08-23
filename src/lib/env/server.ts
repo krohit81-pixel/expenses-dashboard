@@ -125,6 +125,25 @@ const serverEnvSchema = z.object({
   // this is set, rather than crashing the entire app's boot over one
   // section's password being missing.
   AHAANA_ACCESS_PASSWORD: optionalEnvString(),
+  // v3.4.0 Phase 2 — real web push notifications for Ahaana's mini
+  // app (she has no Telegram). VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY are
+  // a key pair generated once (`npx web-push generate-vapid-keys`)
+  // identifying this app to push services — never regenerate them
+  // once real subscriptions exist, or every existing subscription
+  // silently stops working (the public key is baked into each
+  // subscription at the moment it's created client-side).
+  // VAPID_SUBJECT is a contact URL/mailto the Web Push spec requires
+  // push services to be able to reach if this app misbehaves — a
+  // plain project URL (not a personal email) to avoid sending
+  // personal contact info to Google/Mozilla/Apple's push
+  // infrastructure on every single send. All three optional at the
+  // schema level (same "app must still boot before Vercel is
+  // configured" reasoning as CRON_SECRET/AHAANA_ACCESS_PASSWORD) —
+  // src/lib/notifications/providers/web-push.ts's isConfigured()
+  // is what actually gates whether this channel can send.
+  VAPID_PUBLIC_KEY: optionalEnvString(),
+  VAPID_PRIVATE_KEY: optionalEnvString(),
+  VAPID_SUBJECT: optionalEnvString(),
 });
 
 function formatZodError(prefix: string, error: z.ZodError): string {
@@ -151,6 +170,9 @@ function parseServerEnv() {
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
     CRON_SECRET: process.env.CRON_SECRET,
     AHAANA_ACCESS_PASSWORD: process.env.AHAANA_ACCESS_PASSWORD,
+    VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
+    VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
+    VAPID_SUBJECT: process.env.VAPID_SUBJECT,
   });
 
   if (!result.success) {

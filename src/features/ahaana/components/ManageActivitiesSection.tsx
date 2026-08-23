@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { SectionHeading } from "@/features/dashboard/components/SectionHeading";
+import { ReminderFields } from "@/features/calendar/components/ReminderFields";
 import { cn } from "@/lib/utils";
 import {
   createAhaanaActivityAction,
@@ -46,6 +47,8 @@ function AddActivityForm() {
     initialState,
   );
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([]);
+  const [remindEnabled, setRemindEnabled] = useState(false);
+  const [remindLeadDays, setRemindLeadDays] = useState(0);
 
   function toggleDay(value: number) {
     setDaysOfWeek((prev) =>
@@ -155,6 +158,14 @@ function AddActivityForm() {
         />
       </div>
 
+      <ReminderFields
+        idPrefix="activity"
+        enabled={remindEnabled}
+        onEnabledChange={setRemindEnabled}
+        leadDays={remindLeadDays}
+        onLeadDaysChange={setRemindLeadDays}
+      />
+
       <FieldError message={state.error} />
       <Button type="submit" loading={isPending} className="w-full">
         <Plus className="size-4" /> Add activity
@@ -181,6 +192,8 @@ function ActivityRow({ activity }: { activity: AhaanaActivity }) {
         </div>
         <div className="text-[11px] text-ink-faint">
           {activity.category} · {activity.startTime}–{activity.endTime}
+          {activity.remindEnabled &&
+            ` · 🔔 ${activity.remindLeadDays === 0 ? "on the day" : `${activity.remindLeadDays}d before`}`}
           {!activity.active && " · inactive"}
         </div>
       </div>
@@ -199,6 +212,14 @@ function ActivityRow({ activity }: { activity: AhaanaActivity }) {
           type="hidden"
           name="planNotes"
           value={activity.planNotes ?? ""}
+        />
+        {activity.remindEnabled && (
+          <input type="hidden" name="remindEnabled" value="true" />
+        )}
+        <input
+          type="hidden"
+          name="remindLeadDays"
+          value={activity.remindLeadDays}
         />
         <input
           type="hidden"

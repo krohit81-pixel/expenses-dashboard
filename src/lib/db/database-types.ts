@@ -1157,6 +1157,8 @@ export type Database = {
       // Hand-added (v3.4.0) the same way as every other table in this
       // file — see this file's header disclaimer. Matches
       // supabase/migrations/20260823024123_create_ahaana_activities.sql.
+      // remind_enabled/remind_lead_days hand-added (v3.4.0 Phase 2) —
+      // see 20260823032457_add_web_push_and_ahaana_reminders.sql.
       ahaana_activities: {
         Row: {
           id: string;
@@ -1170,6 +1172,8 @@ export type Database = {
           end_date: string;
           plan_notes: string | null;
           active: boolean;
+          remind_enabled: boolean;
+          remind_lead_days: number;
           created_at: string;
           updated_at: string;
         };
@@ -1185,6 +1189,8 @@ export type Database = {
           end_date: string;
           plan_notes?: string | null;
           active?: boolean;
+          remind_enabled?: boolean;
+          remind_lead_days?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -1200,6 +1206,8 @@ export type Database = {
           end_date?: string;
           plan_notes?: string | null;
           active?: boolean;
+          remind_enabled?: boolean;
+          remind_lead_days?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -1776,12 +1784,19 @@ export type Database = {
       // notification_event_type's 4th member, school_calendar_event,
       // added v3.2.1 — see
       // 20260822095409_add_school_calendar_event_notification_type.sql.
-      notification_channel_type: "telegram";
+      // notification_channel_type's 2nd member, web_push, added
+      // v3.4.0 Phase 2 — see
+      // 20260823032457_add_web_push_and_ahaana_reminders.sql.
+      notification_channel_type: "telegram" | "web_push";
+      // notification_event_type's 5th member, ahaana_activity, added
+      // v3.4.0 Phase 2 — see
+      // 20260823032457_add_web_push_and_ahaana_reminders.sql.
       notification_event_type:
         | "calendar_event"
         | "trip"
         | "recurring_calendar_event"
-        | "school_calendar_event";
+        | "school_calendar_event"
+        | "ahaana_activity";
       notification_status: "sent" | "failed";
     };
     CompositeTypes: Record<string, never>;

@@ -12,7 +12,10 @@ export type NotificationEventType =
   // (src/features/calendar/data.ts), not a finance.calendar_events row
   // (see detectSchoolCalendarReminders' comment for why this is a
   // separate type rather than reusing "calendar_event").
-  | "school_calendar_event";
+  | "school_calendar_event"
+  // v3.4.0 Phase 2 — Ahaana's own mini-app activities
+  // (finance.ahaana_activities), sent via web_push, never Telegram.
+  | "ahaana_activity";
 
 export interface NotificationLogKey {
   eventType: NotificationEventType;

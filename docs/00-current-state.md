@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.4.0**
+correction layer: what's actually true today, current as of **v3.4.1**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -852,6 +852,90 @@ gate, schema, the weekly schedule view, mark-complete + notes. Phase 2
   against fixture props via a temporary `preview-temp` scratch page
   under `/ahaana/(gated)/` (deleted before committing, same pattern
   used throughout this app's history).
+
+## v3.4.1: Ahaana's mini app (Phase 2 of 3 — real device push notifications)
+
+Second of three phases. She has no Telegram, so this is genuinely new
+infrastructure — no push capability of any kind existed in this app
+before this pass (checked: no service worker, no VAPID keys, no
+`web-push` dependency).
+
+- **New dependency**: `web-push` (+`@types/web-push` dev dep). A VAPID
+  key pair was generated once (`npx web-push generate-vapid-keys`) —
+  new optional env vars `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/
+  `VAPID_SUBJECT`. **Never regenerate this pair once real subscriptions
+  exist** — the public key is baked into each subscription at creation
+  time; a new pair silently breaks every existing one.
+  `VAPID_SUBJECT` deliberately uses the project's own URL, not a
+  personal email — the Web Push spec requires a contact URL/mailto,
+  and a personal email would be sent to Google/Mozilla/Apple's push
+  infrastructure on every single send.
+- **`web_push` is a new `notification_channel_type`** (migration:
+  `supabase/migrations/20260823032457_add_web_push_and_ahaana_reminders.sql`,
+  **not yet applied**) — reuses `finance.notification_channels`
+  (same table `telegram` already uses), `config` holding the push
+  subscription object instead of a chat ID.
+  `NotificationChannelService.mapRow` branches on `channel_type` to
+  build `target` (JSON-stringifies the subscription for `web_push`) —
+  every existing caller (`getSendTarget`, `ReminderService`) is
+  untouched, since `target` is still just `string | null` either way.
+  New `setWebPushSubscription()`, the web_push sibling of
+  `setTelegramTarget`.
+- **A real correctness fix made mid-build**: adding a second real
+  channel meant `ReminderService.sendCandidates()`'s old default of
+  "try every registered channel" (`listChannelTypes()`) would have
+  sent the household's own calendar/trip/school reminders to Ahaana's
+  device too, and her activity reminders to the household Telegram
+  group. `sendCandidates()` now takes an explicit, required
+  `channelTypes` parameter — `runReminders()`/`runHourlyReminders()`
+  pass `["telegram"]`, the new `runAhaanaReminders()` passes
+  `["web_push"]`. `registry.ts`'s `listChannelTypes()` is kept (some
+  future caller with no opinion still wants a sane default) but no
+  real caller relies on it anymore.
+- **`finance.ahaana_activities` gained `remind_enabled`/
+  `remind_lead_days`** (same migration) — day-based only, same shape
+  every other reminder-capable table already has. `detectAhaanaActivityReminders`
+  (new, `lib/notifications/detect-ahaana-reminders.ts` — kept separate
+  from `detect-reminders.ts` since it detects from a different domain
+  object and only ever targets one channel) mirrors the existing
+  day-based detectors' shape. New `notification_event_type` member,
+  `ahaana_activity`, for its own dedupe/log entries (same reasoning as
+  `school_calendar_event`'s own addition in v3.2.1).
+- **New cron**: `GET /api/cron/ahaana-reminders` (same `checkCronAuth`
+  helper as the other two routes), a third `vercel.json` entry, every
+  4 hours (same cadence as the household's own day-based reminders —
+  no new tradeoff to weigh here, so not asked separately).
+- **`public/ahaana-sw.js`** — a minimal service worker (shows a
+  `Notification` on `push`, focuses/opens `/ahaana` on
+  `notificationclick`), registered only from `/ahaana`, never the main
+  app. `EnablePushButton` (`features/ahaana/components/`) is the
+  client-side "enable reminders" control — adapts to three real
+  states: iOS Safari not yet added to the Home Screen (shows an
+  install instruction instead of a button that would silently fail —
+  Web Push doesn't exist at all for a plain iOS Safari tab before
+  iOS 16.4's PWA support), not yet subscribed (a real button), and
+  already subscribed (a quiet confirmation). The activity form
+  (`ManageActivitiesSection`) gained the same `remind_enabled`/
+  `remind_lead_days` toggle every other reminder-capable form already
+  has, reusing the existing generic `ReminderFields` component as-is
+  (day-only mode, same as `AddTripModal`'s usage) rather than building
+  a second one.
+- **Verified**: new unit tests for `detectAhaanaActivityReminders`
+  (mirrors `detect-reminders.test.ts`'s style) and the new cron route's
+  auth behavior (401/503/200, same pattern as the other two routes'
+  own tests). `npx tsc --noEmit && npx eslint . && npx prettier
+  --check . && npx vitest run` all pass (532 passed — +10 new). A full
+  local `npm run build` completed successfully.
+  `EnablePushButton` was browser-verified against the real dev
+  server (not just fixture-rendered) — it correctly read this
+  session's actual `Notification.permission` state (denied, in this
+  automated browser) and rendered the matching UI, confirming the
+  detection logic runs against real browser APIs, not just plausible
+  in theory. **Not verified**: an actual push notification arriving on
+  a real device — that needs a real subscribe (deferred, same
+  "don't click a real mutating external send from this session"
+  reasoning as every other notification feature's rollout) once this
+  is deployed and the household tries it on Ahaana's own device.
 
 ## What's actually built
 

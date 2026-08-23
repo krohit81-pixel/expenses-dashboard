@@ -89,9 +89,12 @@ they say so.
   rest of Atlas, and vice versa) covering her own weekly activities
   and studies: a recurring-activity schedule (French, Kickboxing,
   Horse Riding, study blocks) and a mark-complete-with-notes flow.
-  Phase 1 of 3 — push reminders and a parent-facing weekly report/
-  progress page are follow-up releases, not built yet; see doc 00's
-  v3.4.0 section for the full plan.
+  v3.4.1 added Phase 2 — real device push notifications (she has no
+  Telegram), genuinely new infrastructure for this app (VAPID keys, a
+  service worker, a new `web_push` notification channel alongside
+  `telegram`). A parent-facing weekly report/progress page (Phase 3)
+  is still a follow-up release, not built yet; see doc 00's v3.4.0/
+  v3.4.1 sections for the full plan.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement

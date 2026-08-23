@@ -15,6 +15,8 @@ function activity(overrides: Partial<AhaanaActivity> = {}): AhaanaActivity {
     endDate: "2026-09-18",
     planNotes: null,
     active: true,
+    remindEnabled: false,
+    remindLeadDays: 0,
     ...overrides,
   };
 }
