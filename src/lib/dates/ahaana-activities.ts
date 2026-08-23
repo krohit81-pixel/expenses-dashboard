@@ -12,6 +12,36 @@
  */
 
 import type { AhaanaActivity } from "@/services/AhaanaActivityService";
+import { todayISODate } from "@/lib/dates/calendar-grid";
+
+/**
+ * v3.4.8 — the 7 dates (Sunday–Saturday) of the week containing
+ * `referenceDateISO` (defaults to today, IST). Deliberately its own
+ * Sunday-start helper rather than reusing `calendar-grid.ts`'s
+ * Monday-start `getWeekDates` — Ahaana's own request was specifically
+ * "new week starts at Sunday" for her Dashboard tab, which is a
+ * genuinely different convention from the household calendar's own
+ * Monday-start week (used elsewhere in this app, including the
+ * parent-facing weekly report/progress page — those stay Monday-start
+ * on purpose, this is scoped to her own view only). Same UTC-based,
+ * shift-proof math as `getWeekDates`, just anchored on Sunday
+ * (`getUTCDay()` is already 0 for Sunday, so no offset adjustment is
+ * needed the way Monday-start needs `(day + 6) % 7`).
+ */
+export function getAhaanaWeekDates(referenceDateISO?: string): string[] {
+  const ref = referenceDateISO
+    ? new Date(`${referenceDateISO}T00:00:00Z`)
+    : new Date(`${todayISODate()}T00:00:00Z`);
+  const daysSinceSunday = ref.getUTCDay();
+  const sunday = new Date(ref);
+  sunday.setUTCDate(ref.getUTCDate() - daysSinceSunday);
+
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(sunday);
+    d.setUTCDate(sunday.getUTCDate() + i);
+    return d.toISOString().slice(0, 10);
+  });
+}
 
 export interface AhaanaOccurrence {
   key: string;

@@ -87,7 +87,13 @@ export async function updateAhaanaActivityAction(
     startDate: formValue(formData, "startDate"),
     endDate: formValue(formData, "endDate"),
     planNotes: formValue(formData, "planNotes") ?? null,
-    active: formValue(formData, "active"),
+    // v3.4.8 — an explicit string comparison, not left for the schema
+    // to coerce: same convention features/merchants and
+    // features/categories' own active-toggle actions already use for
+    // this exact shape (z.coerce.boolean() treats ANY non-empty
+    // string as true, including the literal string "false" — see the
+    // schema's own comment).
+    active: formValue(formData, "active") === "true",
     remindEnabled: formValue(formData, "remindEnabled"),
     remindLeadDays: formValue(formData, "remindLeadDays"),
     remindLeadHours: formValue(formData, "remindLeadHours") ?? null,

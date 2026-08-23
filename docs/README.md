@@ -111,8 +111,16 @@ they say so.
   file-convention route auto-injects its manifest link into every page
   regardless of any layout's own override, so both manifests are now
   plain static files under `public/`, chosen by an explicit,
-  path-aware `<link>` the root layout renders itself — see doc 00's
-  v3.4.4 section.
+  path-aware `<link>` the root layout renders itself. v3.4.5-v3.4.7
+  chased down her real device's push-subscribe flow one error at a
+  time (a gated service worker file, then an inactive-worker race) —
+  reminders are now confirmed working end to end on her device.
+  v3.4.8 added a visible version number, a real Edit flow for her
+  activities (also fixing a real, previously-silent bug where
+  Deactivate never actually worked), and split her single page into
+  "Dashboard" (the weekly view, now Sunday-start at her own request)
+  and "Log Activity" tabs — see doc 00's v3.4.4 through v3.4.8
+  sections.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement

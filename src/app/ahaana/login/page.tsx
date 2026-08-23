@@ -1,6 +1,7 @@
 import Image from "next/image";
 
 import { AhaanaLoginForm } from "@/features/ahaana/components/AhaanaLoginForm";
+import { APP_VERSION } from "@/lib/version";
 
 /**
  * v3.4.0 — sits outside the (app) route group entirely (this whole
@@ -30,7 +31,10 @@ export default function AhaanaLoginPage() {
           priority
         />
         <h1 className="mb-1 font-display text-xl font-extrabold text-white">
-          Ahaana&apos;s Studies
+          Ahaana&apos;s Studies{" "}
+          <span className="font-display text-xs font-bold text-white/40">
+            v{APP_VERSION}
+          </span>
         </h1>
         <p className="mb-8 text-sm text-white/60">
           Enter your password to continue.
