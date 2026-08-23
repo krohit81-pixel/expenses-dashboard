@@ -1,12 +1,10 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
-import { headers } from "next/headers";
 
 import { ahaanaLogoutAction } from "@/features/ahaana/api/actions";
 import { RefreshOnShow } from "@/features/ahaana/components/RefreshOnShow";
+import { AhaanaTabs } from "@/features/ahaana/components/AhaanaTabs";
 import { todayISODate } from "@/lib/dates/calendar-grid";
 import { APP_VERSION } from "@/lib/version";
-import { cn } from "@/lib/utils";
 
 /**
  * v3.4.0 — the chrome for every gated page under /ahaana (the weekly
@@ -18,12 +16,6 @@ import { cn } from "@/lib/utils";
  * renders once that's already passed.
  */
 export const dynamic = "force-dynamic";
-
-/** v3.4.8 — two tabs: the weekly schedule ("Dashboard") and the add/edit/delete screen ("Log Activity"). */
-const TABS = [
-  { href: "/ahaana", label: "Dashboard" },
-  { href: "/ahaana/manage", label: "Log Activity" },
-] as const;
 
 /**
  * v3.4.3 — a small, rotating, age-appropriate line at the bottom of
@@ -53,16 +45,9 @@ function footerLineForToday(): string {
   return FOOTER_LINES[dayOfYear % FOOTER_LINES.length];
 }
 
-export default async function AhaanaGatedLayout({
+export default function AhaanaGatedLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
-  // v3.4.8 — which tab is "active" depends on the exact current path,
-  // read from the header middleware.ts already forwards to every
-  // request (nextWithPathname, added in v3.4.4 for the root layout's
-  // own manifest choice) — cheaper than making this a client component
-  // just to call usePathname() for a single highlight.
-  const pathname = (await headers()).get("x-pathname") ?? "";
-
   return (
     <div className="min-h-dvh bg-bg">
       <RefreshOnShow />
@@ -87,28 +72,7 @@ export default async function AhaanaGatedLayout({
             </button>
           </form>
         </div>
-        <nav className="flex gap-1.5 pb-3">
-          {TABS.map((tab) => {
-            const isActive =
-              tab.href === "/ahaana"
-                ? pathname === "/ahaana"
-                : pathname === tab.href || pathname.startsWith(`${tab.href}/`);
-            return (
-              <Link
-                key={tab.href}
-                href={tab.href}
-                className={cn(
-                  "rounded-full px-3.5 py-1.5 font-display text-[12.5px] font-bold transition-colors",
-                  isActive
-                    ? "bg-accent text-white"
-                    : "bg-bg text-ink-faint hover:text-ink-soft",
-                )}
-              >
-                {tab.label}
-              </Link>
-            );
-          })}
-        </nav>
+        <AhaanaTabs />
       </header>
       <main className="p-5 sm:p-8">{children}</main>
       <footer className="px-5 pb-8 text-center text-[12px] font-medium text-ink-faint sm:px-8">

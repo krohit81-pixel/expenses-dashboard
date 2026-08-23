@@ -54,6 +54,33 @@ export interface AhaanaOccurrence {
   planNotes: string | null;
 }
 
+/** Whole days from `a` to `b` (both "YYYY-MM-DD"), UTC-based — only ever called here with `b >= a`, so always >= 0. */
+function daysBetween(a: string, b: string): number {
+  const from = new Date(`${a}T00:00:00Z`).getTime();
+  const to = new Date(`${b}T00:00:00Z`).getTime();
+  return Math.round((to - from) / 86_400_000);
+}
+
+/**
+ * v3.4.10 — true if `dateISO` falls on a "kept" week for an
+ * `alternateWeeks` activity: the 7-day block containing its own
+ * `startDate` counts as week 0 (kept), the next 7-day block is week 1
+ * (skipped), and so on — `Math.floor(daysBetween(...) / 7) % 2 === 0`.
+ * Deliberately counts whole weeks *since the activity's own anchor
+ * date*, not calendar-week-grid boundaries (Sunday-start or
+ * Monday-start) — that anchor is what the household's own use case
+ * relies on: two separate activities (e.g. History and Geography),
+ * each `alternateWeeks`, with `startDate`s a week apart, naturally
+ * interleave without either activity needing to know about the other.
+ */
+function isOnKeptWeek(activity: AhaanaActivity, dateISO: string): boolean {
+  if (!activity.alternateWeeks) return true;
+  const weeksSinceStart = Math.floor(
+    daysBetween(activity.startDate, dateISO) / 7,
+  );
+  return weeksSinceStart % 2 === 0;
+}
+
 /**
  * One occurrence per date in [rangeStart, rangeEnd] (inclusive) whose
  * weekday is in the activity's daysOfWeek AND falls within the
@@ -61,7 +88,8 @@ export interface AhaanaOccurrence {
  * expandRecurringOccurrences. Only `active` activities are ever passed
  * in by callers (this function doesn't filter on `active` itself,
  * same "caller decides what set of rows to expand" separation the
- * sibling function uses).
+ * sibling function uses). v3.4.10 also skips a date that falls on a
+ * "skipped" week for an `alternateWeeks` activity — see `isOnKeptWeek`.
  */
 export function expandAhaanaOccurrences(
   activities: AhaanaActivity[],
@@ -80,7 +108,10 @@ export function expandAhaanaOccurrences(
     const end = new Date(`${to}T00:00:00Z`);
     while (cursor <= end) {
       const dateISO = cursor.toISOString().slice(0, 10);
-      if (activity.daysOfWeek.includes(cursor.getUTCDay())) {
+      if (
+        activity.daysOfWeek.includes(cursor.getUTCDay()) &&
+        isOnKeptWeek(activity, dateISO)
+      ) {
         occurrences.push({
           key: `${activity.id}-${dateISO}`,
           activityId: activity.id,

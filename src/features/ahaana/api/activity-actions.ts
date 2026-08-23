@@ -54,6 +54,7 @@ export async function createAhaanaActivityAction(
     remindEnabled: formValue(formData, "remindEnabled"),
     remindLeadDays: formValue(formData, "remindLeadDays"),
     remindLeadHours: formValue(formData, "remindLeadHours") ?? null,
+    alternateWeeks: formValue(formData, "alternateWeeks"),
   });
 
   if (!parsed.success) {
@@ -97,6 +98,7 @@ export async function updateAhaanaActivityAction(
     remindEnabled: formValue(formData, "remindEnabled"),
     remindLeadDays: formValue(formData, "remindLeadDays"),
     remindLeadHours: formValue(formData, "remindLeadHours") ?? null,
+    alternateWeeks: formValue(formData, "alternateWeeks"),
   });
 
   if (!parsed.success) {

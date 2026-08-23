@@ -22,6 +22,7 @@ function activity(overrides: Partial<AhaanaActivity> = {}): AhaanaActivity {
     remindEnabled: true,
     remindLeadDays: 1,
     remindLeadHours: null,
+    alternateWeeks: false,
     ...overrides,
   };
 }
