@@ -42,11 +42,25 @@ import {
 // (a deliberate top-level static file, not nested under her gated
 // tree) so it wouldn't otherwise reach the ahaana-specific branch
 // below at all; it needs its own explicit public entry here instead.
+//
+// v3.4.6 — ahaana-sw.js needed the exact same public entry, for a
+// real bug this time, not just belt-and-suspenders: the browser fetches
+// a service worker script as a plain, cookieless-by-default resource
+// request, and a service worker registration MUST get back the actual
+// script with a 200 — a redirect (which is what this got, straight to
+// /login, since it fell through to the main app_access gate below) is
+// treated as a hard failure, surfacing in WebKit as exactly
+// "SecurityError: Script ... load failed" rather than anything
+// mentioning auth or redirects. Same "top-level static file, not
+// nested under /ahaana/" reasoning as the manifest above — plain
+// `startsWith("/ahaana/")` doesn't match a path with no trailing
+// slash after "ahaana".
 const PUBLIC_PATHS = [
   "/calendar",
   "/login",
   "/api/cron",
   "/ahaana-manifest.webmanifest",
+  "/ahaana-sw.js",
 ];
 
 function isPublicPath(pathname: string): boolean {
