@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.4.3**
+correction layer: what's actually true today, current as of **v3.4.4**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -1087,6 +1087,53 @@ phases are planned.
 the real Supabase instance. Until then, `/ahaana` and its cron route
 will error (missing `remind_lead_hours` column) — same "expected until
 applied" situation as every prior phase's own migration.
+
+## v3.4.4: the "Add to Home Screen" fix above didn't actually work — real root cause + real fix
+
+v3.4.3's manifest fix was verified via the dev server and shipped, but
+the household's own iOS device still showed "Atlas" / the root URL when
+adding to Home Screen. Root-caused this time with an actual `next
+build` + `next start` + `curl` against the built output (the dev server
+resolves this one specific thing differently, which is exactly why the
+first pass looked fine and wasn't): **Next.js's `app/manifest.ts`
+file-convention route auto-injects its own `<link rel="manifest">` into
+every single page, unconditionally — regardless of what any layout's
+`metadata.manifest` field says anywhere in the tree.** `title` and
+`appleWebApp` (also declared in `src/app/ahaana/layout.tsx`) really do
+override correctly per-segment, the ordinary way; `manifest` specifically
+does not, because the file-convention route wins regardless.
+
+Real fix: both manifests are now plain static files under `public/`
+(`manifest.webmanifest` and `ahaana-manifest.webmanifest`) instead of
+one being the special `app/manifest.ts` route — removed that file
+entirely. The root layout (`src/app/layout.tsx`) now renders
+`<link rel="manifest">` explicitly in its own JSX, choosing between the
+two based on the current path. Getting the path into a Server Component
+needed `middleware.ts` to forward it as a request header
+(`nextWithPathname`, replacing every plain `NextResponse.next()`),
+since Server Components have no built-in equivalent of Client
+Components' `usePathname()`. `src/app/ahaana/layout.tsx` no longer sets
+`manifest` at all — the root is the only place that decides it now.
+
+Side effect: the whole app lost eligibility for static prerendering
+(`headers()` in the root layout forces every route dynamic) — a
+negligible cost, since virtually every real page already fetched live
+Supabase data per request anyway; only `/`, `/_not-found`, and the old
+`/manifest.webmanifest` route were ever actually static, and none of
+those benefit meaningfully from prerendering here.
+
+**Verified this time** with the standard less-trustworthy-dev-server
+caveat actually addressed: `next build` + `next start` + `curl`
+against `/ahaana/login` shows exactly one `<link rel="manifest"
+href="/ahaana-manifest.webmanifest">` (title/appleWebApp still correct
+too), and `/login` (main app, control case) shows exactly one
+`<link rel="manifest" href="/manifest.webmanifest">` — confirmed no
+duplicate links either way. `npx tsc --noEmit && npx eslint . && npx
+prettier --check . && npx vitest run` all pass (547, unchanged — this
+was a routing/metadata fix, no new test surface). A full `npm run
+build` completed successfully with every route now `ƒ` (dynamic).
+
+No new migration, no new env vars.
 
 ## What's actually built
 

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { headers } from "next/headers";
 
 import "./globals.css";
 
@@ -10,7 +11,18 @@ export const metadata: Metadata = {
     template: "%s | Atlas",
   },
   description: "A private personal finance dashboard.",
-  manifest: "/manifest.webmanifest",
+  // NOT `manifest` here (or `app/manifest.ts` as a route file — see
+  // public/manifest.webmanifest instead) — v3.4.3 found, the hard way,
+  // that Next.js auto-injects a `<link rel="manifest">` from an
+  // `app/manifest.ts` file-convention route into EVERY page
+  // unconditionally, regardless of what any `metadata.manifest` field
+  // anywhere in the tree says (verified with an actual `next build` +
+  // `next start` + curl, not just the dev server, which happens to
+  // mask this). `/ahaana/*` needs its own different manifest, so both
+  // manifests are now plain static files under `public/`, and the
+  // `<link rel="manifest">` is rendered explicitly, conditionally,
+  // below — a real element in this layout's own JSX, not the metadata
+  // API's special-cased field.
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -40,12 +52,23 @@ export const viewport: Viewport = {
  * provides — worth revisiting once this can be verified somewhere with
  * broader network access.
  */
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
+  // v3.4.3 — which manifest to link depends on path (Atlas's own vs.
+  // Ahaana's), read from the header middleware.ts's nextWithPathname
+  // forwards (Server Components have no built-in "current pathname"
+  // API the way Client Components' usePathname() does).
+  const pathname = (await headers()).get("x-pathname") ?? "";
+  const isAhaana = pathname === "/ahaana" || pathname.startsWith("/ahaana/");
+  const manifestHref = isAhaana
+    ? "/ahaana-manifest.webmanifest"
+    : "/manifest.webmanifest";
+
   return (
     <html lang="en">
       <head>
+        <link rel="manifest" href={manifestHref} />
         {/* Runs before hydration to avoid a flash of the wrong theme —
             standard pattern for class-based dark mode with SSR. Falls
             back to system preference only when the person hasn't

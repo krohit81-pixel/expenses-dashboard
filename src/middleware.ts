@@ -55,11 +55,33 @@ function isPublicPath(pathname: string): boolean {
   );
 }
 
+/**
+ * v3.4.3 — forwards the current pathname as a request header so the
+ * ROOT layout (src/app/layout.tsx) can render the right
+ * `<link rel="manifest">` — Atlas's own vs. Ahaana's. Root has to be
+ * the one making that call: verified (built `next build` + `next
+ * start` and curled the actual response, not just the dev server,
+ * which masks this) that an `app/manifest.ts` file-convention route
+ * auto-injects its manifest link into every page unconditionally,
+ * ignoring whatever any layout's `metadata.manifest` field says
+ * anywhere in the tree — so both manifests are plain static files
+ * under `public/` now, chosen by an explicit, path-aware `<link>` the
+ * root layout renders itself. That requires knowing the current path
+ * in a Server Component, which has no built-in way to ask for it the
+ * way Client Components' `usePathname()` can — `headers()` reading
+ * this forwarded header is the standard workaround.
+ */
+function nextWithPathname(request: NextRequest): NextResponse {
+  const headers = new Headers(request.headers);
+  headers.set("x-pathname", request.nextUrl.pathname);
+  return NextResponse.next({ request: { headers } });
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (isPublicPath(pathname)) {
-    return NextResponse.next();
+    return nextWithPathname(request);
   }
 
   // v3.4.0 — Ahaana's mini app lives entirely under /ahaana, under a
@@ -71,14 +93,14 @@ export async function middleware(request: NextRequest) {
   // runs the onboarding/user_settings check below either, which has
   // nothing to do with her section.
   if (pathname === "/ahaana/login" || pathname.startsWith("/ahaana/login/")) {
-    return NextResponse.next();
+    return nextWithPathname(request);
   }
   if (pathname === "/ahaana" || pathname.startsWith("/ahaana/")) {
     const ahaanaToken = request.cookies.get(AHAANA_ACCESS_COOKIE_NAME)?.value;
     if (!verifyAhaanaAccessToken(ahaanaToken)) {
       return NextResponse.redirect(new URL("/ahaana/login", request.url));
     }
-    return NextResponse.next();
+    return nextWithPathname(request);
   }
 
   const token = request.cookies.get(ACCESS_COOKIE_NAME)?.value;
@@ -89,7 +111,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (pathname === "/onboarding") {
-    return NextResponse.next();
+    return nextWithPathname(request);
   }
 
   // withAuthTimingRetry: this query runs on every gated page view, so
@@ -112,7 +134,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/onboarding", request.url));
   }
 
-  return NextResponse.next();
+  return nextWithPathname(request);
 }
 
 export const config = {
