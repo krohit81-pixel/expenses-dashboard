@@ -49,10 +49,19 @@ export default function RootLayout({
         {/* Runs before hydration to avoid a flash of the wrong theme —
             standard pattern for class-based dark mode with SSR. Falls
             back to system preference only when the person hasn't
-            explicitly chosen yet (no stored value). */}
+            explicitly chosen yet (no stored value).
+            v3.4.3: /ahaana always stays light, full stop — her section
+            has no ThemeToggle at all (nothing to switch it back with),
+            and defaulting to *her device's* own system preference (dark,
+            in the report that prompted this) looked broken/unfinished
+            rather than intentional. Checked via pathname, not the shared
+            'atlas-theme' localStorage key, since that key is one shared
+            value across the whole origin — reading it here would still
+            pick up whatever the household last set for their own
+            side of the app. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('atlas-theme');var d=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');}catch(e){}})();`,
+            __html: `(function(){try{if(location.pathname.startsWith('/ahaana'))return;var t=localStorage.getItem('atlas-theme');var d=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');}catch(e){}})();`,
           }}
         />
         <link rel="preconnect" href="https://fonts.googleapis.com" />

@@ -98,7 +98,13 @@ they say so.
   Progress" page under `/more` (completion-rate trend + recent notes),
   reachable only through the main household gate, never from `/ahaana`
   itself; see doc 00's v3.4.0/v3.4.1/v3.4.2 sections for the full
-  three-phase build.
+  three-phase build. v3.4.3 fixed five issues surfaced by the
+  household's first real-device session: her own "Add to Home Screen"
+  identity/manifest (was inheriting Atlas's), dark mode forced off for
+  her section (no toggle to switch it back), her login screen's logo,
+  a stale-after-reopening-from-Home-Screen fix, an encouraging footer
+  line, and an hour-based reminder option (1/2/3/4 hours before,
+  alongside the existing day-based one) — see doc 00's v3.4.3 section.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement

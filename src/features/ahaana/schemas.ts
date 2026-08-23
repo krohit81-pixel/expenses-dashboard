@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import { zTimeOfDay, zReminderFields } from "@/features/calendar/schemas";
+import {
+  zTimeOfDay,
+  zReminderFields,
+  zHourlyReminderFields,
+} from "@/features/calendar/schemas";
 
 /**
  * Validation for finance.ahaana_activities / ahaana_activity_logs
@@ -8,6 +12,12 @@ import { zTimeOfDay, zReminderFields } from "@/features/calendar/schemas";
  * features/calendar/schemas.ts — same "HH:MM" 24-hour shape and same
  * remindEnabled/remindLeadDays pair every reminder-capable table in
  * this app already validates against, no reason for a second copy.
+ *
+ * v3.4.3 — zHourlyReminderFields (remindLeadHours) is reused too. No
+ * "needs a start time first" refinement here unlike calendar_events':
+ * every ahaana_activities row already has a required startTime (unlike
+ * a plain calendar event's optional one), so hours mode is always
+ * valid from day one, nothing to guard against.
  */
 
 const zAhaanaCategory = z.enum(["class", "sport", "study", "other"]);
@@ -27,6 +37,7 @@ const baseActivityFields = z.object({
   endDate: z.iso.date(),
   planNotes: z.string().trim().max(1000).nullable().optional(),
   ...zReminderFields.shape,
+  ...zHourlyReminderFields.shape,
 });
 
 function refineOrder<

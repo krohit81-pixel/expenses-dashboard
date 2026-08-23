@@ -23,6 +23,7 @@ import {
 } from "@/lib/notifications/detect-reminders";
 import {
   detectAhaanaActivityReminders,
+  detectAhaanaActivityHourlyReminders,
   detectAhaanaWeeklyReport,
 } from "@/lib/notifications/detect-ahaana-reminders";
 import { listAhaanaActivities } from "@/services/AhaanaActivityService";
@@ -48,6 +49,9 @@ const RECURRING_HOURLY_LOOKAHEAD_DAYS = 2;
 
 /** v3.4.0 Phase 2 — same reasoning as RECURRING_LOOKAHEAD_DAYS, for Ahaana's own recurring activities. */
 const AHAANA_LOOKAHEAD_DAYS = 14;
+
+/** v3.4.3 — same reasoning as RECURRING_HOURLY_LOOKAHEAD_DAYS, for Ahaana's own hour-based activity reminders. */
+const AHAANA_HOURLY_LOOKAHEAD_DAYS = 2;
 
 /**
  * The actual "dedupe, find a channel, send, record" loop — shared by
@@ -260,17 +264,30 @@ export async function runHourlyReminders(
  * device never receives the household's own calendar/trip/school
  * reminders either, since those explicitly target `["telegram"]`
  * above).
+ *
+ * v3.4.3 — takes a full instant (`nowIso`), not just a date, now that
+ * an hour-based option exists alongside the day-based one (same
+ * "day-based cares about the date, hour-based cares about the instant"
+ * split runHourlyReminders' own `nowIso` follows). The cron schedule
+ * behind this route was tightened from every 4 hours to every 15
+ * minutes in the same pass, matching runHourlyReminders' own cadence
+ * — a "1 hour before" reminder needs that same tighter precision an
+ * every-4-hours tick can't provide.
  */
 export async function runAhaanaReminders(
-  asOf: string = new Date().toISOString().slice(0, 10),
+  nowIso: string = new Date().toISOString(),
 ): Promise<ReminderRunResult> {
+  const asOf = nowIso.slice(0, 10);
   const activities = await listAhaanaActivities();
 
-  const candidates = detectAhaanaActivityReminders(
-    activities,
-    asOf,
-    AHAANA_LOOKAHEAD_DAYS,
-  );
+  const candidates: ReminderCandidate[] = [
+    ...detectAhaanaActivityReminders(activities, asOf, AHAANA_LOOKAHEAD_DAYS),
+    ...detectAhaanaActivityHourlyReminders(
+      activities,
+      nowIso,
+      AHAANA_HOURLY_LOOKAHEAD_DAYS,
+    ),
+  ];
 
   return sendCandidates(candidates, ["web_push"]);
 }

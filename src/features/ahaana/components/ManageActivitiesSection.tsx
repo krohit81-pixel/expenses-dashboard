@@ -49,6 +49,7 @@ function AddActivityForm() {
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([]);
   const [remindEnabled, setRemindEnabled] = useState(false);
   const [remindLeadDays, setRemindLeadDays] = useState(0);
+  const [remindLeadHours, setRemindLeadHours] = useState<number | null>(null);
 
   function toggleDay(value: number) {
     setDaysOfWeek((prev) =>
@@ -164,6 +165,9 @@ function AddActivityForm() {
         onEnabledChange={setRemindEnabled}
         leadDays={remindLeadDays}
         onLeadDaysChange={setRemindLeadDays}
+        leadHours={remindLeadHours}
+        onLeadHoursChange={setRemindLeadHours}
+        allowHourly
       />
 
       <FieldError message={state.error} />
@@ -193,7 +197,13 @@ function ActivityRow({ activity }: { activity: AhaanaActivity }) {
         <div className="text-[11px] text-ink-faint">
           {activity.category} · {activity.startTime}–{activity.endTime}
           {activity.remindEnabled &&
-            ` · 🔔 ${activity.remindLeadDays === 0 ? "on the day" : `${activity.remindLeadDays}d before`}`}
+            ` · 🔔 ${
+              activity.remindLeadHours !== null
+                ? `${activity.remindLeadHours}h before`
+                : activity.remindLeadDays === 0
+                  ? "on the day"
+                  : `${activity.remindLeadDays}d before`
+            }`}
           {!activity.active && " · inactive"}
         </div>
       </div>
@@ -220,6 +230,11 @@ function ActivityRow({ activity }: { activity: AhaanaActivity }) {
           type="hidden"
           name="remindLeadDays"
           value={activity.remindLeadDays}
+        />
+        <input
+          type="hidden"
+          name="remindLeadHours"
+          value={activity.remindLeadHours ?? ""}
         />
         <input
           type="hidden"

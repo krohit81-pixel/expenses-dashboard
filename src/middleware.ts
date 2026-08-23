@@ -34,7 +34,20 @@ import {
  * via a CRON_SECRET bearer token (see its own file) — this bypass only
  * skips the cookie gate, not authentication generally.
  */
-const PUBLIC_PATHS = ["/calendar", "/login", "/api/cron"];
+// v3.4.3 — ahaana-manifest.webmanifest is public for the same reason
+// /ahaana/login is: a Home Screen "Add" action (or iOS re-checking an
+// already-installed one) fetches this file directly, sometimes without
+// her ahaana_access cookie attached, and it carries nothing
+// sensitive — just a name/icon/start_url. Doesn't start with "/ahaana"
+// (a deliberate top-level static file, not nested under her gated
+// tree) so it wouldn't otherwise reach the ahaana-specific branch
+// below at all; it needs its own explicit public entry here instead.
+const PUBLIC_PATHS = [
+  "/calendar",
+  "/login",
+  "/api/cron",
+  "/ahaana-manifest.webmanifest",
+];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(

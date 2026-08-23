@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/ahaana-reminders",
-      "schedule": "0 */4 * * *"
+      "schedule": "*/15 * * * *"
     }
   ]
 }

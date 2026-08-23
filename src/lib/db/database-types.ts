@@ -1159,6 +1159,8 @@ export type Database = {
       // supabase/migrations/20260823024123_create_ahaana_activities.sql.
       // remind_enabled/remind_lead_days hand-added (v3.4.0 Phase 2) —
       // see 20260823032457_add_web_push_and_ahaana_reminders.sql.
+      // remind_lead_hours hand-added (v3.4.3) — see
+      // 20260823105636_add_ahaana_hourly_reminders.sql.
       ahaana_activities: {
         Row: {
           id: string;
@@ -1174,6 +1176,7 @@ export type Database = {
           active: boolean;
           remind_enabled: boolean;
           remind_lead_days: number;
+          remind_lead_hours: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -1191,6 +1194,7 @@ export type Database = {
           active?: boolean;
           remind_enabled?: boolean;
           remind_lead_days?: number;
+          remind_lead_hours?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1208,6 +1212,7 @@ export type Database = {
           active?: boolean;
           remind_enabled?: boolean;
           remind_lead_days?: number;
+          remind_lead_hours?: number | null;
           created_at?: string;
           updated_at?: string;
         };

@@ -16,13 +16,18 @@ const LEAD_TIME_OPTIONS: { value: number; label: string }[] = [
  * v3.2.2 — only offered when `allowHourly` is true: a real start time
  * to count backward from (a recurring rule always has one; a plain
  * calendar event only once its own optional Time field is filled in —
- * see AddEventModal). Fixed at 3/4 hours per the household's explicit
- * request, not an open-ended picker — same "don't over-constrain a
+ * see AddEventModal). Originally fixed at 3/4 hours per the
+ * household's explicit request; v3.4.3 added 1/2 hours too (Ahaana's
+ * mini app wanted tighter options for a session starting soon) — not
+ * an open-ended picker either way, same "don't over-constrain a
  * column for a UI-level choice" reasoning LEAD_TIME_OPTIONS above
  * already follows; remind_lead_hours itself isn't constrained to
- * these two values at the database level.
+ * these specific values at the database level (1-23 is all the schema
+ * enforces).
  */
 const LEAD_HOUR_OPTIONS: { value: number; label: string }[] = [
+  { value: 1, label: "1 hour before" },
+  { value: 2, label: "2 hours before" },
   { value: 3, label: "3 hours before" },
   { value: 4, label: "4 hours before" },
 ];

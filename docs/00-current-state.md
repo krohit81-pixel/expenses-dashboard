@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.4.2**
+correction layer: what's actually true today, current as of **v3.4.3**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -1001,19 +1001,92 @@ read-only "how's it going" view.
   mutating external send from this session" reasoning as every other
   notification feature's rollout).
 
-**Pending (household to do, all three Ahaana-mini-app migrations at
-once)**: apply
-`20260823024123_create_ahaana_activities.sql`,
-`20260823032457_add_web_push_and_ahaana_reminders.sql`, and
-`20260823041400_add_ahaana_weekly_report_event_type.sql` to the real
-Supabase instance (in that order — the second and third each depend on
-enum/table state the previous one creates), then set
-`AHAANA_ACCESS_PASSWORD`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and
-`VAPID_SUBJECT` in Vercel's env vars before merging/deploying this PR.
-Until then, `/ahaana` and its cron routes will error against the real
-database — this is expected and doesn't block Phase 3's own code from
-being correct, same as Phase 1/2's own migrations sitting unapplied
-while their code was built and verified against fixtures.
+**Done**: the household applied all three Ahaana-mini-app migrations
+above and set `AHAANA_ACCESS_PASSWORD`/`VAPID_PUBLIC_KEY`/
+`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` in Vercel; this PR was merged and
+deployed to production.
+
+## v3.4.3: Ahaana's mini app — first real-device feedback fixes
+
+The household's first real session on an actual device (post-deploy)
+surfaced five issues — all fixed in this pass, before any further
+phases are planned.
+
+- **"Add to Home Screen" showed the raw URL, not her app's name.**
+  `/ahaana` had no manifest/Apple-web-app metadata of its own — it
+  inherited the root layout's (name "Atlas", `start_url: "/"`). New
+  `public/ahaana-manifest.webmanifest` (`start_url`/`scope: "/ahaana"`,
+  name "Ahaana's Studies") plus a new `src/app/ahaana/layout.tsx`
+  declaring it and `appleWebApp.title` for the whole `/ahaana` tree —
+  both `/ahaana/login` and the gated pages inherit it. Added
+  `/ahaana-manifest.webmanifest` as an explicit public path in
+  `middleware.ts` (it's a top-level static file, not nested under
+  `/ahaana`, so it wouldn't otherwise reach either gate branch).
+- **Dark mode on by default.** Her section has no `ThemeToggle` (nothing
+  to switch it back with), so defaulting to her device's own system
+  preference looked broken. The root layout's inline pre-hydration
+  theme script (`src/app/layout.tsx`) now checks
+  `location.pathname.startsWith('/ahaana')` and skips adding the `dark`
+  class entirely for that whole tree — verified both ways: the main app
+  still follows system dark mode, `/ahaana` stays light regardless.
+- **No logo on her login screen.** `/ahaana/login` now shows the same
+  `atlas-mark.png` the main `/login` page does, above the "Ahaana's
+  Studies" heading — same treatment, still one app underneath.
+- **A newly-added activity didn't appear until she tapped something.**
+  Root-caused as iOS Safari's standalone-PWA behavior: reopening from
+  the Home Screen often restores the exact snapshot from when the app
+  was last backgrounded instead of a fresh navigation, until some real
+  interaction forces a re-render. New `RefreshOnShow` (no UI, mounted in
+  `(gated)/layout.tsx`) calls `router.refresh()` on a persisted
+  `pageshow` and on `visibilitychange` turning visible, so reopening the
+  app always re-fetches live data. **Also found and fixed in the same
+  pass**: `createAhaanaActivityAction`/`updateAhaanaActivityAction`
+  never actually read `remindEnabled`/`remindLeadDays` from the
+  submitted form — every activity silently saved with reminders off
+  regardless of what the form showed. Unrelated to the visibility
+  report itself, but a real bug caught while touching this same code
+  path for the hour-based option below.
+- **A footer line for her, specifically.** `(gated)/layout.tsx` now
+  shows one of seven short, encouraging (not childish) lines at the
+  bottom of every page, picked deterministically from today's date (no
+  hydration mismatch) — tone matched to 13-turning-14, per the
+  household's own framing.
+- **Hour-based reminders for her activities**, alongside the existing
+  day-based option — same shape the main calendar already has, plus
+  the main calendar's own hour picker gained 1/2-hour options alongside
+  its existing 3/4-hour ones (`ReminderFields.tsx`'s `LEAD_HOUR_OPTIONS`,
+  shared by every caller). New `remind_lead_hours` column on
+  `finance.ahaana_activities` (migration, **not yet applied** — see
+  below), new `detectAhaanaActivityHourlyReminders`
+  (`lib/notifications/detect-ahaana-reminders.ts`, mirrors
+  `detectRecurringEventHourlyReminders`'s IST-aware instant math almost
+  exactly), mutual exclusivity with the day-based detector (same
+  convention as the household calendar's own two). `runAhaanaReminders()`
+  now takes a full instant and runs both detectors; its cron
+  (`/api/cron/ahaana-reminders`) was tightened from every 4 hours to
+  every 15 minutes (`vercel.json`) to give an "1 hour before" option
+  the precision it needs — same reasoning as the household's own
+  `/api/cron/reminders-hourly`.
+- **Verified**: `npx tsc --noEmit && npx eslint . && npx prettier
+  --check . && npx vitest run` all pass (547 passed, +4 new this pass).
+  A full
+  local `npm run build` completed successfully. Browser-verified: the
+  dark-mode guard both ways (system dark mode still applies to the main
+  app, forced light on `/ahaana` regardless), the manifest/Apple-web-app
+  metadata resolving correctly (`/ahaana-manifest.webmanifest` fetches
+  standalone with no auth prompt, page `<title>`/meta tags read
+  "Ahaana's Studies" with no "| Atlas" doubling), the login page's logo,
+  the footer line, and the Add Activity form's new 1/2/3/4-hour picker
+  — the last three via a temporary fixture-backed `preview-temp` scratch
+  page (deleted before commit, same pattern as every prior phase) since
+  the real `/ahaana` pages need this pass's own migration applied first
+  (see below) to query successfully.
+
+**Pending (household to do)**: apply
+`supabase/migrations/20260823105636_add_ahaana_hourly_reminders.sql` to
+the real Supabase instance. Until then, `/ahaana` and its cron route
+will error (missing `remind_lead_hours` column) — same "expected until
+applied" situation as every prior phase's own migration.
 
 ## What's actually built
 
