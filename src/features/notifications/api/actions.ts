@@ -8,7 +8,10 @@ import {
   setTelegramTarget,
 } from "@/services/NotificationChannelService";
 import { getProvider } from "@/lib/notifications/registry";
-import { runReminders } from "@/services/ReminderService";
+import {
+  runReminders,
+  runAhaanaWeeklyReportNow,
+} from "@/services/ReminderService";
 
 function formValue(formData: FormData, key: string): string | undefined {
   const value = formData.get(key);
@@ -107,6 +110,41 @@ export async function runRemindersAction(
     const result = await runReminders();
     return {
       message: `Checked ${result.candidates} reminder${result.candidates === 1 ? "" : "s"} due today — sent ${result.sent}, skipped ${result.skipped} (already sent), ${result.failed} failed.`,
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Something went wrong",
+    };
+  }
+}
+
+export interface RunAhaanaWeeklyReportFormState {
+  error?: string;
+  message?: string;
+}
+
+/**
+ * v3.4.0 Phase 3 — manual "Send Ahaana's weekly report now" trigger,
+ * same role as runRemindersAction above but calling
+ * runAhaanaWeeklyReportNow (which forces past the Sunday-only gate)
+ * instead of runReminders — lets the report be pulled on demand
+ * without waiting for Sunday, e.g. to check the pipeline works right
+ * after adding her first activity.
+ */
+export async function runAhaanaWeeklyReportAction(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- required by useActionState's action signature
+  _prevState: RunAhaanaWeeklyReportFormState,
+): Promise<RunAhaanaWeeklyReportFormState> {
+  try {
+    const result = await runAhaanaWeeklyReportNow();
+    if (result.candidates === 0) {
+      return {
+        message:
+          "Nothing to report — no activities were scheduled for Ahaana this week.",
+      };
+    }
+    return {
+      message: `Sent ${result.sent}, skipped ${result.skipped} (already sent this week), ${result.failed} failed.`,
     };
   } catch (error) {
     return {

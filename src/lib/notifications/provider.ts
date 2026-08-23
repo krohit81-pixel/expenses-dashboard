@@ -13,8 +13,27 @@ import "server-only";
  * as a plain string union here rather than importing the generated enum
  * type, since this module has no reason to depend on the DB layer at
  * all (a provider only ever sends; it never reads or writes a row).
+ *
+ * "web_push" added v3.4.0 Phase 2 — Ahaana's mini app, real device
+ * push since she has no Telegram (providers/web-push.ts).
  */
-export type ChannelType = "telegram";
+export type ChannelType = "telegram" | "web_push";
+
+/**
+ * The shape a browser's `PushSubscription.toJSON()` produces — v3.4.0
+ * Phase 2. Stored as JSON inside `finance.notification_channels.config`
+ * (NotificationChannelService), then JSON-stringified into the plain
+ * `target: string` every other channel already uses, so nothing about
+ * getSendTarget()/ReminderService's shape needed to change for this
+ * channel to exist.
+ */
+export interface WebPushSubscription {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+}
 
 export interface NotificationMessage {
   title: string;

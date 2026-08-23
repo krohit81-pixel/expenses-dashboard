@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/reminders-hourly",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/ahaana-reminders",
+      "schedule": "0 */4 * * *"
     }
   ]
 }

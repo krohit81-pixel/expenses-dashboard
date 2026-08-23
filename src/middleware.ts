@@ -4,6 +4,10 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { withAuthTimingRetry } from "@/lib/supabase/retry";
 import { OWNER_USER_ID } from "@/lib/owner";
 import { ACCESS_COOKIE_NAME, verifyAccessToken } from "@/lib/access-gate";
+import {
+  AHAANA_ACCESS_COOKIE_NAME,
+  verifyAhaanaAccessToken,
+} from "@/lib/ahaana-gate";
 
 /**
  * There is still no per-visitor Supabase session and no sign-in flow for
@@ -42,6 +46,25 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (isPublicPath(pathname)) {
+    return NextResponse.next();
+  }
+
+  // v3.4.0 — Ahaana's mini app lives entirely under /ahaana, under a
+  // SEPARATE gate from the rest of the app (src/lib/ahaana-gate.ts).
+  // Handled before the main gate below, and returns early either way,
+  // so /ahaana never falls through to the main app_access cookie
+  // check (her password is the only key that works here — the
+  // household's own main password is never even consulted) and never
+  // runs the onboarding/user_settings check below either, which has
+  // nothing to do with her section.
+  if (pathname === "/ahaana/login" || pathname.startsWith("/ahaana/login/")) {
+    return NextResponse.next();
+  }
+  if (pathname === "/ahaana" || pathname.startsWith("/ahaana/")) {
+    const ahaanaToken = request.cookies.get(AHAANA_ACCESS_COOKIE_NAME)?.value;
+    if (!verifyAhaanaAccessToken(ahaanaToken)) {
+      return NextResponse.redirect(new URL("/ahaana/login", request.url));
+    }
     return NextResponse.next();
   }
 

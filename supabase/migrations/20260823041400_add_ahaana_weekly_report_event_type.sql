@@ -1,0 +1,19 @@
+-- v3.4.0 Phase 3: a weekly summary of Ahaana's mini-app activity, sent
+-- to the parent's existing Telegram channel — a new
+-- notification_event_type, same reasoning as school_calendar_event
+-- (v3.2.1) and ahaana_activity (v3.4.0 Phase 2): a distinct type keeps
+-- notification_log's per-type dedupe/audit trail meaningful rather
+-- than overloading an existing value that means something else.
+--
+-- No new table: the report is built on the fly from
+-- finance.ahaana_activities/ahaana_activity_logs (already exist) —
+-- see detectAhaanaWeeklyReport in
+-- src/lib/notifications/detect-ahaana-reminders.ts. Sent via the
+-- EXISTING day-based reminder engine (ReminderService.runReminders(),
+-- the /api/cron/reminders route, every 4 hours) with a day-of-week
+-- gate inside the detector itself (only produces a candidate on
+-- Sunday) — not a fourth cron entry, since the existing schedule
+-- already ticks often enough to catch it, and notification_log's own
+-- dedupe (keyed by the week's Monday date) means only one send ever
+-- goes out per week regardless of how many Sunday ticks occur.
+alter type finance.notification_event_type add value 'ahaana_weekly_report';

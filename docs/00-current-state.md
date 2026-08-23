@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.3.4**
+correction layer: what's actually true today, current as of **v3.4.2**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -784,6 +784,236 @@ every entry, rather than 100+ individual notes to maintain.
   produce different notes. `npx tsc --noEmit && npx eslint . && npx
   prettier --check . && npx vitest run` all pass (517 passed — +1
   new). A full local `npm run build` completed successfully.
+
+## v3.4.0: Ahaana's mini app (Phase 1 of 3 — access, schedule, completion+notes)
+
+Household request: a self-contained section of Atlas only Ahaana can
+reach, covering her weekly activities and studies, planned and built
+across three phases. Phase 1 (this release): access
+gate, schema, the weekly schedule view, mark-complete + notes. Phase 2
+(real push notifications, since she has no Telegram) and Phase 3
+(weekly Telegram report to the parent + a progress/intel page) are
+**not built yet** — separate follow-up releases.
+
+- **A second, fully separate access gate.** New `AHAANA_ACCESS_PASSWORD`
+  env var (optional at the schema level, same reasoning as
+  `CRON_SECRET` — the app must still boot before anyone's set it in
+  Vercel; her gate just refuses every `/ahaana` request until it is).
+  `src/lib/ahaana-gate.ts` mirrors `access-gate.ts`, but — real
+  correction made mid-build, not merely planned — signs her cookie
+  with a **derived** key (`APP_SESSION_SECRET + ":ahaana-gate"`), not
+  the raw `APP_SESSION_SECRET` the main gate uses. Reusing the exact
+  same secret would have meant a valid `app_access` cookie value,
+  copied into the `ahaana_access` slot, would also verify successfully
+  (`access-gate-core.ts`'s sign/verify functions only check an HMAC
+  signature — they carry no notion of *which* gate issued a token) —
+  precisely the "her password is the only key that works there"
+  guarantee this gate exists to provide, broken. The derived key needs
+  no new env var and fixes this completely.
+  `middleware.ts` branches on `/ahaana` **before** the main gate check
+  and returns early either way, so her section never falls through to
+  the household password check, and vice versa. Verified directly in
+  this session: wrong password rejected, correct password redirects
+  to `/ahaana`, her cookie does **not** grant access to `/dashboard`
+  (redirects to the main `/login`).
+- **Schema**: `finance.ahaana_activities` (the recurring weekly
+  template — French, Kickboxing, Horse Riding, a study block; same
+  shape as `finance.recurring_calendar_events` but kept as its own
+  table since that one feeds the shared family `/calendar` page and
+  this one never should) and `finance.ahaana_activity_logs` (one row
+  per occurrence once marked complete — `covered_notes`/`next_notes`,
+  unique on `(activity_id, occurrence_date)` so resubmitting edits
+  rather than duplicates). Migration:
+  `supabase/migrations/20260823024123_create_ahaana_activities.sql` —
+  **not yet applied to the real Supabase project** (same
+  household-runs-it-in-the-SQL-editor step every migration in this
+  app needs) — until it is, `/ahaana` and `/ahaana/manage` both 500
+  with "Could not find the table" (confirmed directly — the gate
+  itself works, only the DB call fails, exactly the expected failure
+  mode).
+- **`expandAhaanaOccurrences`** (`lib/dates/ahaana-activities.ts`) — a
+  near-identical sibling of `expandRecurringOccurrences`, not a
+  generalization of it; unit-tested the same way.
+- **UI**: `/ahaana` (this week's occurrences, grouped by day, each
+  expandable to a "mark complete" form) and `/ahaana/manage` (add,
+  deactivate, delete a recurring activity — editing an existing one's
+  fields isn't in this pass; deactivate + re-add covers it for now).
+  Both live in a new `src/app/ahaana/` tree, deliberately outside the
+  `(app)` route group (no `BottomNav`/`TopNav`, no
+  `requireUser()`/household-gate assumptions) with their own minimal
+  layout.
+- **Verified**: unit tests for `expandAhaanaOccurrences`
+  (`npx tsc --noEmit && npx eslint . && npx prettier --check . && npx
+  vitest run` all pass, 522 passed — +5 new). A full local
+  `npm run build` completed successfully. Browser-verified end to end
+  in this session: the gate's password/redirect/cross-section
+  behavior against the real dev server, and both new pages' actual UI
+  (weekly view, mark-complete form, add-activity form, activity list)
+  against fixture props via a temporary `preview-temp` scratch page
+  under `/ahaana/(gated)/` (deleted before committing, same pattern
+  used throughout this app's history).
+
+## v3.4.1: Ahaana's mini app (Phase 2 of 3 — real device push notifications)
+
+Second of three phases. She has no Telegram, so this is genuinely new
+infrastructure — no push capability of any kind existed in this app
+before this pass (checked: no service worker, no VAPID keys, no
+`web-push` dependency).
+
+- **New dependency**: `web-push` (+`@types/web-push` dev dep). A VAPID
+  key pair was generated once (`npx web-push generate-vapid-keys`) —
+  new optional env vars `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/
+  `VAPID_SUBJECT`. **Never regenerate this pair once real subscriptions
+  exist** — the public key is baked into each subscription at creation
+  time; a new pair silently breaks every existing one.
+  `VAPID_SUBJECT` deliberately uses the project's own URL, not a
+  personal email — the Web Push spec requires a contact URL/mailto,
+  and a personal email would be sent to Google/Mozilla/Apple's push
+  infrastructure on every single send.
+- **`web_push` is a new `notification_channel_type`** (migration:
+  `supabase/migrations/20260823032457_add_web_push_and_ahaana_reminders.sql`,
+  **not yet applied**) — reuses `finance.notification_channels`
+  (same table `telegram` already uses), `config` holding the push
+  subscription object instead of a chat ID.
+  `NotificationChannelService.mapRow` branches on `channel_type` to
+  build `target` (JSON-stringifies the subscription for `web_push`) —
+  every existing caller (`getSendTarget`, `ReminderService`) is
+  untouched, since `target` is still just `string | null` either way.
+  New `setWebPushSubscription()`, the web_push sibling of
+  `setTelegramTarget`.
+- **A real correctness fix made mid-build**: adding a second real
+  channel meant `ReminderService.sendCandidates()`'s old default of
+  "try every registered channel" (`listChannelTypes()`) would have
+  sent the household's own calendar/trip/school reminders to Ahaana's
+  device too, and her activity reminders to the household Telegram
+  group. `sendCandidates()` now takes an explicit, required
+  `channelTypes` parameter — `runReminders()`/`runHourlyReminders()`
+  pass `["telegram"]`, the new `runAhaanaReminders()` passes
+  `["web_push"]`. `registry.ts`'s `listChannelTypes()` is kept (some
+  future caller with no opinion still wants a sane default) but no
+  real caller relies on it anymore.
+- **`finance.ahaana_activities` gained `remind_enabled`/
+  `remind_lead_days`** (same migration) — day-based only, same shape
+  every other reminder-capable table already has. `detectAhaanaActivityReminders`
+  (new, `lib/notifications/detect-ahaana-reminders.ts` — kept separate
+  from `detect-reminders.ts` since it detects from a different domain
+  object and only ever targets one channel) mirrors the existing
+  day-based detectors' shape. New `notification_event_type` member,
+  `ahaana_activity`, for its own dedupe/log entries (same reasoning as
+  `school_calendar_event`'s own addition in v3.2.1).
+- **New cron**: `GET /api/cron/ahaana-reminders` (same `checkCronAuth`
+  helper as the other two routes), a third `vercel.json` entry, every
+  4 hours (same cadence as the household's own day-based reminders —
+  no new tradeoff to weigh here, so not asked separately).
+- **`public/ahaana-sw.js`** — a minimal service worker (shows a
+  `Notification` on `push`, focuses/opens `/ahaana` on
+  `notificationclick`), registered only from `/ahaana`, never the main
+  app. `EnablePushButton` (`features/ahaana/components/`) is the
+  client-side "enable reminders" control — adapts to three real
+  states: iOS Safari not yet added to the Home Screen (shows an
+  install instruction instead of a button that would silently fail —
+  Web Push doesn't exist at all for a plain iOS Safari tab before
+  iOS 16.4's PWA support), not yet subscribed (a real button), and
+  already subscribed (a quiet confirmation). The activity form
+  (`ManageActivitiesSection`) gained the same `remind_enabled`/
+  `remind_lead_days` toggle every other reminder-capable form already
+  has, reusing the existing generic `ReminderFields` component as-is
+  (day-only mode, same as `AddTripModal`'s usage) rather than building
+  a second one.
+- **Verified**: new unit tests for `detectAhaanaActivityReminders`
+  (mirrors `detect-reminders.test.ts`'s style) and the new cron route's
+  auth behavior (401/503/200, same pattern as the other two routes'
+  own tests). `npx tsc --noEmit && npx eslint . && npx prettier
+  --check . && npx vitest run` all pass (532 passed — +10 new). A full
+  local `npm run build` completed successfully.
+  `EnablePushButton` was browser-verified against the real dev
+  server (not just fixture-rendered) — it correctly read this
+  session's actual `Notification.permission` state (denied, in this
+  automated browser) and rendered the matching UI, confirming the
+  detection logic runs against real browser APIs, not just plausible
+  in theory. **Not verified**: an actual push notification arriving on
+  a real device — that needs a real subscribe (deferred, same
+  "don't click a real mutating external send from this session"
+  reasoning as every other notification feature's rollout) once this
+  is deployed and the household tries it on Ahaana's own device.
+
+## v3.4.2: Ahaana's mini app (Phase 3 of 3 — weekly parent report + progress page)
+
+Third and final phase. Closes the loop the household asked for: a
+weekly summary of what she actually did, sent to the parent, plus a
+read-only "how's it going" view.
+
+- **New `notification_event_type` member, `ahaana_weekly_report`**
+  (migration: `supabase/migrations/20260823041400_add_ahaana_weekly_report_event_type.sql`,
+  **not yet applied** — see "Pending" below), same reasoning as
+  `ahaana_activity`'s own addition in v3.4.1: a distinct type keeps
+  `notification_log`'s per-type dedupe/audit trail meaningful. No new
+  table — the report is built on the fly from the existing
+  `finance.ahaana_activities`/`ahaana_activity_logs` rows.
+- **`detectAhaanaWeeklyReport`** (new, in the existing
+  `lib/notifications/detect-ahaana-reminders.ts`) — pure, day-of-week
+  gated: only ever produces a candidate on Sunday (this app's own
+  Monday-start week convention, `getWeekDates`), summarizing that
+  week's occurrences (`expandAhaanaOccurrences`) against what's
+  actually logged — a completed count, one line per session with its
+  `coveredNotes`, `nextNotes` carried in as a "→ Next:" line, and
+  "not logged" for anything scheduled but never marked complete.
+  Produces nothing at all if nothing was scheduled that week. A
+  `force` option bypasses the Sunday gate for the manual trigger below
+  — `notification_log`'s own dedupe (keyed by the week's Monday date)
+  still prevents a second real send for a week already reported on.
+- **Sent via the EXISTING day-based cron**, not a fourth one:
+  `ReminderService.runReminders()` (the 4-hourly `/api/cron/reminders`
+  route) now also fetches Ahaana's activities/logs for the current
+  week and runs them through `detectAhaanaWeeklyReport`, targeting
+  `["telegram"]` — the household's own channel, the opposite direction
+  from `ahaana_activity`'s `web_push`-only reminders. The existing
+  4-hourly schedule already ticks often enough to catch Sunday; no new
+  `vercel.json` entry needed.
+- **Manual "Send Ahaana's weekly report now"** (Settings page) — new
+  `runAhaanaWeeklyReportNow()` in `ReminderService.ts` (forces past the
+  Sunday gate) plus `runAhaanaWeeklyReportAction` and
+  `RunAhaanaWeeklyReportButton`, mirroring `runRemindersAction`/
+  `RunRemindersButton`'s existing shape exactly.
+- **New `/ahaana-progress` page** (under the main `(app)` route
+  group's own household gate — not reachable from `/ahaana` and not
+  reachable with Ahaana's own password): a completion-rate trend (6
+  weeks, div-based bars matching `intel/page.tsx`'s own "Month on
+  month" chart idiom — this codebase doesn't use Recharts anywhere
+  despite it being a listed `package.json` dependency, so this page
+  doesn't introduce it either) plus a recent-notes list (what she
+  covered, what she flagged for next). Backed by new pure functions in
+  `lib/ahaana/progress-stats.ts` (`computeAhaanaWeeklyStats`,
+  `buildAhaanaRecentLogEntries`), unit-tested the same way
+  `expandAhaanaOccurrences` is. Linked from `/more`.
+- **Verified**: new unit tests for `detectAhaanaWeeklyReport` and both
+  `progress-stats.ts` functions. `npx tsc --noEmit && npx eslint . &&
+  npx prettier --check . && npx vitest run` all pass (555 passed — +12
+  new). A full local `npm run build` completed successfully, including
+  the new `/ahaana-progress` route. The new progress page's actual
+  rendering (chart bars, category badges, recent-notes list) was
+  browser-verified against real fixture data via a temporary
+  `preview-temp` scratch page (deleted before committing, same pattern
+  used throughout this app's history) — confirmed correct completion
+  percentages, correct week labels, and correct note/category
+  rendering. **Not verified**: an actual Sunday-triggered send or a
+  real "Send now" click (deferred, same "don't trigger a real
+  mutating external send from this session" reasoning as every other
+  notification feature's rollout).
+
+**Pending (household to do, all three Ahaana-mini-app migrations at
+once)**: apply
+`20260823024123_create_ahaana_activities.sql`,
+`20260823032457_add_web_push_and_ahaana_reminders.sql`, and
+`20260823041400_add_ahaana_weekly_report_event_type.sql` to the real
+Supabase instance (in that order — the second and third each depend on
+enum/table state the previous one creates), then set
+`AHAANA_ACCESS_PASSWORD`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and
+`VAPID_SUBJECT` in Vercel's env vars before merging/deploying this PR.
+Until then, `/ahaana` and its cron routes will error against the real
+database — this is expected and doesn't block Phase 3's own code from
+being correct, same as Phase 1/2's own migrations sitting unapplied
+while their code was built and verified against fixtures.
 
 ## What's actually built
 

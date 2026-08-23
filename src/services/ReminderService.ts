@@ -10,7 +10,7 @@ import {
   type NotificationLogKey,
 } from "@/services/NotificationLogService";
 import { getSendTarget } from "@/services/NotificationChannelService";
-import { listChannelTypes, getProvider } from "@/lib/notifications/registry";
+import { getProvider } from "@/lib/notifications/registry";
 import { buildSchoolCalendarItems } from "@/features/travel/school-items";
 import {
   detectCalendarEventHourlyReminders,
@@ -21,6 +21,14 @@ import {
   detectTripReminders,
   type ReminderCandidate,
 } from "@/lib/notifications/detect-reminders";
+import {
+  detectAhaanaActivityReminders,
+  detectAhaanaWeeklyReport,
+} from "@/lib/notifications/detect-ahaana-reminders";
+import { listAhaanaActivities } from "@/services/AhaanaActivityService";
+import { listAhaanaActivityLogs } from "@/services/AhaanaActivityLogService";
+import { getWeekDates } from "@/lib/dates/calendar-grid";
+import type { ChannelType } from "@/lib/notifications/provider";
 
 export interface ReminderRunResult {
   candidates: number;
@@ -38,17 +46,27 @@ const SCHOOL_CALENDAR_LEAD_DAYS = 1;
 /** v3.2.2 — how far ahead an hour-based recurring occurrence search needs to expand. Only needs to cover the longest hour lead time in play (< 24h, given the 3/4-hour UI options) plus a day of IST/UTC slack — see detectRecurringEventHourlyReminders' own comment. */
 const RECURRING_HOURLY_LOOKAHEAD_DAYS = 2;
 
+/** v3.4.0 Phase 2 — same reasoning as RECURRING_LOOKAHEAD_DAYS, for Ahaana's own recurring activities. */
+const AHAANA_LOOKAHEAD_DAYS = 14;
+
 /**
  * The actual "dedupe, find a channel, send, record" loop — shared by
- * runReminders (day-based) and runHourlyReminders (v3.2.2, hour-based)
- * so the two don't drift in how a candidate becomes a real send.
- * Sequential, not Promise.all: single-owner, a handful of candidates
- * per run; this keeps it simple and avoids racing duplicate sends
- * against notification_log's own dedupe check, same reasoning as
- * applyCycleTags' loop.
+ * every runX function below so none of them drift in how a candidate
+ * becomes a real send. Sequential, not Promise.all: single-owner, a
+ * handful of candidates per run; this keeps it simple and avoids
+ * racing duplicate sends against notification_log's own dedupe check,
+ * same reasoning as applyCycleTags' loop.
+ *
+ * `channelTypes` is a required, explicit list, not a default of
+ * "every registered channel" — v3.4.0 Phase 2 added `web_push`
+ * (targeting Ahaana's device specifically) alongside `telegram`
+ * (targeting the household), and a candidate from one domain must
+ * never fire at the other's channel. See registry.ts's own comment on
+ * `listChannelTypes()` for why that default isn't used here anymore.
  */
 async function sendCandidates(
   candidates: ReminderCandidate[],
+  channelTypes: ChannelType[],
 ): Promise<ReminderRunResult> {
   const result: ReminderRunResult = {
     candidates: candidates.length,
@@ -60,8 +78,6 @@ async function sendCandidates(
   if (candidates.length === 0) {
     return result;
   }
-
-  const channelTypes = listChannelTypes();
 
   for (const candidate of candidates) {
     for (const channelType of channelTypes) {
@@ -132,11 +148,20 @@ async function sendCandidates(
 export async function runReminders(
   asOf: string = new Date().toISOString().slice(0, 10),
 ): Promise<ReminderRunResult> {
-  const [events, trips, recurringRules] = await Promise.all([
-    listCalendarEvents(),
-    listTrips(),
-    listRecurringCalendarEvents(),
-  ]);
+  const [weekStart, , , , , , weekEnd] = getWeekDates(asOf);
+  const [events, trips, recurringRules, ahaanaActivities, ahaanaLogs] =
+    await Promise.all([
+      listCalendarEvents(),
+      listTrips(),
+      listRecurringCalendarEvents(),
+      // v3.4.0 Phase 3 — fetched every run (not just Sunday) since this
+      // is a cheap read and detectAhaanaWeeklyReport itself is the one
+      // that gates on day-of-week; keeps this function's own fetch list
+      // uniform rather than conditionally skipping two calls 6 days a
+      // week for a negligible saving.
+      listAhaanaActivities(),
+      listAhaanaActivityLogs(weekStart, weekEnd),
+    ]);
 
   const candidates: ReminderCandidate[] = [
     ...detectCalendarEventReminders(events, asOf),
@@ -154,9 +179,41 @@ export async function runReminders(
       asOf,
       SCHOOL_CALENDAR_LEAD_DAYS,
     ),
+    // v3.4.0 Phase 3 — the parent's weekly Ahaana report, riding this
+    // same 4-hourly cron rather than a dedicated one (see the
+    // add_ahaana_weekly_report_event_type migration's own comment for
+    // why); only ever actually produces a candidate on Sunday.
+    ...detectAhaanaWeeklyReport(ahaanaActivities, ahaanaLogs, asOf),
   ];
 
-  return sendCandidates(candidates);
+  return sendCandidates(candidates, ["telegram"]);
+}
+
+/**
+ * v3.4.0 Phase 3 — manual "Send weekly report now" trigger (Settings
+ * page), mirroring how runReminders/runAhaanaReminders are themselves
+ * just plain functions the cron routes call — this one instead bypasses
+ * the Sunday gate via detectAhaanaWeeklyReport's own `force` option, so
+ * a household member can pull the current week's report on demand
+ * without waiting for Sunday. notification_log's existing dedupe
+ * (keyed by the week's Monday date) still prevents a second real send
+ * for a week already reported on — a repeat click just shows 0 sent,
+ * same as clicking "Run reminders now" twice in a row today.
+ */
+export async function runAhaanaWeeklyReportNow(
+  asOf: string = new Date().toISOString().slice(0, 10),
+): Promise<ReminderRunResult> {
+  const [weekStart, , , , , , weekEnd] = getWeekDates(asOf);
+  const [activities, logs] = await Promise.all([
+    listAhaanaActivities(),
+    listAhaanaActivityLogs(weekStart, weekEnd),
+  ]);
+
+  const candidates = detectAhaanaWeeklyReport(activities, logs, asOf, {
+    force: true,
+  });
+
+  return sendCandidates(candidates, ["telegram"]);
 }
 
 /**
@@ -192,5 +249,28 @@ export async function runHourlyReminders(
     ),
   ];
 
-  return sendCandidates(candidates);
+  return sendCandidates(candidates, ["telegram"]);
+}
+
+/**
+ * v3.4.0 Phase 2 — Ahaana's own reminder engine, run on its own Vercel
+ * Cron route (`/api/cron/ahaana-reminders`) and targeting `web_push`
+ * only — never `telegram`, so her activity reminders only ever reach
+ * her device, never the household Telegram group (and vice versa: her
+ * device never receives the household's own calendar/trip/school
+ * reminders either, since those explicitly target `["telegram"]`
+ * above).
+ */
+export async function runAhaanaReminders(
+  asOf: string = new Date().toISOString().slice(0, 10),
+): Promise<ReminderRunResult> {
+  const activities = await listAhaanaActivities();
+
+  const candidates = detectAhaanaActivityReminders(
+    activities,
+    asOf,
+    AHAANA_LOOKAHEAD_DAYS,
+  );
+
+  return sendCandidates(candidates, ["web_push"]);
 }
