@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.4.5**
+correction layer: what's actually true today, current as of **v3.4.6**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -1154,6 +1154,36 @@ correctly formatted, so a malformed key isn't the cause; the real
 eslint . && npx prettier --check . && npx vitest run` all pass (547,
 unchanged) and `npm run build` completed successfully. No new
 migration, no new env vars.
+
+## v3.4.6: the real error from v3.4.5 found an actual bug — `ahaana-sw.js` was gated
+
+v3.4.5's improved error surfacing worked exactly as intended: the
+household's retry came back with `SecurityError: Script
+https://expdash.vercel.app/ahaana-sw.js load failed` instead of a
+useless generic string — enough to root-cause immediately.
+
+`public/ahaana-sw.js` (her push service worker) is a top-level static
+file, same as `public/ahaana-manifest.webmanifest` — and just like
+that file before its own v3.4.3 fix, it was never added to
+`middleware.ts`'s `PUBLIC_PATHS`. A service worker script request is
+cookieless by default, so her device's request for it fell through to
+the main app's `app_access` gate and got a 307 redirect straight to
+`/login` — confirmed directly: `curl -I
+https://expdash.vercel.app/ahaana-sw.js` returned exactly that
+redirect before this fix. Browsers require a service worker
+registration's script fetch to come back with the literal script,
+200 — a redirect is a hard failure, which is exactly what WebKit's
+`SecurityError` was reporting, just not in words that mention auth or
+redirects at all.
+
+Fix: added `/ahaana-sw.js` to `PUBLIC_PATHS`, identical treatment to
+`/ahaana-manifest.webmanifest`. Verified directly this time (not just
+the dev server): `next build` + `next start` + `curl -I
+/ahaana-sw.js` now returns `200` with `Content-Type:
+application/javascript` and the real script body, not a redirect.
+`npx tsc --noEmit && npx eslint . && npx prettier --check . && npx
+vitest run` all pass (547, unchanged) and `npm run build` completed
+successfully. No new migration, no new env vars.
 
 ## What's actually built
 
