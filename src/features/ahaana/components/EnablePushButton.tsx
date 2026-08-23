@@ -113,9 +113,21 @@ export function EnablePushButton({
         return;
       }
       setStatus("on");
-    } catch {
+    } catch (err) {
+      // v3.4.5 — was a fixed "try again" string with the real cause
+      // thrown away, which made a real failure (WebKit push
+      // subscription errors are usually a specific DOMException name
+      // like AbortError/NotAllowedError, not a generic one) impossible
+      // to diagnose from a report alone. Showing the actual message
+      // costs nothing (this only ever runs on Ahaana's own device,
+      // there's no sensitive data in a DOMException's name/message) and
+      // turns "it didn't work" into something actionable.
       setStatus("error");
-      setError("Couldn't enable reminders — try again.");
+      setError(
+        err instanceof Error
+          ? `Couldn't enable reminders: ${err.name}: ${err.message}`
+          : "Couldn't enable reminders — try again.",
+      );
     }
   }
 
