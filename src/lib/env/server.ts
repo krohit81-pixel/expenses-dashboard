@@ -144,26 +144,19 @@ const serverEnvSchema = z.object({
   VAPID_PUBLIC_KEY: optionalEnvString(),
   VAPID_PRIVATE_KEY: optionalEnvString(),
   VAPID_SUBJECT: optionalEnvString(),
-  // v3.4.12 — Microsoft Graph email-reading proof of concept (Ahaana's
-  // school Outlook mailbox, "Connect School Email" on
-  // /ahaana-progress). MICROSOFT_CLIENT_ID/MICROSOFT_CLIENT_SECRET
-  // come from an Entra app registration Rohit owns (see INSTALL.md) —
-  // a client secret is required because this uses the Authorization
-  // Code flow as a confidential client (tokens never reach the
-  // browser), not the PKCE-only flow a public/SPA client would need.
-  // MICROSOFT_TENANT_ID is optional and rarely needed: unset, the
-  // OAuth authority defaults to "organizations" (any work/school
-  // Entra tenant, not personal Microsoft accounts) in
-  // src/lib/microsoft/oauth.ts, which is already the correct match for
-  // a school-issued account authenticating against an app registered
-  // in Rohit's own, different tenant. All three optional at the schema
-  // level (same "app must still boot before Vercel is configured"
-  // reasoning as CRON_SECRET/AHAANA_ACCESS_PASSWORD) — the "Connect
-  // School Email" button/routes simply refuse with a clear error until
-  // all are set.
-  MICROSOFT_CLIENT_ID: optionalEnvString(),
-  MICROSOFT_CLIENT_SECRET: optionalEnvString(),
-  MICROSOFT_TENANT_ID: optionalEnvString(),
+  // v3.4.12 — Ahaana's school Outlook mailbox, "Connect School Email"
+  // on /ahaana-progress. Deliberately the simplest possible connection
+  // the household explicitly asked for: an email + password, IMAP
+  // against Outlook's own server (src/lib/microsoft/imap-client.ts) —
+  // no OAuth, no stored token. Both optional at the schema level (same
+  // "app must still boot before Vercel is configured" reasoning as
+  // CRON_SECRET/AHAANA_ACCESS_PASSWORD) — the feature just refuses
+  // with a clear error until both are set. Real caveat: Microsoft
+  // retired plain username+password IMAP access for most Exchange
+  // Online tenants in 2022 — whether this actually works depends on
+  // the school's own tenant configuration, not this app.
+  AHAANA_SCHOOL_EMAIL: optionalEnvString(),
+  AHAANA_SCHOOL_EMAIL_PASSWORD: optionalEnvString(),
 });
 
 function formatZodError(prefix: string, error: z.ZodError): string {
@@ -193,9 +186,8 @@ function parseServerEnv() {
     VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
     VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
     VAPID_SUBJECT: process.env.VAPID_SUBJECT,
-    MICROSOFT_CLIENT_ID: process.env.MICROSOFT_CLIENT_ID,
-    MICROSOFT_CLIENT_SECRET: process.env.MICROSOFT_CLIENT_SECRET,
-    MICROSOFT_TENANT_ID: process.env.MICROSOFT_TENANT_ID,
+    AHAANA_SCHOOL_EMAIL: process.env.AHAANA_SCHOOL_EMAIL,
+    AHAANA_SCHOOL_EMAIL_PASSWORD: process.env.AHAANA_SCHOOL_EMAIL_PASSWORD,
   });
 
   if (!result.success) {

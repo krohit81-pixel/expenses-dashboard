@@ -1405,125 +1405,74 @@ before commit): correct week range, correct day grouping, and the
 "✓ Done" badge correctly appearing only on the one occurrence given a
 matching log entry. No new migration, no new env vars.
 
-## v3.4.12: Microsoft Graph email-reading proof of concept ("Connect School Email")
+## v3.4.12: school-email proof of concept — IMAP + password, no OAuth (revised)
 
-A new, deliberately minimal milestone: prove Atlas can connect to
-Ahaana's school Outlook mailbox via Microsoft OAuth, read her Inbox via
-Microsoft Graph, and keep that connection alive so she never signs in
-again for a later check. Explicitly NOT this pass: daily automation, AI
-email analysis, task/event extraction, an Outlook add-in — all real
-future milestones, not attempted here.
+A deliberately minimal milestone: prove Atlas can connect to Ahaana's
+school Outlook mailbox and read her Inbox. First built as a full
+Microsoft Graph OAuth integration (Entra app registration, encrypted
+refresh tokens, a new database table); the household explicitly
+rejected that as too complicated for a proof of concept ("don't need
+such complicated architecture") and asked for the simplest possible
+version instead — two env vars, IMAP, nothing else. This section
+describes what actually shipped, replacing the OAuth version
+entirely (never merged, so nothing to migrate away from in
+production).
 
-Lives entirely on the parent-facing `/ahaana-progress` page (a new
-"Ahaana's School Email" card, last on the page) — not reachable from
-her own `/ahaana/*` section, same separation every other feature on
-that page already has.
+Lives on the parent-facing `/ahaana-progress` page (a "Ahaana's School
+Email" card, last on the page) — not reachable from her own
+`/ahaana/*` section.
 
-- **First real encryption-at-rest this app has ever needed.** Every
-  secret stored in Supabase before this (a Telegram chat ID, a web
-  push subscription's own auth keys) was plain JSON, relying only on
-  the service-role client's own access control — none of it was
-  sensitive enough on its own to warrant it. A Microsoft mailbox
-  refresh token is: it's a standing credential to read a real person's
-  real email. New `src/lib/crypto/aes-gcm.ts` (plain AES-256-GCM
-  against an arbitrary key, no `server-only` dependency — kept
-  separate purely so it's unit-testable) + `src/lib/crypto/token-encryption.ts`
-  (supplies the actual key: a SHA-256 digest of `APP_SESSION_SECRET` +
-  a fixed suffix — same "derive a scoped key from the existing master
-  secret rather than add a new required env var" precedent
-  `ahaana-gate.ts` already established). Only the refresh token is
-  stored — access tokens are short-lived and minted fresh from it on
-  every use, since this is a manual, click-a-button flow, not a
-  background job.
-- **Hand-rolled OAuth, not `@azure/msal-node`.** The whole
-  Authorization Code flow is two HTTP calls (build the authorize
-  redirect, POST the token endpoint) plus one Graph GET — MSAL's real
-  value-add, a token cache, still needs a hand-written Supabase-backed
-  persistence layer in a serverless app anyway, so the library buys
-  nothing here. New `src/lib/microsoft/oauth.ts`
-  (`buildAuthorizeUrl`/`exchangeCodeForTokens`/`refreshAccessToken`,
-  scopes fixed to exactly `openid profile email offline_access
-  User.Read Mail.Read`, authority `organizations` — any work/school
-  Entra tenant, not personal accounts, matching a school account
-  signing into an app registered in a *different* tenant) and
-  `src/lib/microsoft/graph.ts` (`fetchUserProfile`, `fetchInboxMessages`
-  — one folder, `$select`-limited fields, no attachments, no full
-  mailbox scan).
-- **New table** `finance.ahaana_ms_email_connections` (migration, **not
-  yet applied** — see below): one row per provider per owner,
-  `encrypted_refresh_token` only. New `MicrosoftEmailConnectionService.ts`
-  (`OWNER_USER_ID`-filtered like every other service) —
-  `getValidAccessToken()` decrypts, refreshes, and re-persists whatever
-  NEW refresh token Microsoft's rotation returns (their v2.0 endpoint
-  rotates on most calls; failing to persist the new one means the next
-  call uses a now-stale token), failing closed into a clear
-  `MicrosoftConnectionExpiredError` ("reconnect") rather than an
-  unhandled throw on a decrypt failure or a rejected refresh.
-- **Two new API routes**: `GET /api/microsoft/authorize` (sets a
-  short-lived, random `ms_oauth_state` CSRF cookie, redirects to
-  Microsoft) and `GET /api/microsoft/callback` (verifies that state
-  with plain equality, exchanges the code, saves the connection,
-  redirects back to `/ahaana-progress`). Deliberately NOT a signed
-  token via `access-gate-core.ts`'s existing primitives — those sign an
-  expiry timestamp only, with no per-flow randomness, so they don't
-  actually bind the callback to the browser that started it; a real
-  CSRF state needs exactly that binding, which only a cookie set at
-  flow-start and compared at callback provides. Neither route needed
-  adding to `middleware.ts`'s `PUBLIC_PATHS` — traced this directly: a
-  Microsoft redirect back to Atlas's own domain is a normal top-level
-  browser navigation, and the existing `app_access` cookie's own
-  `SameSite=Lax` setting is sent on exactly this kind of
-  cross-site-referred top-level GET, so the callback naturally carries
-  the household's already-passed gate.
+- **`src/lib/microsoft/imap-client.ts`** — connects to
+  `outlook.office365.com:993` over IMAP with a plain email + password
+  (`imapflow`), fetches the latest N Inbox messages (envelope: sender,
+  subject, date) and decodes the first body part per message
+  (`download(seq, "1")`, transfer-encoding already handled by
+  `imapflow`) for a short preview. No `mailparser` dependency — that
+  package's own HTML-to-text conversion path pulls in a transitive
+  dependency (`html-to-text` → `deepmerge-ts`) with a real disclosed
+  stack-exhaustion advisory (GHSA-ggr8-5vv4-36mx); a preview snippet
+  doesn't need full HTML-to-text conversion, so a small bounded
+  tag-stripper handles the rare HTML-only-message case instead.
+- **No database table, no encryption, no OAuth, no new API routes.**
+  Credentials are two env vars, same as every other secret this app
+  already stores — nothing new to persist, nothing new to encrypt.
+- **New env vars**: `AHAANA_SCHOOL_EMAIL`, `AHAANA_SCHOOL_EMAIL_PASSWORD`
+  (both optional at the schema level, same "app boots fine unset"
+  pattern as every other optional secret).
 - **New server action** `testMailboxConnectionAction`
   (`src/features/ahaana/api/microsoft-actions.ts`) and UI
-  `ConnectSchoolEmailSection.tsx` — disconnected state is a plain
-  `<a href="/api/microsoft/authorize">` styled as a button (a real
-  navigation, not a client fetch — OAuth needs the whole browser to
-  leave and come back), connected state is "● Connected —
-  ahaana.kohli@cns.ac.in" plus a "Test Mailbox Connection" button
-  (ordinary `useActionState` + server action, same pattern as
-  `EnablePushButton`/`RunRemindersButton`) rendering the returned
-  message list (sender/subject/received date/body preview) or a clean
-  error.
-- **New env vars**: `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`,
-  `MICROSOFT_TENANT_ID` (all optional at the schema level, same "app
-  boots fine unset, feature just refuses until configured" pattern as
-  `CRON_SECRET`) — full Entra app registration walkthrough in
-  `INSTALL.md`'s new section 2a.
-- **Real risk, flagged prominently, not swept under the rug**:
-  `Mail.Read` is a "medium impact" delegated permission, and many
-  K-12/school-managed Entra tenants disable end-user consent to
-  third-party (unverified, multi-tenant) apps entirely, or require the
-  school's own IT admin to grant tenant-wide consent. If Ahaana's
-  school tenant is locked down this way, her sign-in will hit a hard
-  "needs admin approval" screen with no app-side workaround — only
-  knowable by actually trying the flow.
-- **Known limitation**: Vercel preview deployments get a random
-  per-deploy URL that can't be pre-registered as a redirect URI (no
-  wildcards). This flow only works on `localhost` and the real, stable
-  production domain.
-- **Verified**: 6 new unit tests (the AES-GCM round-trip, tamper/wrong-
-  key/malformed-input failure cases). `npx tsc --noEmit && npx eslint .
-  && npx prettier --check . && npx vitest run` all pass (559, +6 new)
-  and `npm run build` completed successfully, including both new API
-  routes. Browser-verified via a temporary fixture-backed `preview-temp`
-  scratch page (deleted before commit): all three UI states
-  (disconnected, disconnected-with-error, connected) render correctly,
-  and clicking "Test Mailbox Connection" in the connected state
-  genuinely exercises the real server action end to end — it correctly
-  reached the database and surfaced a clean error (the migration below
-  isn't applied yet, so the table doesn't exist) instead of crashing.
-  **Not verified in this session, and can't be**: the actual OAuth
-  round trip against a real Microsoft account — that needs the
-  household's own Entra app registration values and Ahaana's real
-  school sign-in, neither of which exist yet.
+  `ConnectSchoolEmailSection.tsx` — no "Connect" step at all now (there's
+  nothing to authorize): the card shows "Not configured" or "●
+  Connected — `<email>`" purely from whether both env vars are set,
+  plus a "Test Mailbox Connection" button (ordinary `useActionState` +
+  server action, same pattern as `EnablePushButton`/`RunRemindersButton`).
+- **Real, prominently-flagged risk, not swept under the rug**:
+  Microsoft retired plain username+password (Basic Auth) access to
+  Exchange Online across every protocol, IMAP included, for most
+  tenants back in October 2022. Whether this actually works at all
+  depends entirely on whether the school's own tenant is one of the
+  shrinking minority that still permits it — genuinely unknown until
+  tried, and there is no code-side fix if it's disabled.
+- **Verified**: `npx tsc --noEmit && npx eslint . && npx prettier
+  --check . && npx vitest run` all pass (553, unchanged from before
+  this feature — no new pure-logic unit tests, the IMAP client is a
+  thin wrapper around a well-tested library, verified instead by
+  exercising the real code path) and `npm run build` completed
+  successfully. Browser-verified via a temporary fixture-backed
+  `preview-temp` scratch page (deleted before commit): both UI states
+  (not configured / configured) render correctly, and clicking "Test
+  Mailbox Connection" genuinely exercises the real server action →
+  `imap-client.ts` end to end — it correctly detected the env vars
+  aren't actually set and surfaced a clean error, not a crash.
+  **Not verified in this session, and can't be**: a real IMAP
+  connection against Ahaana's actual mailbox — that needs her real
+  school email + password, and depends on the school tenant's own
+  IMAP policy (see the risk above).
 
-**Pending (household to do)**: apply
-`supabase/migrations/20260824090943_create_ahaana_ms_email_connections.sql`
-to the real Supabase instance; complete the Entra app registration
-(`INSTALL.md` section 2a) and set the three `MICROSOFT_*` env vars in
-Vercel; then do the first real connect + test.
+**Pending (household to do)**: set `AHAANA_SCHOOL_EMAIL` and
+`AHAANA_SCHOOL_EMAIL_PASSWORD` (her real school credentials) locally
+and in Vercel, then click "Test Mailbox Connection" to find out
+whether the school tenant actually permits this.
 
 ## What's actually built
 

@@ -12,8 +12,8 @@ import {
   expandAhaanaOccurrences,
   getAhaanaWeekDates,
 } from "@/lib/dates/ahaana-activities";
-import { getConnection } from "@/services/MicrosoftEmailConnectionService";
 import { ConnectSchoolEmailSection } from "@/features/ahaana/components/ConnectSchoolEmailSection";
+import { serverEnv } from "@/lib/env/server";
 import type { AhaanaActivity } from "@/services/AhaanaActivityService";
 
 export const metadata: Metadata = {
@@ -78,22 +78,18 @@ function formatTime12h(time: string): string {
  * mark-complete form, since this page is explicitly "I don't need to
  * log anything, just the dashboard view" (the household's own words).
  *
- * v3.4.12 — added a "Connect School Email" section: a Microsoft Graph
- * proof of concept, entirely separate from her activity data above
- * (its own service, its own OAuth routes) — see
- * ConnectSchoolEmailSection.tsx and MicrosoftEmailConnectionService.ts.
+ * v3.4.12 — added a "Connect School Email" section: a mailbox-reading
+ * proof of concept, entirely separate from her activity data above.
+ * Deliberately the simplest version (two env vars, IMAP, no OAuth) —
+ * see ConnectSchoolEmailSection.tsx and
+ * src/lib/microsoft/imap-client.ts.
  */
-export default async function AhaanaProgressPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ ms_error?: string }>;
-}) {
+export default async function AhaanaProgressPage() {
   await requireUser();
-  const { ms_error: msError } = await searchParams;
 
   const upcomingWeekDates = getAhaanaWeekDates();
 
-  const [activities, logs, connection] = await Promise.all([
+  const [activities, logs] = await Promise.all([
     listAhaanaActivities(),
     // A little over WEEKS_BACK weeks of history is enough for the
     // chart (exactly WEEKS_BACK weeks), the recent-notes list
@@ -107,8 +103,11 @@ export default async function AhaanaProgressPage({
         .slice(0, 10),
       new Date().toISOString().slice(0, 10),
     ),
-    getConnection(),
   ]);
+  const schoolEmailAddress =
+    serverEnv.AHAANA_SCHOOL_EMAIL && serverEnv.AHAANA_SCHOOL_EMAIL_PASSWORD
+      ? serverEnv.AHAANA_SCHOOL_EMAIL
+      : null;
 
   const activeActivities = activities.filter((a) => a.active);
   const upcomingOccurrences = expandAhaanaOccurrences(
@@ -303,10 +302,7 @@ export default async function AhaanaProgressPage({
           )}
         </div>
 
-        <ConnectSchoolEmailSection
-          connection={connection}
-          initialError={msError ?? null}
-        />
+        <ConnectSchoolEmailSection emailAddress={schoolEmailAddress} />
       </div>
     </div>
   );

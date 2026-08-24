@@ -52,9 +52,8 @@ describe("serverEnv", () => {
     expect(serverEnv.VAPID_PUBLIC_KEY).toBeUndefined();
     expect(serverEnv.VAPID_PRIVATE_KEY).toBeUndefined();
     expect(serverEnv.VAPID_SUBJECT).toBeUndefined();
-    expect(serverEnv.MICROSOFT_CLIENT_ID).toBeUndefined();
-    expect(serverEnv.MICROSOFT_CLIENT_SECRET).toBeUndefined();
-    expect(serverEnv.MICROSOFT_TENANT_ID).toBeUndefined();
+    expect(serverEnv.AHAANA_SCHOOL_EMAIL).toBeUndefined();
+    expect(serverEnv.AHAANA_SCHOOL_EMAIL_PASSWORD).toBeUndefined();
   });
 
   it("throws with a readable message when a required var is missing", async () => {

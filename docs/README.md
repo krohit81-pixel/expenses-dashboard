@@ -135,14 +135,15 @@ they say so.
   built back in v3.4.0 Phase 3) — the household asked for this page
   again without realizing it already existed, and the one real gap it
   had was that it was backward-looking only. v3.4.12 added a
-  deliberately minimal Microsoft Graph proof of concept — a "Connect
-  School Email" card on that same page, letting Ahaana's school Outlook
-  mailbox be connected via OAuth (delegated, `Mail.Read` only) and its
-  Inbox read via Graph, with the connection persisted (encrypted at
-  rest — this app's first real encryption-at-rest need) so she never
-  signs in again. No daily automation, no AI analysis, no task/event
-  extraction yet — genuinely just proving the connection works — see
-  doc 00's v3.4.4 through v3.4.12 sections.
+  deliberately minimal school-email proof of concept — a "Connect
+  School Email" card on that same page, reading Ahaana's school
+  Outlook Inbox over plain IMAP with a two-env-var email + password
+  (no OAuth, no stored token, no new database table), at the
+  household's own explicit request for the simplest possible version.
+  No daily automation, no AI analysis, no task/event extraction yet —
+  genuinely just proving the connection works, and whether it works at
+  all depends on the school tenant's own IMAP policy — see doc 00's
+  v3.4.4 through v3.4.12 sections.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement

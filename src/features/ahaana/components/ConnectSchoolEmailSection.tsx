@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState } from "react";
-import { Mail } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field-error";
@@ -23,21 +22,19 @@ function formatReceivedDate(dateISO: string): string {
 }
 
 /**
- * v3.4.12 — proof-of-concept "Connect School Email" card. Disconnected
- * state is a plain `<a>` to `/api/microsoft/authorize`, not a client
- * button calling a server action — OAuth needs the whole browser to
- * navigate away to Microsoft and back, which a server action alone
- * can't do. Connected state's "Test Mailbox Connection" button DOES
- * fit the ordinary useActionState + server action pattern (same as
- * EnablePushButton/RunRemindersButton), since it's a same-page round
- * trip with no external redirect involved.
+ * v3.4.12 — proof-of-concept "Connect School Email" card. Deliberately
+ * the simplest version of this: no OAuth, no "Connect" step at all —
+ * the mailbox is either configured (both AHAANA_SCHOOL_EMAIL and
+ * AHAANA_SCHOOL_EMAIL_PASSWORD env vars set) or it isn't, and the page
+ * already knows which before this component even renders. "Test
+ * Mailbox Connection" is the only interactive piece, an ordinary
+ * useActionState + server action (same pattern as
+ * EnablePushButton/RunRemindersButton).
  */
 export function ConnectSchoolEmailSection({
-  connection,
-  initialError,
+  emailAddress,
 }: {
-  connection: { emailAddress: string } | null;
-  initialError: string | null;
+  emailAddress: string | null;
 }) {
   const [state, formAction, isPending] = useActionState(
     async () => testMailboxConnectionAction(),
@@ -53,22 +50,12 @@ export function ConnectSchoolEmailSection({
         </span>
       </h2>
 
-      {!connection ? (
-        <div className="space-y-2.5">
-          <p className="text-xs text-ink-faint">
-            Connect her school Microsoft account so Atlas can read her Inbox.
-            This is a one-time sign-in — Microsoft, not Atlas, asks for her
-            school password.
-          </p>
-          {initialError && <FieldError message={initialError} />}
-          <a
-            href="/api/microsoft/authorize"
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-accent font-display text-sm font-bold text-white transition-opacity hover:opacity-90"
-          >
-            <Mail className="size-4" />
-            Connect School Email
-          </a>
-        </div>
+      {!emailAddress ? (
+        <p className="text-xs text-ink-faint">
+          Not configured yet — set <code>AHAANA_SCHOOL_EMAIL</code> and{" "}
+          <code>AHAANA_SCHOOL_EMAIL_PASSWORD</code> as environment variables to
+          enable this.
+        </p>
       ) : (
         <div className="space-y-3">
           <div className="flex items-center gap-2 rounded-[14px] border border-line p-3">
@@ -78,7 +65,7 @@ export function ConnectSchoolEmailSection({
                 Connected
               </div>
               <div className="truncate text-[11px] text-ink-faint">
-                {connection.emailAddress}
+                {emailAddress}
               </div>
             </div>
           </div>
