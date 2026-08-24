@@ -144,6 +144,19 @@ const serverEnvSchema = z.object({
   VAPID_PUBLIC_KEY: optionalEnvString(),
   VAPID_PRIVATE_KEY: optionalEnvString(),
   VAPID_SUBJECT: optionalEnvString(),
+  // v3.4.12 — Ahaana's school Outlook mailbox, "Connect School Email"
+  // on /ahaana-progress. Deliberately the simplest possible connection
+  // the household explicitly asked for: an email + password, IMAP
+  // against Outlook's own server (src/lib/microsoft/imap-client.ts) —
+  // no OAuth, no stored token. Both optional at the schema level (same
+  // "app must still boot before Vercel is configured" reasoning as
+  // CRON_SECRET/AHAANA_ACCESS_PASSWORD) — the feature just refuses
+  // with a clear error until both are set. Real caveat: Microsoft
+  // retired plain username+password IMAP access for most Exchange
+  // Online tenants in 2022 — whether this actually works depends on
+  // the school's own tenant configuration, not this app.
+  AHAANA_SCHOOL_EMAIL: optionalEnvString(),
+  AHAANA_SCHOOL_EMAIL_PASSWORD: optionalEnvString(),
 });
 
 function formatZodError(prefix: string, error: z.ZodError): string {
@@ -173,6 +186,8 @@ function parseServerEnv() {
     VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
     VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
     VAPID_SUBJECT: process.env.VAPID_SUBJECT,
+    AHAANA_SCHOOL_EMAIL: process.env.AHAANA_SCHOOL_EMAIL,
+    AHAANA_SCHOOL_EMAIL_PASSWORD: process.env.AHAANA_SCHOOL_EMAIL_PASSWORD,
   });
 
   if (!result.success) {

@@ -12,6 +12,8 @@ import {
   expandAhaanaOccurrences,
   getAhaanaWeekDates,
 } from "@/lib/dates/ahaana-activities";
+import { ConnectSchoolEmailSection } from "@/features/ahaana/components/ConnectSchoolEmailSection";
+import { serverEnv } from "@/lib/env/server";
 import type { AhaanaActivity } from "@/services/AhaanaActivityService";
 
 export const metadata: Metadata = {
@@ -75,6 +77,12 @@ function formatTime12h(time: string): string {
  * her own Dashboard tab shows, expanded here read-only: no
  * mark-complete form, since this page is explicitly "I don't need to
  * log anything, just the dashboard view" (the household's own words).
+ *
+ * v3.4.12 — added a "Connect School Email" section: a mailbox-reading
+ * proof of concept, entirely separate from her activity data above.
+ * Deliberately the simplest version (two env vars, IMAP, no OAuth) —
+ * see ConnectSchoolEmailSection.tsx and
+ * src/lib/microsoft/imap-client.ts.
  */
 export default async function AhaanaProgressPage() {
   await requireUser();
@@ -96,6 +104,10 @@ export default async function AhaanaProgressPage() {
       new Date().toISOString().slice(0, 10),
     ),
   ]);
+  const schoolEmailAddress =
+    serverEnv.AHAANA_SCHOOL_EMAIL && serverEnv.AHAANA_SCHOOL_EMAIL_PASSWORD
+      ? serverEnv.AHAANA_SCHOOL_EMAIL
+      : null;
 
   const activeActivities = activities.filter((a) => a.active);
   const upcomingOccurrences = expandAhaanaOccurrences(
@@ -289,6 +301,8 @@ export default async function AhaanaProgressPage() {
             </ul>
           )}
         </div>
+
+        <ConnectSchoolEmailSection emailAddress={schoolEmailAddress} />
       </div>
     </div>
   );

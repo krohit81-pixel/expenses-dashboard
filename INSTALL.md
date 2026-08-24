@@ -60,14 +60,16 @@ Authentication → Users and copy their ID from there instead.
 | `AHAANA_ACCESS_PASSWORD`                 | Pick a password just for this — a different one than `APP_ACCESS_PASSWORD`  | Added in v3.4.0. Gates `/ahaana/*` (her own mini app) — a completely separate password from the main app's; knowing one never unlocks the other's section (`src/lib/ahaana-gate.ts`). Optional at the env-schema level, same reasoning as `CRON_SECRET` — until this is set, `/ahaana` just refuses every request rather than the app failing to boot.                                                                                                                                                                                       |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Generate once: `npx web-push generate-vapid-keys`                           | **Optional**, added in v3.4.0 Phase 2 (Ahaana's real device push reminders — she has no Telegram). **Never regenerate once real subscriptions exist** — the public key is baked into each subscription at creation time; a new pair silently breaks every existing one.                                                                                                                                                                                                                                                                      |
 | `VAPID_SUBJECT`                          | A project URL, e.g. `https://expdash.vercel.app` — **not** a personal email | **Optional**, added in v3.4.0 Phase 2. The Web Push spec requires a contact URL/mailto in every send; a personal email would be sent to Google/Mozilla/Apple's push infrastructure on every single notification, so this app uses a plain project URL instead.                                                                                                                                                                                                                                                                               |
+| `AHAANA_SCHOOL_EMAIL`                    | Her school Outlook address, e.g. `ahaana.kohli@cns.ac.in`                   | **Optional**, added in v3.4.12 (the "Connect School Email" proof of concept on `/ahaana-progress`). Deliberately the simplest possible connection — IMAP against `outlook.office365.com` with a plain email + password, no OAuth, no app registration. See `src/lib/microsoft/imap-client.ts`.                                                                                                                                                                                                                                               |
+| `AHAANA_SCHOOL_EMAIL_PASSWORD`           | Her actual school account password                                          | **Secret.** Same v3.4.12 feature as above. Never exposed to the browser — only ever read server-side. **Real caveat**: Microsoft retired plain username+password IMAP access for most Exchange Online tenants back in October 2022. Whether this actually works at all depends entirely on whether the school's own tenant is one of the shrinking minority that still permits it — there's no code-side fix if it's disabled, and it's only knowable by actually trying it.                                                                 |
 
 Every var except `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`,
 `HDFC_INFINIA_STATEMENT_PASSWORD`, `HDFC_TATA_STATEMENT_PASSWORD`,
 `AXIS_STATEMENT_PASSWORD`, `ICICI_STATEMENT_PASSWORD`,
-`TELEGRAM_BOT_TOKEN`, `CRON_SECRET`, `AHAANA_ACCESS_PASSWORD`, and the
-three `VAPID_*` vars is required — the app fails
-fast (loudly, on startup) if any are missing or malformed, rather than
-running with a gap.
+`TELEGRAM_BOT_TOKEN`, `CRON_SECRET`, `AHAANA_ACCESS_PASSWORD`, the
+three `VAPID_*` vars, and the two `AHAANA_SCHOOL_EMAIL*` vars is
+required — the app fails fast (loudly, on startup) if any are missing
+or malformed, rather than running with a gap.
 
 **Common mistake when pasting into Vercel's env var UI:** a trailing
 space or newline gets included in the value, which silently breaks

@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.4.11**
+correction layer: what's actually true today, current as of **v3.4.12**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -1404,6 +1404,75 @@ via a temporary fixture-backed `preview-temp` scratch page (deleted
 before commit): correct week range, correct day grouping, and the
 "✓ Done" badge correctly appearing only on the one occurrence given a
 matching log entry. No new migration, no new env vars.
+
+## v3.4.12: school-email proof of concept — IMAP + password, no OAuth (revised)
+
+A deliberately minimal milestone: prove Atlas can connect to Ahaana's
+school Outlook mailbox and read her Inbox. First built as a full
+Microsoft Graph OAuth integration (Entra app registration, encrypted
+refresh tokens, a new database table); the household explicitly
+rejected that as too complicated for a proof of concept ("don't need
+such complicated architecture") and asked for the simplest possible
+version instead — two env vars, IMAP, nothing else. This section
+describes what actually shipped, replacing the OAuth version
+entirely (never merged, so nothing to migrate away from in
+production).
+
+Lives on the parent-facing `/ahaana-progress` page (a "Ahaana's School
+Email" card, last on the page) — not reachable from her own
+`/ahaana/*` section.
+
+- **`src/lib/microsoft/imap-client.ts`** — connects to
+  `outlook.office365.com:993` over IMAP with a plain email + password
+  (`imapflow`), fetches the latest N Inbox messages (envelope: sender,
+  subject, date) and decodes the first body part per message
+  (`download(seq, "1")`, transfer-encoding already handled by
+  `imapflow`) for a short preview. No `mailparser` dependency — that
+  package's own HTML-to-text conversion path pulls in a transitive
+  dependency (`html-to-text` → `deepmerge-ts`) with a real disclosed
+  stack-exhaustion advisory (GHSA-ggr8-5vv4-36mx); a preview snippet
+  doesn't need full HTML-to-text conversion, so a small bounded
+  tag-stripper handles the rare HTML-only-message case instead.
+- **No database table, no encryption, no OAuth, no new API routes.**
+  Credentials are two env vars, same as every other secret this app
+  already stores — nothing new to persist, nothing new to encrypt.
+- **New env vars**: `AHAANA_SCHOOL_EMAIL`, `AHAANA_SCHOOL_EMAIL_PASSWORD`
+  (both optional at the schema level, same "app boots fine unset"
+  pattern as every other optional secret).
+- **New server action** `testMailboxConnectionAction`
+  (`src/features/ahaana/api/microsoft-actions.ts`) and UI
+  `ConnectSchoolEmailSection.tsx` — no "Connect" step at all now (there's
+  nothing to authorize): the card shows "Not configured" or "●
+  Connected — `<email>`" purely from whether both env vars are set,
+  plus a "Test Mailbox Connection" button (ordinary `useActionState` +
+  server action, same pattern as `EnablePushButton`/`RunRemindersButton`).
+- **Real, prominently-flagged risk, not swept under the rug**:
+  Microsoft retired plain username+password (Basic Auth) access to
+  Exchange Online across every protocol, IMAP included, for most
+  tenants back in October 2022. Whether this actually works at all
+  depends entirely on whether the school's own tenant is one of the
+  shrinking minority that still permits it — genuinely unknown until
+  tried, and there is no code-side fix if it's disabled.
+- **Verified**: `npx tsc --noEmit && npx eslint . && npx prettier
+  --check . && npx vitest run` all pass (553, unchanged from before
+  this feature — no new pure-logic unit tests, the IMAP client is a
+  thin wrapper around a well-tested library, verified instead by
+  exercising the real code path) and `npm run build` completed
+  successfully. Browser-verified via a temporary fixture-backed
+  `preview-temp` scratch page (deleted before commit): both UI states
+  (not configured / configured) render correctly, and clicking "Test
+  Mailbox Connection" genuinely exercises the real server action →
+  `imap-client.ts` end to end — it correctly detected the env vars
+  aren't actually set and surfaced a clean error, not a crash.
+  **Not verified in this session, and can't be**: a real IMAP
+  connection against Ahaana's actual mailbox — that needs her real
+  school email + password, and depends on the school tenant's own
+  IMAP policy (see the risk above).
+
+**Pending (household to do)**: set `AHAANA_SCHOOL_EMAIL` and
+`AHAANA_SCHOOL_EMAIL_PASSWORD` (her real school credentials) locally
+and in Vercel, then click "Test Mailbox Connection" to find out
+whether the school tenant actually permits this.
 
 ## What's actually built
 
