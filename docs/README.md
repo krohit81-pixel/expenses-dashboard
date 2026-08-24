@@ -134,8 +134,15 @@ they say so.
   parent-facing "Ahaana's Progress" page (More → Ahaana's Progress,
   built back in v3.4.0 Phase 3) — the household asked for this page
   again without realizing it already existed, and the one real gap it
-  had was that it was backward-looking only — see doc 00's v3.4.4
-  through v3.4.11 sections.
+  had was that it was backward-looking only. v3.4.12 added a
+  deliberately minimal Microsoft Graph proof of concept — a "Connect
+  School Email" card on that same page, letting Ahaana's school Outlook
+  mailbox be connected via OAuth (delegated, `Mail.Read` only) and its
+  Inbox read via Graph, with the connection persisted (encrypted at
+  rest — this app's first real encryption-at-rest need) so she never
+  signs in again. No daily automation, no AI analysis, no task/event
+  extraction yet — genuinely just proving the connection works — see
+  doc 00's v3.4.4 through v3.4.12 sections.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement

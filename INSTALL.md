@@ -60,14 +60,70 @@ Authentication → Users and copy their ID from there instead.
 | `AHAANA_ACCESS_PASSWORD`                 | Pick a password just for this — a different one than `APP_ACCESS_PASSWORD`  | Added in v3.4.0. Gates `/ahaana/*` (her own mini app) — a completely separate password from the main app's; knowing one never unlocks the other's section (`src/lib/ahaana-gate.ts`). Optional at the env-schema level, same reasoning as `CRON_SECRET` — until this is set, `/ahaana` just refuses every request rather than the app failing to boot.                                                                                                                                                                                       |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Generate once: `npx web-push generate-vapid-keys`                           | **Optional**, added in v3.4.0 Phase 2 (Ahaana's real device push reminders — she has no Telegram). **Never regenerate once real subscriptions exist** — the public key is baked into each subscription at creation time; a new pair silently breaks every existing one.                                                                                                                                                                                                                                                                      |
 | `VAPID_SUBJECT`                          | A project URL, e.g. `https://expdash.vercel.app` — **not** a personal email | **Optional**, added in v3.4.0 Phase 2. The Web Push spec requires a contact URL/mailto in every send; a personal email would be sent to Google/Mozilla/Apple's push infrastructure on every single notification, so this app uses a plain project URL instead.                                                                                                                                                                                                                                                                               |
+| `MICROSOFT_CLIENT_ID`                    | Entra app registration → Overview → Application (client) ID                 | **Optional**, added in v3.4.12 (the "Connect School Email" proof of concept on `/ahaana-progress`). Required for the feature to work at all — see section 2a below for the full Entra app registration walkthrough.                                                                                                                                                                                                                                                                                                                          |
+| `MICROSOFT_CLIENT_SECRET`                | Entra app registration → Certificates & secrets → new client secret         | **Secret.** Same v3.4.12 feature as above. Never exposed to the browser — only ever read server-side (`src/lib/microsoft/oauth.ts`).                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `MICROSOFT_TENANT_ID`                    | Entra app registration → Overview → Directory (tenant) ID                   | **Optional**, added in v3.4.12. Rarely needed — unset, the OAuth authority defaults to `organizations` (any work/school Entra tenant, not personal Microsoft accounts), which is already the correct match for a school-issued account signing into an app registered in a different tenant. Only set this to pin the flow to one specific tenant.                                                                                                                                                                                           |
 
 Every var except `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`,
 `HDFC_INFINIA_STATEMENT_PASSWORD`, `HDFC_TATA_STATEMENT_PASSWORD`,
 `AXIS_STATEMENT_PASSWORD`, `ICICI_STATEMENT_PASSWORD`,
-`TELEGRAM_BOT_TOKEN`, `CRON_SECRET`, `AHAANA_ACCESS_PASSWORD`, and the
-three `VAPID_*` vars is required — the app fails
-fast (loudly, on startup) if any are missing or malformed, rather than
-running with a gap.
+`TELEGRAM_BOT_TOKEN`, `CRON_SECRET`, `AHAANA_ACCESS_PASSWORD`, the
+three `VAPID_*` vars, and the three `MICROSOFT_*` vars is required —
+the app fails fast (loudly, on startup) if any are missing or
+malformed, rather than running with a gap.
+
+## 2a. Microsoft Entra app registration (optional — Ahaana's School Email proof of concept)
+
+Only needed if you want to use "Connect School Email" on
+`/ahaana-progress` (v3.4.12). Skip this section entirely otherwise —
+every other feature in this app works with no Microsoft configuration
+at all.
+
+1. Go to [entra.microsoft.com](https://entra.microsoft.com) (or the
+   Azure Portal → Microsoft Entra ID) with **your own** Microsoft
+   account — not Ahaana's school account. You have no admin rights
+   over her school's own tenant, so this app registration necessarily
+   lives in your tenant, not hers.
+2. **App registrations** → **New registration**.
+   - **Supported account types**: choose **"Accounts in any
+     organizational directory (Any Microsoft Entra ID tenant -
+     Multitenant)"**. This is required, not optional — it's what lets
+     her school-issued account authenticate against an app it doesn't
+     own.
+   - **Redirect URI**: platform **Web** (not "Single-page application"
+     — a client secret is only usable on a Web platform registration;
+     SPA is PKCE-only, no secret). Add
+     `http://localhost:3000/api/microsoft/callback` for local
+     development now; add your production URL's equivalent
+     (`https://<your-domain>/api/microsoft/callback`) after you know
+     your Vercel domain, or add it now if you already do.
+3. **Certificates & secrets** → **New client secret**. Copy the
+   secret's **value** immediately (not the Secret ID) — Entra only
+   shows it once. This becomes `MICROSOFT_CLIENT_SECRET`.
+4. **API permissions** → **Add a permission** → **Microsoft Graph** →
+   **Delegated permissions** → add `Mail.Read` (`User.Read` is usually
+   present by default). Do **not** add `Mail.Send`, `Mail.ReadWrite`,
+   `Calendars.*`, `Contacts.*`, `Files.*`, or anything beyond these
+   two. `openid`/`profile`/`email`/`offline_access` are standard OIDC
+   scopes requested directly in the sign-in URL — they don't need
+   adding here.
+5. Copy the **Application (client) ID** from the Overview page →
+   `MICROSOFT_CLIENT_ID`. Leave `MICROSOFT_TENANT_ID` unset (see the
+   table above for why).
+
+**A real risk, not a hypothetical**: `Mail.Read` is a "medium impact"
+delegated permission, and many K-12/school-managed Entra tenants
+disable end-user consent to third-party (unverified, multi-tenant)
+apps entirely, or require the school's own IT admin to grant
+tenant-wide consent. If Ahaana's school tenant is locked down this
+way, her sign-in will hit a hard "needs admin approval" screen —
+there's no app-side workaround, and it's only knowable by actually
+trying the flow.
+
+**Known limitation**: Vercel preview deployments get a random
+per-deploy URL that can't be pre-registered as a redirect URI (Entra
+doesn't support wildcards here). This flow only works on `localhost`
+and your real, stable production domain — not on any PR/preview URL.
 
 **Common mistake when pasting into Vercel's env var UI:** a trailing
 space or newline gets included in the value, which silently breaks

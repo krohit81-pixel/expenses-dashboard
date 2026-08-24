@@ -12,6 +12,8 @@ import {
   expandAhaanaOccurrences,
   getAhaanaWeekDates,
 } from "@/lib/dates/ahaana-activities";
+import { getConnection } from "@/services/MicrosoftEmailConnectionService";
+import { ConnectSchoolEmailSection } from "@/features/ahaana/components/ConnectSchoolEmailSection";
 import type { AhaanaActivity } from "@/services/AhaanaActivityService";
 
 export const metadata: Metadata = {
@@ -75,13 +77,23 @@ function formatTime12h(time: string): string {
  * her own Dashboard tab shows, expanded here read-only: no
  * mark-complete form, since this page is explicitly "I don't need to
  * log anything, just the dashboard view" (the household's own words).
+ *
+ * v3.4.12 — added a "Connect School Email" section: a Microsoft Graph
+ * proof of concept, entirely separate from her activity data above
+ * (its own service, its own OAuth routes) — see
+ * ConnectSchoolEmailSection.tsx and MicrosoftEmailConnectionService.ts.
  */
-export default async function AhaanaProgressPage() {
+export default async function AhaanaProgressPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ms_error?: string }>;
+}) {
   await requireUser();
+  const { ms_error: msError } = await searchParams;
 
   const upcomingWeekDates = getAhaanaWeekDates();
 
-  const [activities, logs] = await Promise.all([
+  const [activities, logs, connection] = await Promise.all([
     listAhaanaActivities(),
     // A little over WEEKS_BACK weeks of history is enough for the
     // chart (exactly WEEKS_BACK weeks), the recent-notes list
@@ -95,6 +107,7 @@ export default async function AhaanaProgressPage() {
         .slice(0, 10),
       new Date().toISOString().slice(0, 10),
     ),
+    getConnection(),
   ]);
 
   const activeActivities = activities.filter((a) => a.active);
@@ -289,6 +302,11 @@ export default async function AhaanaProgressPage() {
             </ul>
           )}
         </div>
+
+        <ConnectSchoolEmailSection
+          connection={connection}
+          initialError={msError ?? null}
+        />
       </div>
     </div>
   );

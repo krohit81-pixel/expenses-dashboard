@@ -1256,6 +1256,39 @@ export type Database = {
         };
         Relationships: [];
       };
+      // Hand-added (v3.4.12) the same way as every other table in this
+      // file — see this file's header disclaimer. Matches
+      // supabase/migrations/20260824090943_create_ahaana_ms_email_connections.sql.
+      ahaana_ms_email_connections: {
+        Row: {
+          id: string;
+          user_id: string;
+          provider: string;
+          email_address: string;
+          encrypted_refresh_token: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          provider?: string;
+          email_address: string;
+          encrypted_refresh_token: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          provider?: string;
+          email_address?: string;
+          encrypted_refresh_token?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       credit_card_statements: {
         Row: {
           id: string;
