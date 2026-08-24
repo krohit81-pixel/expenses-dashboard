@@ -1469,10 +1469,29 @@ Email" card, last on the page) — not reachable from her own
   school email + password, and depends on the school tenant's own
   IMAP policy (see the risk above).
 
-**Pending (household to do)**: set `AHAANA_SCHOOL_EMAIL` and
-`AHAANA_SCHOOL_EMAIL_PASSWORD` (her real school credentials) locally
-and in Vercel, then click "Test Mailbox Connection" to find out
-whether the school tenant actually permits this.
+**Resolved (tried against production, real credentials)**: IMAP Basic
+Auth is blocked by the school's Microsoft 365 tenant — "Test Mailbox
+Connection" returns the raw server response "Login is disabled" (not
+our own error text; that's Exchange Online itself rejecting the
+authentication attempt). This is a school-tenant-level setting (either
+IMAP disabled per-mailbox, or Basic Auth blocked tenant-wide, or both)
+— nothing changeable from Ahaana's own account, and not fixable from
+this codebase. Confirms the risk flagged above was real, not
+hypothetical.
+
+Decided (household, 2026-08-24): not worth chasing further right now
+— asking the school's IT to re-enable Basic Auth is a long shot (it's
+a real security downgrade for them to grant), and a Graph OAuth
+rebuild is real effort to invest before there's a clearer reason to.
+Left as-is: the code correctly reports the block rather than hiding
+it, which is itself useful information. If this becomes worth
+revisiting, the two live options are (a) ask the school's Microsoft
+365 admin to enable IMAP + grant a Basic Auth exception for this
+mailbox, or (b) rebuild on Microsoft Graph OAuth (the architecture
+this milestone started with, before the household asked for something
+simpler) — OAuth doesn't need Basic Auth at all, though it still needs
+the school tenant to allow the app via consent, a different and more
+common ask than re-enabling Basic Auth.
 
 ## What's actually built
 
