@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.4.10**
+correction layer: what's actually true today, current as of **v3.4.11**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -1375,6 +1375,35 @@ Two requests.
 `supabase/migrations/20260823200810_add_ahaana_alternate_weeks.sql` to
 the real Supabase instance. Until then, `/ahaana` and its cron route
 will error (missing `alternate_weeks` column).
+
+## v3.4.11: "upcoming this week" added to the parent-facing progress page
+
+The household asked for a parent-facing "Ahaana's Progress" page —
+already built back in v3.4.0 Phase 3 (More → Ahaana's Progress) and
+apparently forgotten about, since it already covered everything asked
+for (read-only, no logging, a dashboard view). Confirmed it and pointed
+back to it rather than rebuilding; the one gap it actually had:
+backward-looking only (completion trend, recent notes) — nothing
+showing what she's *expected* to do.
+
+Added a new "This week — what to expect" section at the top of that
+same page: the same occurrence data her own Dashboard tab computes
+(`expandAhaanaOccurrences` + `getAhaanaWeekDates`, Sunday-start — this
+new section deliberately matches HER own week convention rather than
+the page's existing Monday-start completion chart, since it's a direct
+preview of her own Dashboard), day-grouped, with a quiet "✓ Done" badge
+on anything already logged. Entirely read-only — no mark-complete
+form, no way to log anything from this page, matching the household's
+own framing ("I don't need to log anything, just the dashboard view").
+
+Verified: `npx tsc --noEmit && npx eslint . && npx prettier --check .
+&& npx vitest run` all pass (553, unchanged — reuses already-tested
+`expandAhaanaOccurrences`/`getAhaanaWeekDates`, no new pure-logic
+surface) and `npm run build` completed successfully. Browser-verified
+via a temporary fixture-backed `preview-temp` scratch page (deleted
+before commit): correct week range, correct day grouping, and the
+"✓ Done" badge correctly appearing only on the one occurrence given a
+matching log entry. No new migration, no new env vars.
 
 ## What's actually built
 

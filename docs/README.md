@@ -129,8 +129,13 @@ they say so.
   navigation between two pages sharing one layout), added a loading
   spinner during tab switches, and added alternate-week recurring
   activities (a checkbox, two ordinary activities with `startDate`s a
-  week apart interleaving on their own) — see doc 00's v3.4.4 through
-  v3.4.10 sections.
+  week apart interleaving on their own). v3.4.11 added a forward-
+  looking "This week — what to expect" section to the existing
+  parent-facing "Ahaana's Progress" page (More → Ahaana's Progress,
+  built back in v3.4.0 Phase 3) — the household asked for this page
+  again without realizing it already existed, and the one real gap it
+  had was that it was backward-looking only — see doc 00's v3.4.4
+  through v3.4.11 sections.
   Dashboard shows the full cycle-wise income/expense breakdown (absorbed
   Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
   Accounts (with inline balance correction), and Imports — a statement
