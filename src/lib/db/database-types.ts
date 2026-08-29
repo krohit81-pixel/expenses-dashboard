@@ -568,6 +568,36 @@ export type Database = {
           },
         ];
       };
+      // Hand-added (v3.5.0) the same way every other table in this file
+      // was — see this file's header disclaimer. Matches
+      // supabase/migrations/20260829120000_create_cycle_starting_balances.sql.
+      cycle_starting_balances: {
+        Row: {
+          id: string;
+          user_id: string;
+          cycle_month: string;
+          amount: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          cycle_month: string;
+          amount: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          cycle_month?: string;
+          amount?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       loans: {
         Row: {
           account_id: string;

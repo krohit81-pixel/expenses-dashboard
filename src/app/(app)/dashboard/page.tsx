@@ -3,8 +3,11 @@ import Link from "next/link";
 
 import { requireUser } from "@/lib/auth/require-user";
 import { listAccounts } from "@/services/AccountService";
+import { listCategories } from "@/services/CategoryService";
+import { listTransactions } from "@/services/TransactionService";
 import { getUserSettings } from "@/services/UserSettingsService";
 import { getMonthlyBudgetSnapshot } from "@/services/BudgetSnapshotService";
+import { getCycleStartingBalance } from "@/services/CycleBalanceService";
 import {
   addMoney,
   formatMoneyDisplay,
@@ -12,6 +15,10 @@ import {
   negateMoney,
 } from "@/lib/money";
 import { computeCommittedExpenseTotal } from "@/lib/budget/home-stats";
+import {
+  computeExpensesRemaining,
+  computeRunningBalance,
+} from "@/lib/budget/cycle-balance";
 import {
   currentCycleMonth,
   cycleCloseLabel,
@@ -22,7 +29,8 @@ import {
 import { Hero } from "@/components/ui/hero";
 import { SectionHeading } from "@/features/dashboard/components/SectionHeading";
 import { DashboardMonthNav } from "@/features/dashboard/components/DashboardMonthNav";
-import { LoggedFeedList } from "@/features/dashboard/components/LoggedFeedList";
+import { CycleColumnsSection } from "@/features/dashboard/components/CycleColumnsSection";
+import { CycleBalanceCard } from "@/features/dashboard/components/CycleBalanceCard";
 import { RepeatLastCycleButton } from "@/features/dashboard/components/RepeatLastCycleButton";
 
 export const metadata: Metadata = {
@@ -50,6 +58,19 @@ export const metadata: Metadata = {
  * CycleBriefCard; it's rendered directly here now — it's the real
  * prev/next/Today cycle pager, not cosmetic.
  *
+ * v3.5.0: "Logged This Cycle" is a real interactive two-column split
+ * now (CycleColumnsSection — Expenses left, Income right on wider
+ * screens, stacked on narrow ones), replacing the read-only
+ * LoggedFeedList (deleted) — reuses TransactionRow directly, so mark
+ * paid/pending, inline edit, and delete all work right here, not just
+ * on /transactions. New "Balance" section (CycleBalanceCard):
+ * Expenses Remaining (pending expense/transfer lines not yet paid) and
+ * Account Balance (an editable per-cycle starting balance +
+ * live-computed posted income/expenses — CycleBalanceService,
+ * lib/budget/cycle-balance.ts). See both files' own comments for why
+ * the editable figure is the STARTING balance, never the derived
+ * running total directly.
+ *
  * (v3.1.0, superseded above): the household pointed at another app's
  * header/dashboard for a "more professional finance planner" look —
  * net moved into a Cycle Brief card (deficit/surplus meter + summary
@@ -75,15 +96,39 @@ export default async function DashboardPage({
   const prevMonth = shiftMonth(month, -1);
 
   const user = await requireUser();
-  const [snapshot, prevSnapshot, accounts, settings] = await Promise.all([
+  const [
+    snapshot,
+    prevSnapshot,
+    accounts,
+    categories,
+    settings,
+    startingBalance,
+    { transactions: cycleTransactions },
+  ] = await Promise.all([
     getMonthlyBudgetSnapshot(month),
     getMonthlyBudgetSnapshot(prevMonth),
     listAccounts(),
+    listCategories(true),
     getUserSettings(user.id),
+    getCycleStartingBalance(month),
+    listTransactions({ cycleMonth: month, limit: 300 }),
   ]);
 
   const currency = settings?.baseCurrency ?? "USD";
   const accountName = new Map(accounts.map((a) => [a.id, a.name]));
+  const categoryName = new Map(categories.map((c) => [c.id, c.name]));
+  // Same income/expense split convention /transactions itself uses —
+  // "expense" here also covers transfers (card dues), matching
+  // TransactionRow's own kind handling.
+  const incomeTransactions = cycleTransactions.filter(
+    (t) => t.kind === "income",
+  );
+  const expenseTransactions = cycleTransactions.filter(
+    (t) => t.kind !== "income",
+  );
+
+  const expensesRemaining = computeExpensesRemaining(snapshot);
+  const runningBalance = computeRunningBalance(snapshot, startingBalance);
 
   const expenseTotal = computeCommittedExpenseTotal(snapshot);
   const net = addMoney(snapshot.incomeTotal, negateMoney(expenseTotal));
@@ -157,7 +202,23 @@ export default async function DashboardPage({
             title="Logged This Cycle"
             meta={monthLabel(month)}
           />
-          <LoggedFeedList items={snapshot.lines} accountName={accountName} />
+          <CycleColumnsSection
+            expenseTransactions={expenseTransactions}
+            incomeTransactions={incomeTransactions}
+            accountName={accountName}
+            categoryName={categoryName}
+          />
+        </section>
+
+        <section>
+          <SectionHeading index="03" title="Balance" />
+          <CycleBalanceCard
+            cycleMonth={month}
+            currency={currency}
+            expensesRemaining={expensesRemaining}
+            startingBalance={startingBalance}
+            runningBalance={runningBalance}
+          />
         </section>
 
         <RepeatLastCycleButton

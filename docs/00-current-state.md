@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.4.14**
+correction layer: what's actually true today, current as of **v3.5.0**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -1643,6 +1643,74 @@ confirmed via `AskUserQuestion` before planning:
   production database without checking first; `/recurring` and
   `/budgets` both 404; `/log` shows Transactions/Accounts/Imports, no
   Recurring.
+
+## v3.5.0: Dashboard — Expenses/Income split, mark paid inline, an editable Balance section
+
+Originated as a design-canvas prototype (household request: "expenses
+on the left, income on the right... at least on iPad/Mac", then "mark
+these as done, with undo", then "show the balance of what's left").
+Two real-vs-prototype decisions were confirmed with the household
+before building (`AskUserQuestion`) rather than guessed: "mark done"
+reuses the *existing* pending↔posted status (not a new flag), and
+"Account Balance" is a new, explicitly-editable **starting** balance
+per cycle, with the displayed figure always a *derived* running total
+— never a directly-overridable number, which the prototype's simpler
+client-only model could get away with but a real, persisted feature
+can't without the display and the edit fighting each other.
+
+- **"Logged This Cycle" is a real, interactive two-column split now**
+  (`CycleColumnsSection.tsx`) — Expenses on the left, Income on the
+  right on `sm:` and wider, stacked on narrow screens
+  (`grid-cols-1 sm:grid-cols-2`, same breakpoint convention every other
+  split-card section already uses). Reuses `TransactionRow` directly
+  (already has mark-paid/pending, inline edit, delete, all working) —
+  not a new read-only row component, so "mark done" is simply marking
+  the row paid, and "undo" is the row's own existing mark-pending
+  button. Deliberately a **new**, Dashboard-only component rather than
+  reusing `RecentTransactionsSection` (which already splits
+  Income/Expenses on `/transactions` — but Income **left**, Expenses
+  **right**, the opposite order) — sharing one component would have
+  meant either flipping `/transactions`' own established order (not
+  asked for) or a new prop just to un-flip it for one caller; a small
+  separate component was simpler. Replaces the read-only
+  `LoggedFeedList` (deleted, its only caller).
+- **New "Balance" section** (`CycleBalanceCard.tsx`): **Expenses
+  Remaining** (pure display — pending expense/transfer lines not yet
+  paid, `computeExpensesRemaining`) and **Account Balance** (editable).
+  The big number shown for Account Balance is always
+  `startingBalance + this cycle's posted income − posted expenses`
+  (`computeRunningBalance`, `lib/budget/cycle-balance.ts`, both pure
+  and unit-tested) — the pencil icon only ever edits the underlying
+  *starting* balance (`CycleBalanceService.setCycleStartingBalance`),
+  never the derived total directly, so the number on screen always
+  moves correctly on its own as rows get marked paid, exactly like the
+  prototype, without a manual edit fighting that math afterward. Shows
+  "Not set" (not a silent 0) until a starting balance is actually
+  entered for that cycle — zero would look like a real answer instead
+  of "unknown."
+- **New table** `finance.cycle_starting_balances` (migration
+  `20260829120000_create_cycle_starting_balances.sql`) — one row per
+  `(user_id, cycle_month)`, just the one number a person actually
+  types; the running total is never persisted, only computed on read.
+  Deliberately separate from `AccountService.correctAccountBalance`
+  (the existing per-*account* balance-correction flow on `/accounts`)
+  — this is one simple whole-cycle "cash on hand" figure, not a
+  multi-account reconciliation tool.
+- **Verified**: 21 new unit tests across `cycle-balance.test.ts` (the
+  pure math) and `CycleBalanceService.test.ts` (the DB round-trip,
+  mocked). `npx tsc --noEmit && npx eslint . && npx prettier --check .
+  && npx vitest run` all pass (523) and `npm run build` succeeds.
+  **Not verified in this session, and can't be**: the real end-to-end
+  flow against a live Supabase instance — this session has no live
+  Supabase CLI/DB access (see `database-types.ts`'s own header
+  disclaimer; the new table's TypeScript types were hand-added there
+  the same documented way every other table in this file was). **The
+  migration must be applied to the real Supabase project — Supabase
+  dashboard SQL editor, or `supabase db push` — before or immediately
+  after this deploys**, or Dashboard will error on every load
+  (`cycle_starting_balances` doesn't exist yet). See `INSTALL.md`'s
+  "`/calendar` broke right after deploying v3.2.0" section for exactly
+  this failure mode and why it happens.
 
 ## What's actually built
 

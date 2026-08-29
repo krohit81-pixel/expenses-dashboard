@@ -150,7 +150,12 @@ they say so.
   `/budgets` were both removed entirely, the household found them too
   complicated; `/transactions` is the primary add/edit/delete/tag-to-
   cycle screen again instead, and a one-tap "Repeat last cycle" button
-  replaces templates for anything that recurs). Log is a hub for
+  replaces templates for anything that recurs). v3.5.0 made "Logged
+  This Cycle" a real interactive two-column split (Expenses left,
+  Income right on wider screens — mark paid/undo inline, reusing
+  TransactionRow directly) and added a Balance section: Expenses
+  Remaining plus an editable per-cycle starting balance that a live
+  running total is computed from. Log is a hub for
   Transactions, Accounts (with inline balance correction), and Imports —
   a statement import now also prompts to log its due amount as a real
   Dashboard expense (v2.5.4) and to check for AI-suggested duplicate
