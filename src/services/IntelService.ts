@@ -271,7 +271,20 @@ async function generateInsightText(): Promise<string | null> {
   });
 
   try {
-    return await callConfiguredProvider(prompt);
+    // v3.5.5 — was relying on callConfiguredProvider's own 300-token
+    // default, which fit the ORIGINAL single 2-3 sentence output but
+    // was already tight even then. v3.5.4 asked for a second whole
+    // paragraph (naming specific merchants/dates from up to hundreds
+    // of transaction lines) without raising this at all — the
+    // household-reported result was the response cutting off
+    // mid-sentence ("...are projected to significantly increase" with
+    // nothing after it), the classic symptom of hitting a token cap
+    // before the model finished. 800 gives real headroom for two full
+    // paragraphs; see MerchantMergeSuggestionService's own
+    // MAX_OUTPUT_TOKENS (2000, for a much bigger structured JSON
+    // task) for the sibling precedent of overriding this default
+    // rather than relying on it.
+    return await callConfiguredProvider(prompt, 800);
   } catch (error) {
     console.error("Failed to generate Intel insight:", error);
     return null;

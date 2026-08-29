@@ -41,8 +41,25 @@ export async function callAnthropic(
     );
   }
 
-  const data: { content: { type: string; text?: string }[] } =
-    await response.json();
+  const data: {
+    content: { type: string; text?: string }[];
+    stop_reason?: string;
+  } = await response.json();
+  // v3.5.5 — a real, household-reported bug (Intel's insight cutting
+  // off mid-sentence, "...are projected to significantly increase"
+  // with nothing after it) turned out to be exactly this: the request
+  // hit `maxTokens` before the model finished, and that was
+  // previously invisible — the truncated fragment just shipped as if
+  // it were a complete answer. Logging it here doesn't fix a given
+  // call, but means the NEXT time any caller's maxTokens is too tight
+  // for what it's actually asking for, that shows up in server logs
+  // as a clear warning instead of a silently truncated response
+  // someone has to notice and report by hand.
+  if (data.stop_reason === "max_tokens") {
+    console.warn(
+      `Anthropic response hit maxTokens (${maxTokens}) and was truncated — the caller likely needs a higher limit.`,
+    );
+  }
   const text = data.content.find((block) => block.type === "text")?.text;
   return text?.trim() || null;
 }
@@ -75,8 +92,18 @@ export async function callGemini(
   }
 
   const data: {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
+    candidates?: {
+      content?: { parts?: { text?: string }[] };
+      finishReason?: string;
+    }[];
   } = await response.json();
+  // v3.5.5 — same truncation visibility as callAnthropic's own
+  // stop_reason check above; Gemini's equivalent field is finishReason.
+  if (data.candidates?.[0]?.finishReason === "MAX_TOKENS") {
+    console.warn(
+      `Gemini response hit maxTokens (${maxTokens}) and was truncated — the caller likely needs a higher limit.`,
+    );
+  }
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
   return text?.trim() || null;
 }

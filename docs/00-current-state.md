@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.5.4**
+correction layer: what's actually true today, current as of **v3.5.5**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -1880,6 +1880,48 @@ separate section.
   --check . && npx vitest run` all pass (530) and `npm run build`
   succeeds. No schema change — reads existing
   `credit_card_statements`/`credit_card_transactions` tables only.
+
+## v3.5.5: fixed v3.5.4 — the two-paragraph insight was cutting off mid-sentence
+
+Household-reported, with a screenshot: "Generate commentary" produced
+just "Your household's expenses are projected to significantly
+increase" — a single incomplete sentence, no number, no second
+paragraph about card spending at all.
+
+Root cause: `IntelService.generateInsightText()` called
+`callConfiguredProvider(prompt)` with no explicit token budget, so it
+fell back to `callAnthropic`/`callGemini`'s own shared default of 300
+output tokens — already a tight budget for the ORIGINAL single 2-3
+sentence insight, and v3.5.4 asked for a whole SECOND paragraph
+(reviewing potentially hundreds of transaction lines across 6 cards
+and naming specific merchants/dates) without raising it at all. The
+model's response hit that cap and got cut off mid-generation — exactly
+the "trails off with nothing after it" symptom reported.
+
+- Fixed: `generateInsightText()` now passes `800` explicitly, real
+  headroom for two full paragraphs — same "override the shared
+  default rather than rely on it" pattern
+  `MerchantMergeSuggestionService` already uses for its own, bigger
+  `MAX_OUTPUT_TOKENS` (2000).
+- Also made this failure mode diagnosable going forward, in both
+  `lib/ai/providers.ts` providers: `callAnthropic` now checks
+  Anthropic's own `stop_reason === "max_tokens"` and `callGemini`
+  checks Gemini's `finishReason === "MAX_TOKENS"`, logging a clear
+  server warning when a response was actually truncated by the token
+  cap — previously invisible; a truncated fragment just shipped as if
+  it were a complete answer, which is exactly how this bug went
+  unnoticed until a person spotted it by eye.
+- Confirmed the DB isn't a contributing factor:
+  `finance.intel_insights.insight_text` has a `char_length between 1
+  and 2000` constraint, comfortably enough room for a real two-
+  paragraph response (nowhere near what caused this).
+
+Verified: `npx tsc --noEmit && npx eslint . && npx prettier --check .
+&& npx vitest run` all pass (530) and `npm run build` succeeds. Not
+re-verified with a real "Generate commentary" click in this session
+either — same reasoning as v3.5.4's own report, a real billed LLM call
+that would overwrite the household's saved insight — left for the
+household to confirm the fix on their next real generation.
 
 ## What's actually built
 
