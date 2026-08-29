@@ -297,17 +297,28 @@ export interface RepeatLastCycleFormState {
 
 /**
  * v3.4.14 — the "Repeat last cycle" button's action, Recurring's
- * replacement. Duplicates every live (non-void) transaction tagged to
- * the cycle immediately before `targetMonth` into `targetMonth` itself —
- * plain, ordinary transactions, no template concept involved. Copies
- * land dated today (not the original occurredOn — this represents
- * "happening again this cycle," and keeping last cycle's literal dates
- * would misdate everything by a month) and always `status: "pending"`
- * (mirrors logCardPaymentAction's own reasoning: a freshly duplicated
- * line hasn't actually happened yet at the moment of duplication — the
+ * replacement. Duplicates every live (non-void), non-transfer
+ * transaction tagged to the cycle immediately before `targetMonth`
+ * into `targetMonth` itself — plain, ordinary transactions, no
+ * template concept involved. Copies land dated today (not the
+ * original occurredOn — this represents "happening again this cycle,"
+ * and keeping last cycle's literal dates would misdate everything by
+ * a month) and always `status: "pending"` (mirrors
+ * logCardPaymentAction's own reasoning: a freshly duplicated line
+ * hasn't actually happened yet at the moment of duplication — the
  * household reviews/mark-paids each one via TransactionRow's existing
  * controls, same as any other pending row, rather than it silently
  * posting against balances).
+ *
+ * v3.5.2 — transfers (card-due payments) are excluded from what gets
+ * copied. Household request: last cycle's card payment amount is
+ * whatever that statement happened to total; blindly duplicating it
+ * forward would just be a wrong number sitting in the new cycle until
+ * overwritten. The real amount for this cycle comes from the PDF
+ * statement import flow instead (LogCardDuePrompt), same "card dues
+ * are logged via statement imports instead" exclusion Recurring's own
+ * templates used to apply before Recurring was removed entirely — see
+ * that page's old comment in git history.
  *
  * Sequential, not Promise.all — same "known, reportable partial state on
  * failure" reasoning ReminderService.sendCandidates and the old
@@ -329,11 +340,17 @@ export async function repeatLastCycleAction(
     cycleMonth: sourceMonth,
     limit: 300,
   });
-  const live = transactions.filter((t) => t.status !== "void");
+  const live = transactions.filter(
+    (t) => t.status !== "void" && t.kind !== "transfer",
+  );
   const today = new Date().toISOString().slice(0, 10);
 
   let copiedCount = 0;
   for (const t of live) {
+    // Only income/expense reach here now — transfers are filtered out
+    // of `live` above, so there's no transfer branch to build here
+    // (unlike createTransactionAction's own raw-building, which still
+    // needs one for its own, unfiltered callers).
     const base = {
       accountId: t.accountId,
       currencyCode: t.currencyCode,
@@ -344,30 +361,23 @@ export async function repeatLastCycleAction(
       amount: t.amount,
     };
     const raw =
-      t.kind === "transfer"
+      t.splits.length > 1
         ? {
             ...base,
-            kind: "transfer" as const,
-            transferAccountId: t.transferAccountId,
+            kind: t.kind,
             status: "pending" as const,
+            splits: t.splits.map((s) => ({
+              categoryId: s.categoryId,
+              amount: s.amount,
+              memo: s.memo,
+            })),
           }
-        : t.splits.length > 1
-          ? {
-              ...base,
-              kind: t.kind,
-              status: "pending" as const,
-              splits: t.splits.map((s) => ({
-                categoryId: s.categoryId,
-                amount: s.amount,
-                memo: s.memo,
-              })),
-            }
-          : {
-              ...base,
-              kind: t.kind,
-              status: "pending" as const,
-              categoryId: t.splits[0]?.categoryId,
-            };
+        : {
+            ...base,
+            kind: t.kind,
+            status: "pending" as const,
+            categoryId: t.splits[0]?.categoryId,
+          };
 
     const parsed = createTransactionInputSchema.safeParse(raw);
     if (!parsed.success) break; // stop and report partial progress rather than a silent partial batch

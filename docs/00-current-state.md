@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.5.1**
+correction layer: what's actually true today, current as of **v3.5.2**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -1754,6 +1754,37 @@ to the account balance below." Two real changes, not cosmetic:
   real value the household had already saved (₹112,000.00) from
   earlier v3.5.0 use; Difference correctly computed
   112,000 − 141,000 = −29,000.
+
+## v3.5.2: "Repeat last cycle" excludes card-due transfers
+
+Household-reported, real-usage feedback: "hope will not take the
+credit card ones... I would want that to be taken from the pdf
+imports which I will do later." Last cycle's card-payment transfer
+amount is whatever that statement happened to total — duplicating it
+forward would just leave a stale, wrong number sitting in the new
+cycle until overwritten by the real PDF import. `repeatLastCycleAction`
+(`src/features/transactions/api/actions.ts`) now filters
+`kind !== "transfer"` out of what it copies, alongside the existing
+non-void filter — the same "card dues come from the PDF statement
+import, not a duplicated/templated number" exclusion Recurring's own
+templates applied before Recurring was removed entirely (v3.4.14).
+
+- Dashboard's own preview (`RepeatLastCycleButton`'s count/total,
+  computed in `dashboard/page.tsx`) was updated to match exactly what
+  the action will actually copy — filters `prevSnapshot.lines` to
+  `kind !== "transfer"` before counting/summing, so the number shown
+  before clicking "Repeat" is never an overstatement.
+- The button's own caption now says so explicitly ("— card payments
+  not included") rather than leaving the exclusion implicit in a
+  smaller count.
+- **Verified against real production data** (temporary
+  `middleware.ts` `PUBLIC_PATHS` entry, reverted): count dropped from
+  17 to 11 (the 6 card-payment transfers visible in the real Expenses
+  column — Axis Horizon, Infinia, HDFC Tata, Axis Airtel, ICICI
+  Amazon, ICICI Rupay — correctly excluded), caption read "Copy 11
+  transactions (+₹385,000.00) from August 2026 — card payments not
+  included." The actual Confirm click was, again, deliberately not
+  exercised against real data.
 
 ## What's actually built
 

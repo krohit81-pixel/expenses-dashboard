@@ -13,6 +13,7 @@ import {
   formatMoneyDisplay,
   isNegativeMoney,
   negateMoney,
+  sumMoney,
 } from "@/lib/money";
 import { computeCommittedExpenseTotal } from "@/lib/budget/home-stats";
 import {
@@ -176,15 +177,27 @@ export default async function DashboardPage({
     },
   ];
 
-  // "Repeat last cycle" preview — same live-only, non-void set the
-  // action itself will actually copy (BudgetSnapshotService already
-  // filters void rows out of `lines`), so this count/total is exactly
-  // what clicking through will do, not an approximation.
-  const prevExpenseTotal = computeCommittedExpenseTotal(prevSnapshot);
-  const prevNet = addMoney(
-    prevSnapshot.incomeTotal,
-    negateMoney(prevExpenseTotal),
+  // "Repeat last cycle" preview — same non-void, non-transfer set the
+  // action itself will actually copy (repeatLastCycleAction excludes
+  // transfers — card dues come from the PDF import flow instead, not
+  // a stale duplicate of last cycle's statement amount), so this
+  // count/total is exactly what clicking through will do, not an
+  // approximation. BudgetSnapshotService already filters void rows
+  // out of `lines`.
+  const prevRepeatable = prevSnapshot.lines.filter(
+    (line) => line.kind !== "transfer",
   );
+  const prevRepeatIncome = sumMoney(
+    prevRepeatable
+      .filter((line) => line.kind === "income")
+      .map((line) => line.amount),
+  );
+  const prevRepeatExpense = sumMoney(
+    prevRepeatable
+      .filter((line) => line.kind === "expense")
+      .map((line) => line.amount),
+  );
+  const prevNet = addMoney(prevRepeatIncome, negateMoney(prevRepeatExpense));
   const prevNetIsNegative = isNegativeMoney(prevNet);
   const prevNetDisplay = `${prevNetIsNegative ? "−" : "+"}${formatMoneyDisplay(prevNetIsNegative ? negateMoney(prevNet) : prevNet, currency)}`;
 
@@ -247,7 +260,7 @@ export default async function DashboardPage({
         <RepeatLastCycleButton
           targetMonth={month}
           lastCycleLabel={monthLabel(prevMonth)}
-          count={prevSnapshot.lines.length}
+          count={prevRepeatable.length}
           totalDisplay={prevNetDisplay}
         />
 

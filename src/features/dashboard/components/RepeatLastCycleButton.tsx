@@ -29,6 +29,14 @@ const initialState: RepeatLastCycleFormState = {};
  * reasoning this session already applied to the calendar's own "Send
  * reminder now" button. The two-step confirm exists to stop an
  * accidental tap, not to rate-limit a genuine repeat click.
+ *
+ * v3.5.2 — `count`/`totalDisplay` (passed down from Dashboard) exclude
+ * card-due transfers; `repeatLastCycleAction` itself excludes them
+ * from what actually gets copied, same "card dues come from the PDF
+ * statement import instead" reasoning Recurring's own templates used
+ * to apply. Said explicitly in the caption below, not just left
+ * implicit in the count — household-reported: last cycle's card
+ * payment amount is a stale, wrong number to duplicate forward.
  */
 export function RepeatLastCycleButton({
   targetMonth,
@@ -78,7 +86,7 @@ export function RepeatLastCycleButton({
           </div>
           <div className="mt-0.5 text-[11.5px] text-ink-faint">
             Copy {count} transaction{count === 1 ? "" : "s"} ({totalDisplay})
-            from {lastCycleLabel}
+            from {lastCycleLabel} — card payments not included
           </div>
         </div>
         {!confirming && (
