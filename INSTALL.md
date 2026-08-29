@@ -34,8 +34,10 @@ APP_OWNER_USER_ID=3f2a1c9e-....
 ```
 
 Copy that whole line into `.env.local`, and add the same variable in
-Vercel (see step 3). That's the only credential this app has — there's no
-password, because nothing ever signs in again after this one-time setup.
+Vercel (see step 3). This `APP_OWNER_USER_ID` is a one-time setup value,
+not something anyone ever signs in with — the app's actual password
+barrier is `APP_ACCESS_PASSWORD`, set separately (see the env var table
+below, and "The access model" section further down).
 
 **Don't run this script more than once per Supabase project.** If you
 accidentally do, or need the ID again later, find the user in Supabase →
@@ -49,8 +51,11 @@ Authentication → Users and copy their ID from there instead.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`          | Supabase → Project Settings → API → `anon` `public` key                     | Safe to expose to the browser                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `SUPABASE_SERVICE_ROLE_KEY`              | Supabase → Project Settings → API → `service_role` key                      | **Secret.** This is now the ONLY way the app talks to the database — there's no session-based access anymore. Never expose to the browser.                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `APP_OWNER_USER_ID`                      | Printed by `npm run bootstrap:owner` (step 1)                               | The fixed account every row in the database belongs to.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `APP_ACCESS_PASSWORD`                    | Pick a password yourself                                                    | **Required.** The app's real access barrier — see "The access model" below. Not tied to Supabase Auth in any way; just a password checked against this value.                                                                                                                                                                                                                                                                                                                                                                                |
+| `APP_SESSION_SECRET`                     | Generate yourself: `openssl rand -hex 32`                                   | **Required, secret.** Signs the access-gate cookie so it can't be forged. At least 32 characters — don't reuse another secret for this.                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `ANTHROPIC_API_KEY`                      | console.anthropic.com → API Keys                                            | **Optional**, added in v0.3. Powers Intel's AI insight only. If unset, Intel's charts still work — the insight card just shows a "not available" message.                                                                                                                                                                                                                                                                                                                                                                                    |
 | `GEMINI_API_KEY`                         | aistudio.google.com → Get API Key                                           | **Optional**, added in v1.6.0 (replaces the old `OPENAI_API_KEY`). An alternate provider for the same Intel insight — set this OR `ANTHROPIC_API_KEY`, not necessarily both; if both are set, Anthropic is used.                                                                                                                                                                                                                                                                                                                             |
+| `GEMINI_MODEL`                           | See aistudio.google.com's model list                                        | **Optional.** Overrides the default Gemini model (`gemini-2.5-flash`) used when `GEMINI_API_KEY` is set. Only needed if that default is ever deprecated.                                                                                                                                                                                                                                                                                                                                                                                     |
 | `HDFC_INFINIA_STATEMENT_PASSWORD`        | The password HDFC emails Infinia statement PDFs with                        | **Optional**, added in v1.3.0. Without it, the Imports page still loads, it just can't decrypt a protected PDF and says so rather than crashing. This row was missing from this table until v1.8.0 — see `docs/00-current-state.md` for the correction note.                                                                                                                                                                                                                                                                                 |
 | `HDFC_TATA_STATEMENT_PASSWORD`           | The password HDFC emails Tata Neu Plus statement PDFs with                  | **Optional**, added in v1.11.0. Reuses the same `hdfc-infinia-tata` parser module as Infinia above (a real Tata Neu Plus statement reconciled against it with no code changes needed), but kept as its own variable rather than reusing `HDFC_INFINIA_STATEMENT_PASSWORD` — HDFC's co-branded cards aren't guaranteed to share the core product's password formula.                                                                                                                                                                          |
 | `AXIS_STATEMENT_PASSWORD`                | The password Axis emails statement PDFs with                                | **Optional**, added in v1.7.0 as `AXIS_HORIZON_STATEMENT_PASSWORD`, renamed in v1.10.0 once a second real statement (an Airtel co-branded Mastercard) confirmed Axis uses the same password scheme for both card products the `axis-horizon-airtel` parser covers — one shared variable, not a per-product one.                                                                                                                                                                                                                              |
@@ -63,35 +68,59 @@ Authentication → Users and copy their ID from there instead.
 | `AHAANA_SCHOOL_EMAIL`                    | Her school Outlook address, e.g. `ahaana.kohli@cns.ac.in`                   | **Optional**, added in v3.4.12 (the "Connect School Email" proof of concept on `/ahaana-progress`). Deliberately the simplest possible connection — IMAP against `outlook.office365.com` with a plain email + password, no OAuth, no app registration. See `src/lib/microsoft/imap-client.ts`.                                                                                                                                                                                                                                               |
 | `AHAANA_SCHOOL_EMAIL_PASSWORD`           | Her actual school account password                                          | **Secret.** Same v3.4.12 feature as above. Never exposed to the browser — only ever read server-side. **Real caveat**: Microsoft retired plain username+password IMAP access for most Exchange Online tenants back in October 2022. Whether this actually works at all depends entirely on whether the school's own tenant is one of the shrinking minority that still permits it — there's no code-side fix if it's disabled, and it's only knowable by actually trying it.                                                                 |
 
-Every var except `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`,
+Every var except `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GEMINI_MODEL`,
 `HDFC_INFINIA_STATEMENT_PASSWORD`, `HDFC_TATA_STATEMENT_PASSWORD`,
 `AXIS_STATEMENT_PASSWORD`, `ICICI_STATEMENT_PASSWORD`,
 `TELEGRAM_BOT_TOKEN`, `CRON_SECRET`, `AHAANA_ACCESS_PASSWORD`, the
 three `VAPID_*` vars, and the two `AHAANA_SCHOOL_EMAIL*` vars is
 required — the app fails fast (loudly, on startup) if any are missing
-or malformed, rather than running with a gap.
+or malformed, rather than running with a gap. That includes
+`APP_ACCESS_PASSWORD` and `APP_SESSION_SECRET` — the app won't boot
+without a real access barrier configured.
 
 **Common mistake when pasting into Vercel's env var UI:** a trailing
 space or newline gets included in the value, which silently breaks
 validation. If a var that looks correct is still failing, delete it and
 retype the value rather than pasting.
 
-### Why there's no real access control
+### The access model
 
-Anyone with the app's URL can see and edit everything — there is no login
-of any kind. This was an explicit, deliberate choice for a private
-single-user tool, not an oversight. If this URL is ever shared,
-indexed, or guessed, there's nothing in the app itself stopping access.
-If you want a barrier, add one at the infrastructure level — e.g.
-Vercel's Password Protection feature (paid plans) — rather than expecting
-the app to provide it.
+**This section used to say there's no login at all — that stopped being
+true and this file wasn't updated when it changed. Corrected here.**
 
-_(History: an earlier version of this app used per-request Supabase Auth
-sign-in with a shared password, meant to feel invisible. It turned out to
-be genuinely fragile — concurrent requests from the same device, common
-on mobile Safari, could trip Supabase's own sign-in rate limiting and
-cause real failures. The current design has no session and no sign-in
-call of any kind, which avoids that whole class of problem.)_
+There **is** a real password barrier: `APP_ACCESS_PASSWORD`. Every route
+except `/calendar` (deliberately public — see below) requires it once per
+browser, enforced in `src/middleware.ts` via an HMAC-signed cookie
+(`APP_SESSION_SECRET` signs it, so it can't be forged without that
+secret). This is **not** Supabase Auth — there's no session, no sign-in
+API call, nothing tied to `auth.users` at request time. It's just a
+shared password checked against `APP_ACCESS_PASSWORD` and a cookie that
+proves you passed that check. See `docs/00-current-state.md`'s "Auth
+model" section for the full picture, including why Supabase Auth itself
+isn't the live enforcement boundary (RLS is bypassed by the service-role
+client every service uses — see that same section).
+
+`/calendar` is the one deliberate exception — public and shareable
+without a password, so it's safe to send the link to anyone, but nothing
+financial lives there (just the shared family calendar and travel
+dates). If this URL is ever shared, indexed, or guessed, that page (and
+only that page) is visible with no barrier — a conscious tradeoff, not
+an oversight.
+
+Ahaana's mini app (`/ahaana/*`) has its own, completely separate
+password (`AHAANA_ACCESS_PASSWORD`) — knowing one password never
+unlocks the other's section.
+
+_(History: an even earlier version of this app had genuinely no access
+control at all — "anyone with the URL can see and edit everything," by
+deliberate choice for a then-truly-private tool. Before that, a version
+before **that** used per-request Supabase Auth sign-in with a shared
+password, meant to feel invisible; that turned out to be genuinely
+fragile — concurrent requests from the same device, common on mobile
+Safari, could trip Supabase's own sign-in rate limiting and cause real
+failures. The current `APP_ACCESS_PASSWORD` cookie-gate design has no
+session and no sign-in API call of any kind, avoiding that whole class
+of problem, while still requiring a real password to get in.)_
 
 ## 3. Local development
 
@@ -119,63 +148,33 @@ separate URL, using the same env vars if you checked that box in step 3.
 
 ## Applying a release
 
-Starting with v0.3, Claude delivers releases as a plain zip of the
-changed/new files (same folder structure as the repo — extract and
-copy over), not a git bundle. Each release's own instructions (below)
-tell you exactly which files to add/overwrite and which to delete.
+**This section used to describe an old zip-file delivery mechanism
+(pre-v1.0) and linked to a file (`APPLYING-BUNDLES.md`) that no longer
+exists in this repo — both stale for a long time. Corrected here.**
 
-### v0.3 (Milestone 3) — redesign, Intel, rebuilt Budgets
+Releases ship as plain git commits directly to `main` — no zip files,
+no manual file copying. `main` is connected to Vercel, so a push there
+auto-deploys. The actual per-release workflow:
 
-**1. Delete these files/folders first** (they were replaced, not just
-edited — copying the new files over old ones would leave orphaned code
-otherwise):
-
-```
-src/app/(app)/budgets/[budgetId]/          (whole folder)
-src/features/budgets/                      (whole folder)
-src/services/BudgetService.ts
-```
-
-**2. Extract the zip and copy every file it contains into your project,
-overwriting anything with the same path.** The zip mirrors the exact
-`src/...` paths, so from your project root:
-
-```bash
-unzip ~/Downloads/v0.3-release.zip -d /tmp/v0.3-release
-cp -r /tmp/v0.3-release/src/* src/
-cp /tmp/v0.3-release/tailwind.config.ts .
-```
-
-(Adjust the `unzip` source path to wherever the file actually downloaded
-— same as any other download, see
-[APPLYING-BUNDLES.md](./APPLYING-BUNDLES.md) if you're unsure how to find
-that.)
-
-**3. Add the new optional env var** — `ANTHROPIC_API_KEY` (see the table
-above). Skip this if you don't want AI insights yet; Intel's charts work
-either way.
-
-**4. Verify and commit:**
-
-```bash
-npm install
-npm run typecheck
-npm run lint
-npm run test
-npm run build
-git add -A
-git commit -m "v0.3: redesign, Intel, rebuilt Budgets"
-git push
-```
-
-**5. What changed, if you want to review before committing:** new Intel
-tab with real charts and an AI insight; Dashboard rebuilt around account
-balances and a new "Upcoming next 3 months" section; Transactions gained
-a collapsible card-payment quick-log; Budgets now shows an editable
-income/fixed-expense plan instead of the old category-based budgeting
-feature (deleted, not hidden — recoverable from git history if you ever
-want it back); every screen restyled to the locked design (indigo
-gradient headers, rounded cards, sleek icon bottom nav).
+1. Claude runs the full verification pipeline before committing:
+   `npx tsc --noEmit && npx eslint . && npx prettier --check . && npx
+vitest run`, then `npm run build`.
+2. Commits with a `vX.Y.Z: <summary>` message (`git log --oneline` is
+   the real release history — read it directly rather than looking for
+   a separate changelog file) and pushes to `main`.
+3. **If the release includes a new file under `supabase/migrations/`,
+   that migration needs to be applied to the real Supabase project
+   yourself** — Supabase dashboard → SQL Editor, paste the new file's
+   contents, run it — Claude doesn't have a live connection to your
+   Supabase project in most sessions (no `supabase` CLI login) and
+   can't apply it directly. No redeploy needed afterward; the running
+   app picks up new columns/tables on its very next request. Applying
+   it _before_ the code that depends on it deploys is safest — see
+   "`/calendar` broke right after deploying v3.2.0" below for exactly
+   what goes wrong if the order is reversed.
+4. `docs/00-current-state.md` gets a new version section describing
+   what shipped — that file (not this one, and not the numbered
+   docs under `docs/`) is the real, kept-current changelog.
 
 ## Troubleshooting
 
@@ -186,9 +185,11 @@ Runtime Logs** for the actual error — this error code alone doesn't say
 why, but the logs always do. Causes seen so far:
 
 - **`Error: Invalid server environment variables: ...`** — one of the
-  four env vars is missing or malformed in Vercel. The log names exactly
-  which one and why. Fix the value, then redeploy. See the
-  trailing-whitespace note above.
+  four _required_ env vars (`SUPABASE_SERVICE_ROLE_KEY`,
+  `APP_OWNER_USER_ID`, `APP_ACCESS_PASSWORD`, `APP_SESSION_SECRET` —
+  everything else in the table above is optional) is missing or
+  malformed in Vercel. The log names exactly which one and why. Fix
+  the value, then redeploy. See the trailing-whitespace note above.
 - **A Node.js API is used ... not supported in the Edge Runtime** —
   `@supabase/supabase-js` needs Node.js APIs Vercel's default Edge
   sandbox doesn't provide. Already fixed by running middleware on the
@@ -230,18 +231,6 @@ Not applicable anymore — there is no sign-in flow. If you're seeing
 anything mentioning sign-in, magic links, or `APP_OWNER_PASSWORD`,
 you're on an old branch from before this architecture changed; pull the
 latest.
-
-### Recurring's "Generate due transactions" tagged the wrong cycle (fixed v3.1.2)
-
-Browsing Recurring forward or back with the month-nav and clicking
-"Generate due transactions" used to always catch up whatever was due
-by _today's real date_, ignoring whichever cycle was actually on
-screen — the underlying `generateDueTransactions()` call had no `asOf`
-wired up from the UI at all. Fixed in v3.1.2: the button now submits
-the viewed `cycleMonth`, and the action scopes catch-up to that
-cycle's own window (`cycleWindowEnd`, `lib/dates/month.ts`) instead of
-literal today. If you're on an older build and see tagging land in a
-cycle other than the one shown, update.
 
 ### `/calendar` broke right after deploying v3.2.0 (Failed to load trips/calendar events/recurring calendar events: column ... does not exist)
 

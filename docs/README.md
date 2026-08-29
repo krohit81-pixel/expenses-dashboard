@@ -34,151 +34,96 @@ they say so.
 - Single-owner app: one fixed account, an HMAC-signed access-gate cookie
   instead of sign-in, and a service-role Supabase client that bypasses RLS
   (see doc 00 for why, and what that means for how you write services).
-- Feature set as of v3.2.0: bottom nav is **Dashboard / Log / Intel /
-  Calendar** — four tabs, no fifth. "More" is a bordered menu button in
-  the top-right of every page's header now (v3.1.0, moved from a plain
-  icon on the top-left in v2.5.8), paired with the date; the "Atlas"
-  wordmark + version live on the left instead (the header's icon/logo
-  image itself was dropped in v2.5.9 — wordmark + version only), not a
-  nav tab; `/more` itself is unchanged. The header dropped its indigo
-  gradient background in v3.0.0 — flush with the page background,
-  ink-toned text, no separate colored bar (see doc 00). v3.1.0 also
-  swapped the app's accent color app-wide from purple to blue, and
-  rebuilt Dashboard around a new Cycle Brief card, a real cycle-over-cycle
-  stat grid, and a Biggest Changes section — see doc 00's v3.1.0 section
-  for the full breakdown. Dashboard's cycle prev/next pager gained a
-  visible loading spinner in v3.0.0, matching the fix Intel's card-level
-  nav already had. v3.2.0 added reminders — a "Remind me" toggle on
-  calendar events/trips/recurring events, sent via Telegram once linked
-  in Settings; see doc 00's v3.2.0 section for the full architecture
-  (generic notification provider, dedupe log). v3.2.1 put that pipeline
-  on a real schedule — a `CRON_SECRET`-authenticated
-  `/api/cron/reminders` route plus a `vercel.json` cron entry running
-  every 4 hours — see doc 00's v3.2.1 section; the manual "Run
-  reminders now" button in Settings still works too. Same v3.2.1 slice
-  also gave the static Ahaana/Rohana school calendars (CNS holidays,
-  CA1/CA2 exam dates, NUS calendar — all 105 entries) an automatic,
-  always-on 1-day-before reminder through the same pipeline, as a new
-  `school_calendar_event` notification type. v3.2.2 added hour-based
-  reminders ("3/4 hours before") for anything with a real time of day —
-  recurring class events, and calendar events once a new optional Time
-  field is set; trips and the school calendars stay day-before-only —
-  on a second, more frequent Vercel Cron (`/api/cron/reminders-hourly`,
-  every 15 minutes) so precision matches the shorter lead time; see
-  doc 00's v3.2.2 section. v3.3.0 restyled `/calendar` to match
-  Dashboard's v3.1.0 look (the same numbered/accent-bar `SectionHeading`
-  pattern, now shared rather than Dashboard-only), reordered the
-  Summary/Log/Details switcher to Summary/**Log**/Details with Log
-  reading visually bigger, reordered Log's own cards (event first,
-  bigger cards, the standalone recurring-event card removed), and
-  folded "repeats weekly" directly into Add Event as a toggle — see
-  doc 00's v3.3.0 section. v3.3.1 numbered Summary's month grid as "01
-  Monthly Schedule" (This Week's Schedule became "02"), and added a
-  new "03 Add Event" quick-access card on Summary itself, opening the
-  same Add Event modal Log's own card does. v3.3.2 rewrote every
-  reminder's Telegram body text — no more repeating the title
-  (Telegram already bolds it as its own line), and now showing a time
-  line and a notes line when either is actually set — see doc 00's
-  v3.3.2 section. v3.3.3 added a people/tagged line (👥) as the first
-  line of that same body, for calendar events/trips/recurring events.
-  v3.3.4 gave school-calendar reminders a tag-derived "smart note" — an
-  encouraging line (exam/holiday/vacation/event/trip each get their own
-  wording) appended automatically, no per-item authoring needed.
-  v3.4.0 added **Ahaana's mini app** (`/ahaana/*`) — a fully separate,
+- **Nav and look (v3.0.0–v3.1.0):** bottom nav is **Dashboard / Log /
+  Intel / Calendar** — four tabs, no fifth. "More" is a bordered menu
+  button in the top-right of every page's header (moved from a plain
+  top-left icon in v2.5.8), paired with the date; the "Atlas" wordmark +
+  version live on the left instead (the header's own icon/logo image
+  was dropped in v2.5.9), not a nav tab; `/more` itself is unchanged.
+  The header dropped its indigo gradient background in v3.0.0 — flush
+  with the page background, ink-toned text, no separate colored bar.
+  v3.1.0 swapped the app's accent color app-wide from purple to blue and
+  rebuilt Dashboard around a Cycle Brief card, a cycle-over-cycle stat
+  grid, and a Biggest Changes section (all since replaced — see the
+  v3.4.14–v3.5.5 bullet below). Dashboard's cycle prev/next pager gained
+  a visible loading spinner in v3.0.0, matching the fix Intel's
+  card-level nav already had.
+- **Reminders (v3.2.0–v3.3.4):** a "Remind me" toggle on calendar
+  events/trips/recurring events, sent via Telegram once linked in
+  Settings (generic notification provider, dedupe log — see doc 00's
+  v3.2.0 section). v3.2.1 put that on a real schedule
+  (`CRON_SECRET`-authenticated `/api/cron/reminders`, every 4 hours) and
+  gave the static Ahaana/Rohana school calendars (105 entries) an
+  automatic 1-day-before reminder. v3.2.2 added hour-based reminders
+  ("3/4 hours before") on a second, more frequent cron
+  (`/api/cron/reminders-hourly`, every 15 minutes) for anything with a
+  real time of day. v3.3.0 restyled `/calendar` to match Dashboard's
+  look and folded "repeats weekly" into Add Event as a toggle. v3.3.1
+  numbered Summary's sections and added a quick-access "Add Event" card.
+  v3.3.2/v3.3.3 rewrote reminder body text (no repeated title, a
+  time/notes line, a people/tagged line). v3.3.4 gave school-calendar
+  reminders a tag-derived "smart note."
+- **Ahaana's mini app (v3.4.0–v3.4.13):** `/ahaana/*`, a fully separate,
   separately-password-gated section (her password never unlocks the
-  rest of Atlas, and vice versa) covering her own weekly activities
-  and studies: a recurring-activity schedule (French, Kickboxing,
-  Horse Riding, study blocks) and a mark-complete-with-notes flow.
-  v3.4.1 added Phase 2 — real device push notifications (she has no
-  Telegram), genuinely new infrastructure for this app (VAPID keys, a
-  service worker, a new `web_push` notification channel alongside
-  `telegram`). v3.4.2 closed the loop with Phase 3 — a weekly summary
-  of her activity sent to the parent's existing Telegram channel every
-  Sunday (or on demand from Settings), plus a read-only "Ahaana's
-  Progress" page under `/more` (completion-rate trend + recent notes),
-  reachable only through the main household gate, never from `/ahaana`
-  itself; see doc 00's v3.4.0/v3.4.1/v3.4.2 sections for the full
-  three-phase build. v3.4.3 fixed five issues surfaced by the
-  household's first real-device session: her own "Add to Home Screen"
-  identity/manifest (was inheriting Atlas's), dark mode forced off for
-  her section (no toggle to switch it back), her login screen's logo,
-  a stale-after-reopening-from-Home-Screen fix, an encouraging footer
-  line, and an hour-based reminder option (1/2/3/4 hours before,
-  alongside the existing day-based one) — see doc 00's v3.4.3 section.
-  v3.4.3's own manifest fix didn't actually work in production (verified
-  against the dev server, which resolves that one field differently);
-  v3.4.4 root-caused and properly fixed it — an `app/manifest.ts`
-  file-convention route auto-injects its manifest link into every page
-  regardless of any layout's own override, so both manifests are now
-  plain static files under `public/`, chosen by an explicit,
-  path-aware `<link>` the root layout renders itself. v3.4.5-v3.4.7
-  chased down her real device's push-subscribe flow one error at a
-  time (a gated service worker file, then an inactive-worker race) —
-  reminders are now confirmed working end to end on her device.
-  v3.4.8 added a visible version number, a real Edit flow for her
-  activities (also fixing a real, previously-silent bug where
-  Deactivate never actually worked), and split her single page into
-  "Dashboard" (the weekly view, now Sunday-start at her own request)
-  and "Log Activity" tabs. v3.4.9 fixed a "first login errors, next
-  one doesn't" report — the two Ahaana reads her own pages make had
-  simply never been wrapped in the same Supabase auth-timing retry
-  every other `list*()` in this app already uses. v3.4.10 fixed the
-  Dashboard/Log Activity tab highlighting getting stuck (a Client
-  Component with `usePathname()`, `AhaanaTabs.tsx`, replacing a
-  server-side computation that couldn't react to a client-side
-  navigation between two pages sharing one layout), added a loading
-  spinner during tab switches, and added alternate-week recurring
-  activities (a checkbox, two ordinary activities with `startDate`s a
-  week apart interleaving on their own). v3.4.11 added a forward-
-  looking "This week — what to expect" section to the existing
-  parent-facing "Ahaana's Progress" page (More → Ahaana's Progress,
-  built back in v3.4.0 Phase 3) — the household asked for this page
-  again without realizing it already existed, and the one real gap it
-  had was that it was backward-looking only. v3.4.12 added a
-  deliberately minimal school-email proof of concept — a "Connect
-  School Email" card on that same page, reading Ahaana's school
-  Outlook Inbox over plain IMAP with a two-env-var email + password
-  (no OAuth, no stored token, no new database table), at the
-  household's own explicit request for the simplest possible version.
-  No daily automation, no AI analysis, no task/event extraction yet —
-  genuinely just proving the connection works, and whether it works at
-  all depends on the school tenant's own IMAP policy — see doc 00's
-  v3.4.4 through v3.4.12 sections.
-  Dashboard shows a plain running total for the cycle (income, expenses,
-  net) plus everything logged, no separate planning/comparison layer
-  (v3.4.14 — Recurring's template + bulk-cycle-tag workflow and
-  `/budgets` were both removed entirely, the household found them too
-  complicated; `/transactions` is the primary add/edit/delete/tag-to-
-  cycle screen again instead, and a one-tap "Repeat last cycle" button
-  replaces templates for anything that recurs). v3.5.0 made "Logged
-  This Cycle" a real interactive two-column split (Expenses left,
-  Income right on wider screens — mark paid/undo inline, reusing
-  TransactionRow directly) and added a Balance section: Expenses
-  Remaining plus an editable Account Balance. v3.5.1 simplified Account
-  Balance to a purely manual figure (income no longer feeds it at all,
-  and it no longer auto-adjusts as things get marked paid — "the
-  balance you keep," typed in and read back as-is), dropped the
-  paid/received toggle from Income rows specifically (nothing left for
-  it to drive there), and added a Difference figure (balance minus
-  what's still pending). Log is a hub for
-  Transactions, Accounts (with inline balance correction), and Imports —
-  a statement import now also prompts to log its due amount as a real
-  Dashboard expense (v2.5.4) and to check for AI-suggested duplicate
-  merchants (v2.5.5/v2.5.6). Credit card statement imports (HDFC Infinia / Tata Neu
-  Plus, Axis Horizon / Airtel, ICICI Amazon Pay / RuPay) feed a shared
-  Merchant Dictionary, which now supports AI-suggested merges plus
-  inline/bulk merging directly on `/merchants` (v2.5.5–v2.5.7). Intel has
-  charts and a button-triggered AI insight (now sharing its provider
-  logic with the merchant-merge suggestions via `lib/ai/providers.ts`).
-  Calendar (school calendar + trips + one-off events + weekly-repeating
-  recurring events, merged into a Summary/Details/Log tabbed layout with
-  a tap-to-expand day card, a fixed IST-timezone "today," and a public
-  theme toggle) is the one public, gate-free route — see doc 00 for the
-  v2.2.0–v2.5.2 rebuild/polish history. AIS is a static Income Tax
-  summary under More. See [00 — Current state](./00-current-state.md) for
-  the full v2.0/v2.1 revamp writeup — this app moved from a
-  transaction-logging, 3-phase model to a cycle-based reporting/intel
-  model.
+  rest of Atlas, and vice versa) — a recurring-activity schedule
+  (French, Kickboxing, Horse Riding, study blocks), a
+  mark-complete-with-notes flow, real device push notifications (she has
+  no Telegram — VAPID keys, a service worker, a new `web_push` channel),
+  and a weekly summary sent to the parent's Telegram every Sunday, plus
+  a read-only "Ahaana's Progress" page reachable only through the main
+  household gate. v3.4.3–v3.4.10 chased down a string of real-device
+  issues (manifest identity, dark mode, a stale-after-reopen bug, the
+  actual push-subscribe flow, tab-highlight state) one at a time until
+  it was genuinely solid; v3.4.8 also added a real Edit flow and split
+  her page into Dashboard/Log Activity tabs. v3.4.11 added a
+  forward-looking "This week — what to expect" section to the parent
+  progress page. v3.4.12 added a deliberately minimal school-email proof
+  of concept (IMAP + a two-env-var password, no OAuth) — whether it
+  actually works depends on the school tenant's own IMAP policy. v3.4.13
+  added a manual "Send reminder now" per-calendar-event trigger,
+  independent of the automatic reminder schedule. See doc 00's
+  v3.4.0–v3.4.13 sections for the full detail.
+- **Cycle tracking simplified, Dashboard rebuilt (v3.4.14–v3.5.5):** the
+  household found the old Recurring-template + bulk-cycle-tag workflow
+  too complicated for how they actually use the app. Recurring and
+  `/budgets` were both removed entirely; `/transactions` is the primary
+  add/edit/delete/tag-to-cycle screen again, and a one-tap "Repeat last
+  cycle" button (excluding card-due transfers — those come from PDF
+  imports instead, v3.5.2) replaces templates for anything that
+  recurs. Dashboard dropped the old Cycle Brief/stat-grid/Biggest-Changes
+  comparison framing for a plain running total (income/expenses/net), an
+  interactive Expenses/Income split (Expenses left, Income right on
+  wider screens, mark paid/edit/delete inline, reusing `TransactionRow`
+  directly), and a Balance section: Expenses Remaining plus a purely
+  manually-kept Account Balance (v3.5.1 — nothing auto-adjusts it
+  anymore, income doesn't feed it at all) and a Difference figure
+  (balance minus what's still pending). v3.5.3 fixed a real bug where a
+  confirm dialog stayed open after a successful action. v3.5.4 extended
+  Intel's "Generate commentary" to also flag potentially avoidable
+  credit card spending from each card's latest billing cycle; v3.5.5
+  fixed that output cutting off mid-sentence (a too-tight AI response
+  token budget). See doc 00's v3.4.14–v3.5.5 sections for the full
+  detail.
+- Log is a hub for Transactions, Accounts (with inline balance
+  correction), and Imports — a statement import also prompts to log its
+  due amount as a real Dashboard expense (v2.5.4) and to check for
+  AI-suggested duplicate merchants (v2.5.5/v2.5.6). Credit card statement
+  imports (HDFC Infinia / Tata Neu Plus, Axis Horizon / Airtel, ICICI
+  Amazon Pay / RuPay — six card products across three issuer parsers)
+  feed a shared Merchant Dictionary, which supports AI-suggested merges
+  plus inline/bulk merging directly on `/merchants` (v2.5.5–v2.5.7).
+  Intel has charts and a button-triggered AI insight (shares its
+  provider logic with the merchant-merge suggestions via
+  `lib/ai/providers.ts`). Calendar (school calendar + trips + one-off
+  events + weekly-repeating recurring events, a Summary/Details/Log
+  tabbed layout, tap-to-expand day cards, a fixed IST-timezone "today,"
+  a public theme toggle) is the one public, gate-free route — see doc 00
+  for the v2.2.0–v2.5.2 rebuild/polish history. AIS is a static Income
+  Tax summary under More.
+- See [00 — Current state](./00-current-state.md) for the full v2.0/v2.1
+  revamp writeup — this app moved from a transaction-logging, 3-phase
+  model to a cycle-based reporting/intel model — and every version
+  section since.
 - Root `INSTALL.md` is the source of truth for setup, environment
   variables, and release history — not this folder.
 

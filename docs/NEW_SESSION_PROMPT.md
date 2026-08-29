@@ -33,16 +33,20 @@ Ground rules for this session:
   If a local `npm run build` doesn't complete in-session, say so
   explicitly and fall back to a real Vercel deploy as the build check —
   see below.
-- Ship via a feature branch + PR, not a direct commit to `main`:
-  `vX.Y.Z: <summary>` commit (or `docs: <summary>`, no version bump, for
-  a docs-only change), push, open a PR (`gh` isn't installed in this
-  environment — use the GitHub REST API directly, authenticated via
-  `git credential fill`; see doc 00's "Working environment" section for
-  the exact calls). Ask before merging/deploying unless I've already
-  said to — once merged, confirm the deploy yourself
-  (`vercel ls`/`vercel inspect`, then `curl` the production URL and
-  check for the expected `APP_VERSION`) rather than just telling me to
-  check.
+- Ship via a direct commit to `main` — this is the household's current
+  standing preference (shifted from an earlier branch+PR default; see
+  doc 00's "Working environment" section for the full history): run the
+  full verification pipeline first, then `git commit -m "vX.Y.Z:
+  <summary>"` (or `docs: <summary>`, no version bump, for a docs-only
+  change) straight on `main` and `git push origin main` — Vercel's Git
+  integration auto-deploys, no separate merge step. Confirm the deploy
+  yourself afterward (`vercel ls`/`vercel inspect`, then `curl` the
+  production URL and check for the expected `APP_VERSION`) rather than
+  just telling me to check. Reach for a feature branch + PR instead
+  (`gh` isn't installed — use the GitHub REST API directly,
+  authenticated via `git credential fill`; see doc 00 for the exact
+  calls) when a change is large/risky enough to want an explicit review
+  checkpoint before it goes live, or when I ask for one.
 - For anything that would trigger a real mutating action or a real paid
   API call (a merge, a transaction write, an LLM call) while verifying a
   change, don't click it for real — use fixture data/obviously-fake IDs

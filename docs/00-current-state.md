@@ -2053,11 +2053,6 @@ household to confirm the fix on their next real generation.
   `logCardPaymentAction`/`createTransaction` path a since-removed
   standalone form (`CardPaymentQuickLog`, dead code, still in the repo)
   used to.
-- **Budgets** (income/fixed-expense planning, not the older category-envelope
-  model the very first design had — that was deleted, not hidden, per
-  `INSTALL.md`'s v0.3 history): as of v2.1.0 this is shown **on Dashboard**,
-  not a separate nav tab — see the revamp section above. `/budgets` still
-  exists and works, just unlinked.
 - **AIS**: static Income Tax Annual Information Statement summary for the
   current FY (`/ais`, added v1.13.0), linked from More. Hand-maintained
   reference data, not wired to the ledger.
@@ -2139,18 +2134,34 @@ valid technique, just shouldn't be your default) is reasonable.
   real remote (`github.com/krohit81-pixel/expenses-dashboard`) is a
   bind-mounted real clone with a working `git credential` (osxkeychain)
   — `git push` actually reaches GitHub.
-- **`gh` (GitHub CLI) is not installed.** For opening/merging a PR, use
-  the GitHub REST API directly via `curl`/`python3`, authenticated with
-  the same credential `git push` already uses:
+- **`gh` (GitHub CLI) is not installed.** For opening/merging a PR when
+  one's actually wanted, use the GitHub REST API directly via
+  `curl`/`python3`, authenticated with the same credential `git push`
+  already uses:
   `git credential fill <<< $'protocol=https\nhost=github.com\n'`
   extracts it (never print the token itself — pipe straight into the
   API call). `POST /repos/{owner}/{repo}/pulls` to open, `PATCH` the
   same endpoint with a `/{number}` to edit title/body, `PUT
   .../pulls/{number}/merge` to merge, `DELETE
   /repos/{owner}/{repo}/git/refs/heads/{branch}` to clean up the branch
-  after. One branch per logical change (`fix/…`, `feat/…`,
-  `cosmetic/…`), `vX.Y.Z: <summary>` commits, matches the convention
-  already established across this repo's PR history.
+  after.
+- **Default workflow shifted mid-session, v3.4.12 onward: direct
+  commits to `main`, not a feature branch + PR.** Every release from
+  v3.4.12 through (at least) v3.5.5 shipped this way — full
+  verification pipeline (`tsc`/`eslint`/`prettier`/`vitest`/`build`)
+  passing, then `git commit -m "vX.Y.Z: <summary>"` straight on `main`,
+  then `git push origin main`, which Vercel auto-deploys with no
+  separate merge step. This repo's *earlier* history (through roughly
+  v3.4.11) used the branch+PR flow described above, and it's still the
+  right tool for a change big enough to want a real review pass before
+  it goes live (e.g. the v3.4.14 cycle-tracking revamp used
+  `EnterPlanMode`/explicit user sign-off as that review step instead of
+  a PR) — but the household's own, currently-standing preference is
+  "less process/ceremony" for ordinary changes, confirmed implicitly
+  by accepting many consecutive direct-to-main commits without
+  objection. Default to direct-to-main; reach for a branch+PR when a
+  change is large/risky enough to want an explicit review checkpoint,
+  or when the household asks for one.
 - **`vercel` CLI is available** and, once authenticated, confirms a real
   production deploy: `vercel ls atlas` (or your project name) shows
   Building → Ready status and the deployment URL;
