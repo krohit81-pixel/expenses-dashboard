@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useActionState } from "react";
 import { Repeat } from "lucide-react";
 
@@ -37,6 +37,15 @@ const initialState: RepeatLastCycleFormState = {};
  * to apply. Said explicitly in the caption below, not just left
  * implicit in the count — household-reported: last cycle's card
  * payment amount is a stale, wrong number to duplicate forward.
+ *
+ * v3.5.3 — household-reported bug: after a successful copy, the
+ * Confirm/No row stayed open right alongside the "Copied N
+ * transactions" success message, instead of collapsing back to the
+ * plain "Repeat" button. Missing the same
+ * `useEffect(() => confirming -> false on state.success)`
+ * `CycleBalanceCard`'s own edit form already has — `confirming` is
+ * plain component state, `useActionState`'s `state.success` flipping
+ * true was never wired to reset it.
  */
 export function RepeatLastCycleButton({
   targetMonth,
@@ -55,6 +64,19 @@ export function RepeatLastCycleButton({
     repeatLastCycleAction,
     initialState,
   );
+
+  // Depends on `state` itself, not `state.success` — repeatLastCycleAction
+  // returns a fresh object literal on every dispatch, but two
+  // consecutive successful copies both have `success: true`, the exact
+  // same primitive value; an effect keyed on that boolean alone
+  // wouldn't re-fire the second time (React's dependency check is
+  // Object.is on each array element, and true === true), leaving
+  // `confirming` stuck open again after a second real click. Keying
+  // on the whole state object sidesteps that — it's a new reference
+  // every dispatch, successful or not.
+  useEffect(() => {
+    if (state.success) setConfirming(false);
+  }, [state]);
 
   if (count === 0) {
     return (

@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.5.2**
+correction layer: what's actually true today, current as of **v3.5.3**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -1785,6 +1785,45 @@ templates applied before Recurring was removed entirely (v3.4.14).
   transactions (+₹385,000.00) from August 2026 — card payments not
   included." The actual Confirm click was, again, deliberately not
   exercised against real data.
+
+## v3.5.3: fixed a real bug — "Repeat last cycle"'s confirm row stayed open after a successful copy
+
+Household-reported, with a screenshot: after clicking Confirm on
+"Repeat last cycle" and seeing "Copied 12 transactions — review and
+mark them paid on Transactions," the Confirm/No row was still sitting
+there too, instead of collapsing back to the plain "Repeat" button.
+
+Root cause: `RepeatLastCycleButton`'s `confirming` state was supposed
+to reset via `useEffect(() => { if (state.success) setConfirming(false); }, [state.success])`
+— but `state` comes from `useActionState`, which returns a **new**
+object literal on every dispatch while `state.success` is just a
+`boolean` extracted from it. React's effect dependency check is
+`Object.is` per array element, so `state.success` going `true -> true`
+(the household's actual case — the *first* copy on a fresh page load
+already had no prior state to compare against, so it worked; this was
+never caught until a real second use) reads as "unchanged," and the
+effect silently doesn't re-fire. Fixed by depending on the whole
+`state` object instead of just `.success` — genuinely a new reference
+every dispatch, successful or not, so the effect always re-fires.
+
+The exact same pattern (same bug, latent) was already sitting in
+`CycleBalanceCard.tsx`'s own edit-balance form and — most widely used
+— `TransactionRow.tsx`'s inline edit form (used on both
+`/transactions` and Dashboard's Expenses/Income columns); both fixed
+here too, since they're directly in this session's own work. A
+broader sweep (`grep -rn "\.success\]);" src`) found the identical
+pattern in 5 more, unrelated files (Merchants, Accounts, Categories,
+Ahaana's mini app) — flagged as a separate follow-up task rather than
+fixed in this pass, to keep this fix scoped to what was actually
+reported plus its immediate siblings.
+
+Verified: `npx tsc --noEmit && npx eslint . && npx prettier --check .
+&& npx vitest run` all pass (523) and `npm run build` succeeds. Not
+re-verified against real data in this pass (the underlying bug is a
+pure client-side React effect timing issue, not something that reads
+differently against real vs. fixture data) — the fix is a mechanical,
+well-understood one-line dependency-array change applied identically
+in three places.
 
 ## What's actually built
 

@@ -86,11 +86,18 @@ export function TransactionRow({
     initialVoidState,
   );
 
+  // Depends on `updateState` itself, not `updateState.success` — see
+  // RepeatLastCycleButton's own comment on this same fix (v3.5.3):
+  // two consecutive successful saves on this same row both have
+  // `success: true`, the same primitive value, so an effect keyed on
+  // that boolean alone wouldn't re-fire the second time and would
+  // leave the edit form stuck open after a second real save (e.g.
+  // fixing the amount, then later fixing the date, on the same row).
   useEffect(() => {
     if (updateState.success) {
       setEditing(false);
     }
-  }, [updateState.success]);
+  }, [updateState]);
 
   if (editing && !readOnly) {
     return (

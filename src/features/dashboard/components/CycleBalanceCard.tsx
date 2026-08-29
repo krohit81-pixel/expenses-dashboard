@@ -62,9 +62,15 @@ export function CycleBalanceCard({
     initialState,
   );
 
+  // Depends on `state` itself, not `state.success` — see
+  // RepeatLastCycleButton's own comment on this same fix (v3.5.3):
+  // two consecutive successful saves both have `success: true`, the
+  // same primitive value, so an effect keyed on that boolean alone
+  // wouldn't re-fire the second time and would leave the form stuck
+  // open after a second real save.
   useEffect(() => {
     if (state.success) setEditing(false);
-  }, [state.success]);
+  }, [state]);
 
   return (
     <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
