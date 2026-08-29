@@ -154,8 +154,13 @@ they say so.
   This Cycle" a real interactive two-column split (Expenses left,
   Income right on wider screens — mark paid/undo inline, reusing
   TransactionRow directly) and added a Balance section: Expenses
-  Remaining plus an editable per-cycle starting balance that a live
-  running total is computed from. Log is a hub for
+  Remaining plus an editable Account Balance. v3.5.1 simplified Account
+  Balance to a purely manual figure (income no longer feeds it at all,
+  and it no longer auto-adjusts as things get marked paid — "the
+  balance you keep," typed in and read back as-is), dropped the
+  paid/received toggle from Income rows specifically (nothing left for
+  it to drive there), and added a Difference figure (balance minus
+  what's still pending). Log is a hub for
   Transactions, Accounts (with inline balance correction), and Imports —
   a statement import now also prompts to log its due amount as a real
   Dashboard expense (v2.5.4) and to check for AI-suggested duplicate

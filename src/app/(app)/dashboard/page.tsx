@@ -16,8 +16,8 @@ import {
 } from "@/lib/money";
 import { computeCommittedExpenseTotal } from "@/lib/budget/home-stats";
 import {
+  computeDifference,
   computeExpensesRemaining,
-  computeRunningBalance,
 } from "@/lib/budget/cycle-balance";
 import {
   currentCycleMonth,
@@ -65,11 +65,20 @@ export const metadata: Metadata = {
  * paid/pending, inline edit, and delete all work right here, not just
  * on /transactions. New "Balance" section (CycleBalanceCard):
  * Expenses Remaining (pending expense/transfer lines not yet paid) and
- * Account Balance (an editable per-cycle starting balance +
- * live-computed posted income/expenses — CycleBalanceService,
- * lib/budget/cycle-balance.ts). See both files' own comments for why
- * the editable figure is the STARTING balance, never the derived
- * running total directly.
+ * Account Balance (editable — CycleBalanceService,
+ * lib/budget/cycle-balance.ts).
+ *
+ * v3.5.1: Account Balance no longer auto-derives from this cycle's
+ * posted income/expenses at all — household request: income shouldn't
+ * "interfere" with it, and the posted-expense side of that same
+ * auto-computation went with it. It's purely "the balance that I
+ * keep," read back exactly as typed. Income rows in the Income column
+ * lost their mark-received/pending toggle accordingly (still fully
+ * editable/deletable — see CycleColumnsSection/TransactionRow's own
+ * `hideStatusToggle`) since it no longer drives anything on this page.
+ * Balance's new footer figure, **Difference** (accountBalance −
+ * expensesRemaining, `computeDifference`), is the one thing still
+ * derived.
  *
  * (v3.1.0, superseded above): the household pointed at another app's
  * header/dashboard for a "more professional finance planner" look —
@@ -128,7 +137,21 @@ export default async function DashboardPage({
   );
 
   const expensesRemaining = computeExpensesRemaining(snapshot);
-  const runningBalance = computeRunningBalance(snapshot, startingBalance);
+  const expensesRemainingDisplay = formatMoneyDisplay(
+    expensesRemaining,
+    currency,
+  );
+  // Same "− prefix only when negative, no + for positive" convention
+  // Account Balance itself uses (CycleBalanceCard's signedDisplay) —
+  // a balance figure, not a gain/loss, so it isn't styled like income.
+  const difference = computeDifference(startingBalance, expensesRemaining);
+  const differenceDisplay =
+    difference === null
+      ? null
+      : `${isNegativeMoney(difference) ? "−" : ""}${formatMoneyDisplay(
+          isNegativeMoney(difference) ? negateMoney(difference) : difference,
+          currency,
+        )}`;
 
   const expenseTotal = computeCommittedExpenseTotal(snapshot);
   const net = addMoney(snapshot.incomeTotal, negateMoney(expenseTotal));
@@ -215,9 +238,9 @@ export default async function DashboardPage({
           <CycleBalanceCard
             cycleMonth={month}
             currency={currency}
-            expensesRemaining={expensesRemaining}
-            startingBalance={startingBalance}
-            runningBalance={runningBalance}
+            expensesRemainingDisplay={expensesRemainingDisplay}
+            accountBalance={startingBalance}
+            differenceDisplay={differenceDisplay}
           />
         </section>
 

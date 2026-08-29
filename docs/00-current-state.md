@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.5.0**
+correction layer: what's actually true today, current as of **v3.5.1**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -1711,6 +1711,49 @@ can't without the display and the edit fighting each other.
   (`cycle_starting_balances` doesn't exist yet). See `INSTALL.md`'s
   "`/calendar` broke right after deploying v3.2.0" section for exactly
   this failure mode and why it happens.
+
+## v3.5.1: Account Balance is purely manual — income no longer touches it, Income rows lose the paid/received toggle, new Difference figure
+
+A same-day refinement to v3.5.0's Balance section, after the household
+tried the real thing: "Income should be just view only... I don't want
+1) any option to mark it as received or not 2) it has no interference
+to the account balance below." Two real changes, not cosmetic:
+
+- **Account Balance is no longer auto-computed at all.** v3.5.0 had it
+  moving on its own (`starting balance + this cycle's posted income −
+  posted expenses`, recomputed live). That's gone — Account Balance is
+  now literally just whatever was last typed into it, read back as-is.
+  "The balance you keep": you're expected to check your real bank
+  balance yourself and keep this number updated, same honesty
+  reasoning as why "Not set" never silently shows 0.
+  `computeRunningBalance` (lib/budget/cycle-balance.ts) is deleted —
+  posted transactions of either kind no longer move this figure.
+  `CycleBalanceService`/the migration/the table are unchanged — same
+  one stored number as before, just read back directly now instead of
+  fed into a formula.
+- **Income rows in Dashboard's Income column lose the mark-received/
+  pending toggle** — `TransactionRow` gained a `hideStatusToggle` prop
+  (default false, only ever passed `true` from
+  `CycleColumnsSection`'s Income column); edit and delete are
+  untouched. `/transactions` itself is unaffected — that page never
+  passes this prop, so income there still has the full toggle. Once
+  Account Balance stopped reading income's posted status at all, the
+  toggle had nothing left to actually do on this one column.
+- **New "Difference" figure**, the Balance card's footer row:
+  `accountBalance − expensesRemaining` (`computeDifference`,
+  lib/budget/cycle-balance.ts, pure + unit-tested) — "if I paid off
+  everything still pending right now, what would I actually have
+  left." The one thing still derived in this section.
+- **Verified against real production data** (temporary
+  `middleware.ts` `PUBLIC_PATHS` entry for `/dashboard`, reverted):
+  confirmed the migration from v3.5.0 was already applied (page
+  rendered real numbers, no error); Expenses column rows still show
+  their mark-paid/pending toggle; Income column rows show edit/delete
+  only, no toggle; Expenses Remaining correctly summed only the two
+  still-pending expense lines; Account Balance correctly read back a
+  real value the household had already saved (₹112,000.00) from
+  earlier v3.5.0 use; Difference correctly computed
+  112,000 − 141,000 = −29,000.
 
 ## What's actually built
 

@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { sumMoney } from "@/lib/money";
-import {
-  computeExpensesRemaining,
-  computeRunningBalance,
-} from "./cycle-balance";
+import { computeDifference, computeExpensesRemaining } from "./cycle-balance";
 import type {
   MonthlyBudgetSnapshot,
   OneOffLine,
@@ -89,82 +86,48 @@ describe("computeExpensesRemaining", () => {
     );
     expect(result).toBe("20000.00");
   });
-});
 
-describe("computeRunningBalance", () => {
-  it("returns null when no starting balance has been set", () => {
-    expect(computeRunningBalance(snapshot(), null)).toBeNull();
-  });
-
-  it("is just the starting balance when nothing is posted yet", () => {
-    const result = computeRunningBalance(
-      snapshot([line({ status: "pending" })]),
-      "100000.00" as never,
-    );
-    expect(result).toBe("100000.00");
-  });
-
-  it("adds posted income and subtracts posted expenses, ignoring pending ones", () => {
-    const result = computeRunningBalance(
+  it("ignores income entirely, posted or pending", () => {
+    const result = computeExpensesRemaining(
       snapshot([
         line({
           id: "1",
           kind: "income",
-          amount: "50000.00" as never,
-          status: "posted",
+          amount: "500000.00" as never,
+          status: "pending",
         }),
         line({
           id: "2",
-          kind: "expense",
-          amount: "20000.00" as never,
-          status: "posted",
-        }),
-        line({
-          id: "3",
-          kind: "expense",
-          amount: "99999.00" as never,
-          status: "pending",
-        }),
-        line({
-          id: "4",
           kind: "income",
-          amount: "88888.00" as never,
-          status: "pending",
-        }),
-      ]),
-      "100000.00" as never,
-    );
-    expect(result).toBe("130000.00");
-  });
-
-  it("includes a posted card-paydown transfer as an outflow", () => {
-    const result = computeRunningBalance(
-      snapshot([
-        line({
-          id: "1",
-          kind: "transfer",
-          amount: "15000.00" as never,
-          status: "posted",
-          transferReducesCashOnHand: true,
-        }),
-      ]),
-      "100000.00" as never,
-    );
-    expect(result).toBe("85000.00");
-  });
-
-  it("can go negative", () => {
-    const result = computeRunningBalance(
-      snapshot([
-        line({
-          id: "1",
-          kind: "expense",
-          amount: "150000.00" as never,
+          amount: "500000.00" as never,
           status: "posted",
         }),
       ]),
-      "100000.00" as never,
     );
-    expect(result).toBe("-50000.00");
+    expect(result).toBe("0.00");
+  });
+});
+
+describe("computeDifference", () => {
+  it("returns null when no account balance has been set", () => {
+    expect(computeDifference(null, "5000.00" as never)).toBeNull();
+  });
+
+  it("subtracts expenses remaining from the account balance", () => {
+    expect(computeDifference("100000.00" as never, "35000.00" as never)).toBe(
+      "65000.00",
+    );
+  });
+
+  it("can go negative when remaining expenses exceed the balance", () => {
+    expect(computeDifference("20000.00" as never, "35000.00" as never)).toBe(
+      "-15000.00",
+    );
+  });
+
+  it("is exactly the balance when nothing is left to pay", () => {
+    expect(computeDifference("42000.00" as never, "0.00" as never)).toBe(
+      "42000.00",
+    );
   });
 });

@@ -19,6 +19,13 @@ import {
  * read-only row component — a scoped-to-one-cycle server component, so
  * no collapse toggle or cycle-grouping is needed the way
  * RecentTransactionsSection's own multi-month "Recent" list needs.
+ *
+ * v3.5.1: Income rows pass `hideStatusToggle` — edit/delete stay, but
+ * no mark-received/pending action. Account Balance no longer reads
+ * income's posted status at all (household request: "I don't want any
+ * option to mark it as received... it has no interference to the
+ * account balance below" — see CycleBalanceCard), so the toggle had
+ * nothing left to actually do on this column.
  */
 export function CycleColumnsSection({
   expenseTransactions,
@@ -77,6 +84,7 @@ export function CycleColumnsSection({
             transaction={transaction}
             accountName={accountName}
             categoryName={categoryName}
+            hideStatusToggle
           />
         ))}
       </SplitCard>

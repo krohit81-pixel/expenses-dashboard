@@ -41,6 +41,7 @@ export function TransactionRow({
   accountName,
   categoryName,
   readOnly = false,
+  hideStatusToggle = false,
 }: {
   transaction: TransactionRowData;
   accountName: Map<string, string>;
@@ -54,6 +55,19 @@ export function TransactionRow({
    * easy to bring back if a future version wants inline editing again.
    */
   readOnly?: boolean;
+  /**
+   * v3.5.1 — Dashboard's Income column only: edit/delete stay fully
+   * available, just the mark-received/pending toggle is hidden.
+   * Household request: income should be "view only" in the sense that
+   * its posted/pending status shouldn't be something you flip here at
+   * all — Account Balance no longer reads income status anyway (see
+   * CycleBalanceCard's own comment), so the toggle had nothing left to
+   * drive on this column and just invited a click that looked like it
+   * should matter but didn't. The "· Scheduled" status caption stays —
+   * that's informational, not an action, and this prop only ever hides
+   * the toggle, never `readOnly`'s edit/delete.
+   */
+  hideStatusToggle?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -250,6 +264,7 @@ export function TransactionRow({
           <p className="text-xs text-negative">{voidState.error}</p>
         )}
         {!readOnly &&
+          !hideStatusToggle &&
           (transaction.status === "pending" ? (
             <form action={markPaidAction}>
               <input type="hidden" name="id" value={transaction.id} />

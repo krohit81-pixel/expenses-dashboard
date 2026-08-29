@@ -20,32 +20,41 @@ import {
 
 const initialState: SetCycleStartingBalanceFormState = {};
 
+function signedDisplay(value: Money, currency: string): string {
+  const negative = isNegativeMoney(value);
+  return `${negative ? "−" : ""}${formatMoneyDisplay(negative ? negateMoney(value) : value, currency)}`;
+}
+
 /**
- * v3.5.0 — Dashboard's "Balance" section: Expenses Remaining (pure
- * display, computed server-side via computeExpensesRemaining) and
- * Account Balance (editable). The big number shown for Account Balance
- * is always the LIVE, derived running balance (startingBalance +
- * posted income − posted expenses this cycle) — the pencil only ever
- * edits the underlying STARTING balance (what was really typed and
- * stored), never the derived total directly. That distinction matters:
- * the running total should always move on its own as transactions get
- * marked paid, exactly like the household's own prototype, without a
- * manual edit ever fighting against that math.
+ * v3.5.0 — Dashboard's "Balance" section.
+ *
+ * v3.5.1 rework: Account Balance is now purely "the balance that I
+ * keep" — whatever was last typed in, shown back exactly as-is, never
+ * auto-adjusted by anything getting marked paid/received (household
+ * request: income specifically "has no interference to the account
+ * balance," and the whole posted-expense auto-deduction went with it —
+ * a manually-kept figure is honest about not tracking real bank
+ * activity Atlas doesn't see). The only derived figure now is the new
+ * **Difference** footer: accountBalance − expensesRemaining ("if I
+ * paid off everything still pending, what would I have left"),
+ * computed server-side (computeDifference,
+ * lib/budget/cycle-balance.ts) and passed in already-formatted, same
+ * as expensesRemaining always was.
  */
 export function CycleBalanceCard({
   cycleMonth,
   currency,
-  expensesRemaining,
-  startingBalance,
-  runningBalance,
+  expensesRemainingDisplay,
+  accountBalance,
+  differenceDisplay,
 }: {
   cycleMonth: string;
   currency: string;
-  expensesRemaining: Money;
+  expensesRemainingDisplay: string;
   /** Null when never set for this cycle yet. */
-  startingBalance: Money | null;
-  /** Null when startingBalance is null — nothing to derive. */
-  runningBalance: Money | null;
+  accountBalance: Money | null;
+  /** Null when accountBalance is null — nothing to derive. Pre-formatted with its own sign, same convention as every other signed display in this app. */
+  differenceDisplay: string | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [state, formAction, isPending] = useActionState(
@@ -57,16 +66,6 @@ export function CycleBalanceCard({
     if (state.success) setEditing(false);
   }, [state.success]);
 
-  const balanceDisplay =
-    runningBalance === null
-      ? null
-      : `${isNegativeMoney(runningBalance) ? "−" : ""}${formatMoneyDisplay(
-          isNegativeMoney(runningBalance)
-            ? negateMoney(runningBalance)
-            : runningBalance,
-          currency,
-        )}`;
-
   return (
     <div className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
       <div className="grid grid-cols-1 sm:grid-cols-2">
@@ -75,7 +74,7 @@ export function CycleBalanceCard({
             Expenses Remaining
           </div>
           <div className="mt-1.5 font-display text-2xl font-extrabold tracking-tight text-negative">
-            &minus;{formatMoneyDisplay(expensesRemaining, currency)}
+            &minus;{expensesRemainingDisplay}
           </div>
           <div className="mt-1 text-[11px] text-ink-faint">
             Not yet marked paid this cycle
@@ -91,7 +90,7 @@ export function CycleBalanceCard({
               <button
                 type="button"
                 onClick={() => setEditing(true)}
-                aria-label="Edit starting balance"
+                aria-label="Edit account balance"
                 className="ml-auto flex size-[26px] items-center justify-center rounded-full border border-line bg-surface text-ink-soft"
               >
                 <Pencil className="size-3" />
@@ -101,7 +100,7 @@ export function CycleBalanceCard({
 
           {!editing ? (
             <>
-              {balanceDisplay === null ? (
+              {accountBalance === null ? (
                 <>
                   <div className="mt-1.5 font-display text-base font-bold text-ink-faint">
                     Not set
@@ -111,16 +110,16 @@ export function CycleBalanceCard({
                     onClick={() => setEditing(true)}
                     className="mt-1 text-[11px] font-semibold text-accent underline"
                   >
-                    Set starting balance
+                    Set your balance
                   </button>
                 </>
               ) : (
                 <>
                   <div className="mt-1.5 font-display text-2xl font-extrabold tracking-tight text-ink">
-                    {balanceDisplay}
+                    {signedDisplay(accountBalance, currency)}
                   </div>
                   <div className="mt-1 text-[11px] text-ink-faint">
-                    Moves as you mark items paid — or edit it directly
+                    The balance you keep — edit it any time
                   </div>
                 </>
               )}
@@ -131,7 +130,7 @@ export function CycleBalanceCard({
               <div className="flex items-center gap-2">
                 <Input
                   name="amount"
-                  defaultValue={startingBalance ?? ""}
+                  defaultValue={accountBalance ?? ""}
                   placeholder="e.g. 425000"
                   inputMode="decimal"
                   autoFocus
@@ -151,13 +150,33 @@ export function CycleBalanceCard({
                 </Button>
               </div>
               <p className="text-[11px] text-ink-faint">
-                Cash on hand at the start of this cycle
+                Whatever your account actually shows right now
               </p>
               <FieldError message={state.error} />
             </form>
           )}
         </div>
       </div>
+
+      {differenceDisplay !== null && (
+        <div className="flex items-center justify-between gap-3 border-t border-line px-5 py-4">
+          <div>
+            <div className="font-display text-xs font-bold text-ink">
+              Difference
+            </div>
+            <div className="text-[11px] text-ink-faint">
+              Balance after paying what&apos;s still remaining
+            </div>
+          </div>
+          <div
+            className={`font-display text-lg font-extrabold tracking-tight ${
+              differenceDisplay.startsWith("−") ? "text-negative" : "text-ink"
+            }`}
+          >
+            {differenceDisplay}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
