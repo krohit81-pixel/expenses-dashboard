@@ -115,6 +115,29 @@ export function detectCalendarEventReminders(
     }));
 }
 
+/**
+ * v3.4.13 — the "Send reminder now" button's message (one specific
+ * calendar event, on demand). Same layout as detectCalendarEventReminders'
+ * own body, minus the "⏰ N days before" line — there's no lead time
+ * here, this is a deliberate, immediate send, and claiming a lead time
+ * that doesn't apply would be misleading.
+ */
+export function buildCalendarEventManualReminder(event: CalendarEvent): {
+  title: string;
+  body: string;
+} {
+  return {
+    title: event.title,
+    body: buildBody([
+      peopleLine(event.people),
+      event.startTime
+        ? `📅 ${formatDate(event.startDate)} at ${formatTime12h(event.startTime)}`
+        : `📅 ${formatDate(event.startDate)}`,
+      event.notes ? `📝 ${event.notes}` : null,
+    ]),
+  };
+}
+
 export function detectTripReminders(
   trips: Trip[],
   today: string,

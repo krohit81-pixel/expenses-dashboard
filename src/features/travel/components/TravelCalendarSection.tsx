@@ -108,6 +108,7 @@ export function TravelCalendarSection({
   recurringRules,
   recurringOccurrences,
   travelWindows,
+  isLoggedIn,
 }: {
   trips: Trip[];
   schoolItems: SchoolCalendarItem[];
@@ -115,6 +116,8 @@ export function TravelCalendarSection({
   recurringRules: RecurringCalendarEvent[];
   recurringOccurrences: RecurringOccurrence[];
   travelWindows: PersonTravelWindow[];
+  /** v3.4.13 — forwarded straight to AddEventModal's "Send reminder now" button; see CalendarPage's own comment for where this comes from. */
+  isLoggedIn: boolean;
 }) {
   const [month, setMonth] = useState(currentMonth());
   const [visible, setVisible] = useState<Visibility>({
@@ -335,6 +338,7 @@ export function TravelCalendarSection({
         open={eventModalOpen}
         onClose={() => setEventModalOpen(false)}
         editingEvent={editingEvent}
+        isLoggedIn={isLoggedIn}
       />
 
       <AddRecurringEventModal

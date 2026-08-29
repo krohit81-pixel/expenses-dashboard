@@ -5,6 +5,7 @@ import type { Trip } from "@/services/TripService";
 import type { RecurringCalendarEvent } from "@/services/RecurringCalendarEventService";
 import type { SchoolCalendarItem } from "@/features/travel/school-items";
 import {
+  buildCalendarEventManualReminder,
   detectCalendarEventHourlyReminders,
   detectCalendarEventReminders,
   detectRecurringEventHourlyReminders,
@@ -188,6 +189,38 @@ describe("detectCalendarEventReminders", () => {
         "👥 Rohit, Ahaana\n📅 Oct 15, 2026\n⏰ Today",
       );
     });
+  });
+});
+
+describe("buildCalendarEventManualReminder (v3.4.13 — 'Send reminder now')", () => {
+  it("uses the event's own title, with no lead-time line", () => {
+    const result = buildCalendarEventManualReminder(
+      calendarEvent({ title: "Camera insurance renewal", notes: null }),
+    );
+    expect(result.title).toBe("Camera insurance renewal");
+    expect(result.body).not.toContain("before");
+    expect(result.body).not.toContain("Today");
+  });
+
+  it("includes date, time, people, and notes exactly like the automatic reminder body — minus the lead-time line", () => {
+    const result = buildCalendarEventManualReminder(
+      calendarEvent({
+        startDate: "2026-10-15",
+        startTime: "18:00",
+        people: ["Rohit", "Ahaana"],
+        notes: "Bring wine",
+      }),
+    );
+    expect(result.body).toBe(
+      "👥 Rohit, Ahaana\n📅 Oct 15, 2026 at 6:00 PM\n📝 Bring wine",
+    );
+  });
+
+  it("omits the time line when startTime isn't set", () => {
+    const result = buildCalendarEventManualReminder(
+      calendarEvent({ startDate: "2026-10-15", startTime: null, notes: null }),
+    );
+    expect(result.body).toBe("📅 Oct 15, 2026");
   });
 });
 

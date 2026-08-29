@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.4.12**
+correction layer: what's actually true today, current as of **v3.4.13**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -1492,6 +1492,58 @@ this milestone started with, before the household asked for something
 simpler) — OAuth doesn't need Basic Auth at all, though it still needs
 the school tenant to allow the app via consent, a different and more
 common ask than re-enabling Basic Auth.
+
+## v3.4.13: "Send reminder now" — manual per-event Telegram trigger
+
+The automatic reminder pipeline (ReminderService) only ever fires a
+calendar event's Telegram reminder at its configured lead time, once.
+This adds a genuinely manual, on-demand alternative: a "Send reminder
+now" button in the calendar event edit modal that pushes that one
+event to Telegram immediately, regardless of its own
+remindEnabled/remindLeadDays settings (it doesn't even need reminders
+turned on) and independent of the automatic pipeline's own
+notification_log dedupe — clicking it always sends, even if an
+automatic reminder for the same event already fired, or never will.
+
+- **`buildCalendarEventManualReminder`** (`src/lib/notifications/detect-reminders.ts`)
+  — same body layout as the automatic reminder (people/date-time/notes
+  lines) minus the "⏰ N days before" line, since there's no lead time
+  to report for an immediate send.
+- **`ReminderService.sendCalendarEventReminderNow(eventId)`** — fetches
+  the one event (new `CalendarEventService.getCalendarEvent`), sends
+  via the Telegram provider directly, and still records the attempt to
+  `notification_log` for the same audit-trail reasoning every other
+  send is — but under an `eventKey` that includes the send instant
+  (`calendar_event:manual:{id}:{timestamp}`) rather than reusing the
+  automatic detector's own key, so it can never collide with (or be
+  silently skipped by) that dedupe.
+- **A real access-control decision, not just a UI nicety**: the
+  calendar event edit modal is reachable from `/calendar`, this app's
+  one PUBLIC page (no password — see `middleware.ts`'s `PUBLIC_PATHS`).
+  Pushing a real message to the household's Telegram is a meaningfully
+  bigger action than the read/add access that page already grants, so
+  the button is disabled client-side unless logged in (`isLoggedIn`,
+  computed server-side in `CalendarPage` from the real `app_access`
+  cookie and threaded down through `TravelCalendarSection` to
+  `AddEventModal`) — but the actual enforcement is server-side, in
+  `sendCalendarEventReminderNowAction` itself, which independently
+  re-verifies that same cookie before calling the service function.
+  Verified directly: with the client-side prop forced to
+  `isLoggedIn=true` but no real `app_access` cookie in the browser, a
+  click still returns "Log in to the main app first, then try again."
+  rather than sending — proving the disabled attribute is UX, not the
+  actual boundary.
+- **Verified**: 3 new unit tests for `buildCalendarEventManualReminder`
+  (title/body shape, with and without a time). `npx tsc --noEmit &&
+  npx eslint . && npx prettier --check . && npx vitest run` all pass
+  (556, +3) and `npm run build` succeeds. Browser-verified via a
+  temporary fixture-backed `preview-temp` scratch page (deleted before
+  commit, `middleware.ts` reverted): both button states (disabled when
+  logged out, enabled when logged in) render correctly, and the
+  logged-in-looking button's click correctly hit the real server-side
+  cookie check described above rather than actually sending — real
+  Telegram credentials were never exercised in this session, so no
+  real message was sent during verification.
 
 ## What's actually built
 

@@ -14,6 +14,7 @@ import {
   createCalendarEventAction,
   createRecurringCalendarEventAction,
   deleteCalendarEventAction,
+  sendCalendarEventReminderNowAction,
   updateCalendarEventAction,
   type CalendarEventFormState,
   type RecurringCalendarEventFormState,
@@ -81,17 +82,28 @@ const DEFAULT_END_TIME = "09:30";
  * useActionState's close-on-success effect could miss a state update
  * across a revalidatePath-triggered remount and leave the modal open
  * and resubmittable.
+ *
+ * v3.4.13: gained a "Send reminder now" button (edit mode only) — a
+ * genuinely manual, on-demand Telegram push for this one event,
+ * independent of its remindEnabled/remindLeadDays settings entirely.
+ * Disabled unless `isLoggedIn` (this modal is reachable from the
+ * PUBLIC /calendar page — see CalendarPage's own comment for where
+ * that prop comes from); the real enforcement is server-side, in
+ * sendCalendarEventReminderNowAction itself, since a disabled
+ * attribute is a UI nicety, not a security boundary.
  */
 export function AddEventModal({
   open,
   onClose,
   editingEvent,
   initialDate,
+  isLoggedIn,
 }: {
   open: boolean;
   onClose: () => void;
   editingEvent: CalendarEvent | null;
   initialDate?: string;
+  isLoggedIn: boolean;
 }) {
   const isEditing = editingEvent !== null;
 
@@ -155,6 +167,9 @@ export function AddEventModal({
     setFormError(undefined);
     setIsDeleting(false);
     setDeleteError(undefined);
+    setIsSendingReminder(false);
+    setReminderError(undefined);
+    setReminderMessage(undefined);
     setIsRecurring(false);
     setMode("");
     setDaysOfWeek([]);
@@ -190,6 +205,13 @@ export function AddEventModal({
   const [formError, setFormError] = useState<string | undefined>(undefined);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | undefined>(undefined);
+  const [isSendingReminder, setIsSendingReminder] = useState(false);
+  const [reminderError, setReminderError] = useState<string | undefined>(
+    undefined,
+  );
+  const [reminderMessage, setReminderMessage] = useState<string | undefined>(
+    undefined,
+  );
 
   if (!open) return null;
 
@@ -243,6 +265,24 @@ export function AddEventModal({
     }
     setDeleteError(result.error);
     setIsDeleting(false);
+  }
+
+  async function handleSendReminderNow() {
+    if (!editingEvent || isSendingReminder) return;
+    setIsSendingReminder(true);
+    setReminderError(undefined);
+    setReminderMessage(undefined);
+
+    const formData = new FormData();
+    formData.set("id", editingEvent.id);
+    const result = await sendCalendarEventReminderNowAction({}, formData);
+
+    setIsSendingReminder(false);
+    if (result.error) {
+      setReminderError(result.error);
+      return;
+    }
+    setReminderMessage(result.message);
   }
 
   const peopleOptions = Array.from(
@@ -508,6 +548,43 @@ export function AddEventModal({
             onLeadHoursChange={setRemindLeadHours}
             allowHourly={Boolean(startTime)}
           />
+
+          {isEditing && (
+            <div className="space-y-1.5 rounded-[14px] border-[1.5px] border-line p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-display text-[13px] font-bold text-ink">
+                    Send reminder now
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-ink-faint">
+                    Push this event to Telegram right away, regardless of its
+                    reminder settings above.
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  loading={isSendingReminder}
+                  disabled={!isLoggedIn}
+                  onClick={handleSendReminderNow}
+                >
+                  Send now
+                </Button>
+              </div>
+              {!isLoggedIn && (
+                <p className="text-[11px] text-ink-faint">
+                  Log in to the main app to use this.
+                </p>
+              )}
+              {reminderMessage && (
+                <p className="text-[12px] font-semibold text-positive">
+                  {reminderMessage}
+                </p>
+              )}
+              <FieldError message={reminderError} />
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="event-notes">

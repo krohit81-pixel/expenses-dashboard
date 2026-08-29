@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 
 import { Hero } from "@/components/ui/hero";
+import { ACCESS_COOKIE_NAME, verifyAccessToken } from "@/lib/access-gate";
 import { ThemeToggleButton } from "@/features/settings/ThemeToggle";
 import { TravelCalendarSection } from "@/features/travel/components/TravelCalendarSection";
 import { buildSchoolCalendarItems } from "@/features/travel/school-items";
@@ -45,13 +47,25 @@ export const metadata: Metadata = {
  * pass. See docs/00-current-state.md's "v2.0/v2.1 revamp" note — this is
  * unrelated to that finance-side Recurring page (recurring
  * transactions); same word, two independent features.
+ *
+ * v3.4.13: computes isLoggedIn (a real check of the main app_access
+ * cookie, not a redirect — this page stays public either way) and
+ * hands it down to the event edit modal, which uses it to enable/
+ * disable its "Send reminder now" button. This page itself doesn't
+ * need the cookie for anything else; see AddEventModal's own comment
+ * for why the button needs this at all.
  */
 export default async function CalendarPage() {
-  const [trips, calendarEvents, recurringRules] = await Promise.all([
-    listTrips(),
-    listCalendarEvents(),
-    listRecurringCalendarEvents(),
-  ]);
+  const [trips, calendarEvents, recurringRules, cookieStore] =
+    await Promise.all([
+      listTrips(),
+      listCalendarEvents(),
+      listRecurringCalendarEvents(),
+      cookies(),
+    ]);
+  const isLoggedIn = verifyAccessToken(
+    cookieStore.get(ACCESS_COOKIE_NAME)?.value,
+  );
   const schoolItems = buildSchoolCalendarItems();
   const travelWindows = buildTravelWindows();
   const ruleRange = widestRuleRange(recurringRules);
@@ -71,6 +85,7 @@ export default async function CalendarPage() {
           recurringRules={recurringRules}
           recurringOccurrences={recurringOccurrences}
           travelWindows={travelWindows}
+          isLoggedIn={isLoggedIn}
         />
 
         <p className="text-[11px] leading-relaxed text-ink-faint">

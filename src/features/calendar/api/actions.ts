@@ -1,5 +1,6 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 
 import {
@@ -12,6 +13,8 @@ import {
   deleteRecurringCalendarEvent,
   updateRecurringCalendarEvent,
 } from "@/services/RecurringCalendarEventService";
+import { sendCalendarEventReminderNow } from "@/services/ReminderService";
+import { ACCESS_COOKIE_NAME, verifyAccessToken } from "@/lib/access-gate";
 import {
   createCalendarEventInputSchema,
   updateCalendarEventInputSchema,
@@ -134,6 +137,44 @@ export async function deleteCalendarEventAction(
 
   revalidatePath("/calendar");
   return { success: true };
+}
+
+export interface SendReminderNowFormState {
+  error?: string;
+  message?: string;
+}
+
+/**
+ * v3.4.13 — the manual "Send reminder now" button in the event edit
+ * modal. /calendar is the one PUBLIC page in this app (see
+ * middleware.ts's PUBLIC_PATHS) — every other action above only ever
+ * touches calendar data itself, but this one pushes a real message to
+ * the household's own Telegram, a meaningfully bigger action. The
+ * button is disabled client-side unless logged in, but a disabled
+ * attribute is a UI nicety, not a security boundary (trivially
+ * bypassed with a direct call to this action) — so this re-checks the
+ * main app_access cookie itself before doing anything.
+ */
+export async function sendCalendarEventReminderNowAction(
+  _prevState: SendReminderNowFormState,
+  formData: FormData,
+): Promise<SendReminderNowFormState> {
+  const cookieStore = await cookies();
+  if (!verifyAccessToken(cookieStore.get(ACCESS_COOKIE_NAME)?.value)) {
+    return { error: "Log in to the main app first, then try again." };
+  }
+
+  const id = formValue(formData, "id");
+  if (!id) {
+    return { error: "Missing event id" };
+  }
+
+  const result = await sendCalendarEventReminderNow(id);
+  if (!result.ok) {
+    return { error: result.error };
+  }
+
+  return { message: "Sent — check Telegram." };
 }
 
 export interface RecurringCalendarEventFormState {

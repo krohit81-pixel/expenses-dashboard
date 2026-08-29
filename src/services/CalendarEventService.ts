@@ -81,6 +81,25 @@ export async function listCalendarEvents(): Promise<CalendarEvent[]> {
   return data.map(mapRow);
 }
 
+/** v3.4.13 — a single event by id, for the "Send reminder now" button (ReminderService.sendCalendarEventReminderNow), which needs one specific event rather than the whole list listCalendarEvents() already returns. Null, not a throw, when it's gone (deleted between the modal opening and the button being clicked) — the caller turns that into a plain error message, not a crash. */
+export async function getCalendarEvent(
+  id: string,
+): Promise<CalendarEvent | null> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("calendar_events")
+    .select(CALENDAR_EVENT_SELECT)
+    .eq("id", id)
+    .eq("user_id", OWNER_USER_ID)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load calendar event: ${error.message}`);
+  }
+
+  return data ? mapRow(data) : null;
+}
+
 export async function createCalendarEvent(
   input: CreateCalendarEventInput,
 ): Promise<CalendarEvent> {

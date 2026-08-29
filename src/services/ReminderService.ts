@@ -1,6 +1,9 @@
 import "server-only";
 
-import { listCalendarEvents } from "@/services/CalendarEventService";
+import {
+  getCalendarEvent,
+  listCalendarEvents,
+} from "@/services/CalendarEventService";
 import { listTrips } from "@/services/TripService";
 import { listRecurringCalendarEvents } from "@/services/RecurringCalendarEventService";
 import {
@@ -13,6 +16,7 @@ import { getSendTarget } from "@/services/NotificationChannelService";
 import { getProvider } from "@/lib/notifications/registry";
 import { buildSchoolCalendarItems } from "@/features/travel/school-items";
 import {
+  buildCalendarEventManualReminder,
   detectCalendarEventHourlyReminders,
   detectCalendarEventReminders,
   detectRecurringEventHourlyReminders,
@@ -290,4 +294,83 @@ export async function runAhaanaReminders(
   ];
 
   return sendCandidates(candidates, ["web_push"]);
+}
+
+export interface SendReminderNowResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * v3.4.13 — the "Send reminder now" button in the calendar event edit
+ * modal: a genuinely manual, on-demand Telegram send for one specific
+ * event, independent of remindEnabled/remindLeadDays entirely — a
+ * household member might want this sent right now regardless of
+ * whether an automatic reminder already fired, or ever will (the
+ * event might not even have reminders enabled at all).
+ *
+ * Deliberately bypasses sendCandidates' notification_log dedupe check
+ * rather than reusing it: that dedupe is keyed on
+ * (eventType, eventKey, leadTimeDays, leadTimeUnit, channelType), and
+ * the automatic detector's own key for this same event
+ * (`calendar_event:{id}`) would make a second manual click silently
+ * skip ("already sent") — exactly backwards from a manual trigger,
+ * which should fire every time it's clicked. Still recorded to
+ * notification_log afterward for the same audit-trail reasoning every
+ * other send is (see NotificationLogService's own comment), just under
+ * a key that includes the send instant so it can never collide with
+ * either the automatic reminder's key or an earlier manual send for
+ * the same event.
+ *
+ * No access check here — that's the caller's job
+ * (sendCalendarEventReminderNowAction verifies the main app_access
+ * cookie before ever calling this), since this is a plain service
+ * function other callers may reuse without a cookie in scope.
+ */
+export async function sendCalendarEventReminderNow(
+  eventId: string,
+): Promise<SendReminderNowResult> {
+  const event = await getCalendarEvent(eventId);
+  if (!event) {
+    return { ok: false, error: "That event no longer exists." };
+  }
+
+  const provider = getProvider("telegram");
+  if (!provider.isConfigured()) {
+    return {
+      ok: false,
+      error:
+        "TELEGRAM_BOT_TOKEN isn't set on the server yet — add it as an environment variable, then redeploy.",
+    };
+  }
+
+  const target = await getSendTarget("telegram");
+  if (!target) {
+    return {
+      ok: false,
+      error: "No Telegram chat ID is set up yet — add one in Settings first.",
+    };
+  }
+
+  const { title, body } = buildCalendarEventManualReminder(event);
+  const sendResult = await provider.send(target, { title, body });
+
+  const key: NotificationLogKey = {
+    eventType: "calendar_event",
+    eventKey: `calendar_event:manual:${event.id}:${Date.now()}`,
+    leadTimeDays: 0,
+    leadTimeUnit: "days",
+    channelType: "telegram",
+  };
+
+  if (sendResult.ok) {
+    await recordSent(key, sendResult.providerMessageId);
+    return { ok: true };
+  }
+
+  await recordFailed(key, sendResult.error ?? "Unknown error");
+  return {
+    ok: false,
+    error: sendResult.error ?? "Send failed for an unknown reason",
+  };
 }
