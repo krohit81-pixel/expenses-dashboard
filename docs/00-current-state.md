@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.5.3**
+correction layer: what's actually true today, current as of **v3.5.4**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -1824,6 +1824,62 @@ pure client-side React effect timing issue, not something that reads
 differently against real vs. fixture data) — the fix is a mechanical,
 well-understood one-line dependency-array change applied identically
 in three places.
+
+## v3.5.4: Intel's "Generate commentary" also flags potentially avoidable credit card spending
+
+Household request: across the 6 credit cards, have the AI insight
+check each card's latest billing cycle and call out spending patterns
+that might have been avoidable — similar/repeated shopping, back-to-
+back dining, or one unusually large one-off expense — explicitly
+accepted as subjective and allowed to have false positives, and
+explicitly wanted in the *same* "Generate commentary" output, not a
+separate section.
+
+- **`CreditCardIntelService.getLatestCycleTransactionsPerCard()`**
+  (new) — every distinct card's own most recent statement (by
+  `statement_date`, not `cycle_month` — a backlog import shouldn't
+  count as "latest" over a genuinely newer cycle) and its debit
+  transactions, grouped in application code same as every other query
+  in this file (no SQL `DISTINCT ON`). Prefers a transaction's tagged
+  merchant display name over the statement's raw description when
+  one's been resolved, same convention `getCardCategoryTransactions`
+  already uses.
+- **`IntelService.buildInsightPrompt`** now asks for two short
+  paragraphs instead of one: paragraph 1 is the existing cash-flow
+  commentary, unchanged in substance; paragraph 2 reviews each card's
+  latest-cycle transactions (fed in as compact "date: description
+  (amount)" lines, one block per card) and flags AT MOST ONE pattern,
+  phrased as a possibility ("worth a look"), never a verdict — and is
+  explicitly allowed to say nothing stood out rather than force a weak
+  example, matching the household's own "it can be subjective... may
+  have false positives" framing.
+- **`intel/page.tsx`**'s insight `<p>` gained `whitespace-pre-line` —
+  the two paragraphs are separated by a blank line in the stored text,
+  and without this a plain `<p>` collapses that to one run-together
+  block, same as any HTML text node. Confirmed backward-compatible:
+  an already-stored single-paragraph insight (from before this
+  change) still renders correctly, no regression.
+- **Verified against real production data**: a temporary scratch page
+  called `getLatestCycleTransactionsPerCard()` directly (no LLM call,
+  read-only) — confirmed exactly 6 cards returned (AXIS Horizon, HDFC
+  Infinia, HDFC Tata Neu Plus, ICICI RuPay, ICICI Amazon Pay, AXIS
+  Airtel), each with its correct latest billing cycle and real
+  transaction counts (1 to 132 per card) and real merchant names.
+  Spotted a genuine real pattern in the raw data itself — three
+  separate Swiggy charges on the same card on the same day (₹490,
+  ₹476, ₹322) — confirming there's real signal for the model to find,
+  not just a hypothetical. The Intel page itself was also confirmed to
+  still render its existing stored insight correctly with the new
+  styling. **The actual "Generate commentary" click was deliberately
+  not exercised** — it's a real, billed LLM API call that would also
+  overwrite the household's currently-saved insight, so trying the new
+  two-paragraph output for real is left to the household.
+- 7 new unit tests for `getLatestCycleTransactionsPerCard`
+  (`CreditCardIntelService.test.ts`, mocked Supabase — its first
+  direct coverage). `npx tsc --noEmit && npx eslint . && npx prettier
+  --check . && npx vitest run` all pass (530) and `npm run build`
+  succeeds. No schema change — reads existing
+  `credit_card_statements`/`credit_card_transactions` tables only.
 
 ## What's actually built
 

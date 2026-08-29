@@ -147,6 +147,110 @@ export async function getCardExpenseForMonths(
   return new Map(buildMonthlyCardTotals(rows).map((t) => [t.month, t]));
 }
 
+export interface LatestCycleCardTransaction {
+  date: string;
+  /** The resolved merchant display name when one's been tagged, else the statement's own raw description. */
+  description: string;
+  amount: Money;
+  currency: string;
+}
+
+export interface LatestCycleCard {
+  cardLabel: string;
+  cycleMonth: string;
+  billingPeriodStart: string;
+  billingPeriodEnd: string;
+  transactions: LatestCycleCardTransaction[];
+}
+
+/**
+ * v3.5.4 — every card's own MOST RECENT statement (by `statement_date`,
+ * not `cycle_month` — a household could import an old backlog
+ * statement after a newer one, and "most recent" should mean the
+ * latest real cycle, not whichever row happened to import last) and
+ * its debit transactions, one entry per distinct card
+ * (issuer/card_type/card_last4). Built for IntelService's "Generate
+ * commentary" — feeding the model each card's latest cycle so it can
+ * flag potentially-avoidable spending patterns (repeated similar
+ * purchases, back-to-back dining, one outsized one-off), the same way
+ * getCardCategoryBreakdown already feeds it one month's aggregate
+ * total, just at transaction-line granularity instead.
+ *
+ * Groups in application code, not a SQL DISTINCT ON — same "no
+ * aggregate RPC/view exists yet, this app's data volume doesn't need
+ * one" reasoning every other query in this file already follows.
+ * Statements fetched newest-first so the first one seen per card key
+ * is already the latest — no separate max() pass needed.
+ */
+export async function getLatestCycleTransactionsPerCard(): Promise<
+  LatestCycleCard[]
+> {
+  const supabase = createServiceClient();
+
+  const { data: statements, error: statementsError } = await supabase
+    .from("credit_card_statements")
+    .select(
+      "id, issuer, card_type, card_last4, statement_date, cycle_month, billing_period_start, billing_period_end",
+    )
+    .eq("user_id", OWNER_USER_ID)
+    .order("statement_date", { ascending: false });
+
+  if (statementsError) {
+    throw new Error(
+      `Failed to load credit card statements: ${statementsError.message}`,
+    );
+  }
+  if (statements.length === 0) return [];
+
+  const latestByCard = new Map<string, (typeof statements)[number]>();
+  for (const statement of statements) {
+    const cardKey = `${statement.issuer}|${statement.card_type}|${statement.card_last4}`;
+    if (!latestByCard.has(cardKey)) {
+      latestByCard.set(cardKey, statement);
+    }
+  }
+  const latestStatements = Array.from(latestByCard.values());
+  const statementIds = latestStatements.map((s) => s.id);
+
+  const { data: transactions, error: transactionsError } = await supabase
+    .from("credit_card_transactions")
+    .select(
+      "statement_id, transaction_date, description, amount, currency, merchants(display_name)",
+    )
+    .eq("user_id", OWNER_USER_ID)
+    .eq("transaction_type", "debit")
+    .in("statement_id", statementIds)
+    .order("transaction_date", { ascending: true });
+
+  if (transactionsError) {
+    throw new Error(
+      `Failed to load credit card transactions: ${transactionsError.message}`,
+    );
+  }
+
+  const transactionsByStatement = new Map<string, typeof transactions>();
+  for (const txn of transactions) {
+    const list = transactionsByStatement.get(txn.statement_id) ?? [];
+    list.push(txn);
+    transactionsByStatement.set(txn.statement_id, list);
+  }
+
+  return latestStatements.map((statement) => ({
+    cardLabel: `${statement.issuer} ${statement.card_type} •••• ${statement.card_last4}`,
+    cycleMonth: statement.cycle_month,
+    billingPeriodStart: statement.billing_period_start,
+    billingPeriodEnd: statement.billing_period_end,
+    transactions: (transactionsByStatement.get(statement.id) ?? []).map(
+      (txn) => ({
+        date: txn.transaction_date,
+        description: txn.merchants?.display_name ?? txn.description,
+        amount: dbNumberToMoney(txn.amount),
+        currency: txn.currency,
+      }),
+    ),
+  }));
+}
+
 export interface CardCategoryDrilldownTransaction {
   id: string;
   transactionDate: string;

@@ -21,6 +21,7 @@ import { listTransactions } from "@/services/TransactionService";
 import { listCategories } from "@/services/CategoryService";
 import { getUserSettings } from "@/services/UserSettingsService";
 import { getPlannedCardDuesForMonths } from "@/services/BudgetSnapshotService";
+import { getLatestCycleTransactionsPerCard } from "@/services/CreditCardIntelService";
 import { OWNER_USER_ID } from "@/lib/owner";
 import { currentMonth, monthLabel, shiftMonth } from "@/lib/dates/month";
 
@@ -41,6 +42,20 @@ import { currentMonth, monthLabel, shiftMonth } from "@/lib/dates/month";
  * so the forecast total is now part of what's handed to the model, and
  * the instructions explicitly ask it to weigh both the current month
  * and next month's forecast, not just the current month in isolation.
+ *
+ * v3.5.4: a second paragraph, reviewing each credit card's latest
+ * billing cycle for one potentially avoidable spending pattern
+ * (repeated similar purchases, back-to-back dining, one outsized
+ * one-off) — household request, explicitly framed as subjective and
+ * allowed to have false positives, so the instructions ask for a
+ * possibility ("worth a look"), never a verdict, and permit saying
+ * nothing stood out rather than forcing a weak example. Two short
+ * paragraphs, not one longer one — cash flow and card spending are
+ * different enough questions that folding a card-spending callout into
+ * the same 2-3 sentences as the cash-flow summary would have squeezed
+ * both into half-thoughts. See intel/page.tsx's own comment on the
+ * `whitespace-pre-line` this relies on to actually render as two
+ * paragraphs, not one run-together block.
  */
 function buildInsightPrompt(params: {
   monthStart: string;
@@ -54,8 +69,13 @@ function buildInsightPrompt(params: {
   net: string;
   forecastMonthLabel: string;
   forecastTotalExpense: string;
+  cardCycleLines: string;
 }): string {
-  return `You are a calm, factual personal finance assistant. Given this household's data for the current month AND the forecast for next month, write a short insight: 2-3 sentences, no more. Point out one genuinely notable pattern -- prefer a clear, sizeable trend or comparison over a marginal one (don't lead with a category that's only a percent or two of total spend just because it happens to be present); consider both what's already happened this month and what's forecast for next month, and be specific with numbers. Do not give generic advice like "consider budgeting." Do not use markdown formatting.
+  return `You are a calm, factual personal finance assistant. Given this household's data below, write exactly two short paragraphs, separated by a blank line, no more than 2-3 sentences each. Do not use markdown formatting.
+
+Paragraph 1 -- cash flow: given the current month's data AND the forecast for next month, point out one genuinely notable pattern -- prefer a clear, sizeable trend or comparison over a marginal one (don't lead with a category that's only a percent or two of total spend just because it happens to be present); consider both what's already happened this month and what's forecast for next month, and be specific with numbers. Do not give generic advice like "consider budgeting."
+
+Paragraph 2 -- credit card spending: review the transactions from each card's latest billing cycle below and flag AT MOST ONE specific pattern that might represent avoidable spending -- e.g. several similar purchases close together, back-to-back dining charges, or one unusually large one-off expense that stands out from the rest on that card. Name the actual merchant/category and approximate dates. Phrase it as a possibility, not a verdict ("worth a look," "you might want to check") -- this is a subjective judgment call and may not always be right. If nothing genuinely stands out this cycle, say so briefly in one sentence instead of forcing an example.
 
 Current month so far (${params.monthStart} to ${params.today}):
 - Income: ${params.totalIncome}
@@ -72,15 +92,20 @@ Forecast for ${params.forecastMonthLabel}, from recurring items and anything alr
 - Expected expenses: ${params.forecastTotalExpense}
 
 Upcoming one-time commitments, next 90 days:
-${params.upcomingLines || "(none scheduled)"}`;
+${params.upcomingLines || "(none scheduled)"}
+
+Latest billing cycle per credit card:
+${params.cardCycleLines || "(no credit card statements imported yet)"}`;
 }
 
 /**
- * Generates a short (2-3 sentence) natural-language insight from the
- * current month's cash flow, category breakdown, and upcoming
- * commitments. Returns null (not an error) if neither ANTHROPIC_API_KEY
- * nor GEMINI_API_KEY is configured, or if the call itself fails — see
- * the comments on those env vars in src/lib/env/server.ts.
+ * Generates a short natural-language insight — two short paragraphs
+ * (cash flow, then credit card spending, see buildInsightPrompt's own
+ * v3.5.4 comment) from the current month's cash flow, category
+ * breakdown, upcoming commitments, and each card's latest billing
+ * cycle. Returns null (not an error) if neither ANTHROPIC_API_KEY nor
+ * GEMINI_API_KEY is configured, or if the call itself fails — see the
+ * comments on those env vars in src/lib/env/server.ts.
  *
  * v1.2 added OPENAI_API_KEY as an alternate provider, at the user's
  * request (someone else in the household may only have an OpenAI key,
@@ -127,20 +152,28 @@ async function generateInsightText(): Promise<string | null> {
     .toISOString()
     .slice(0, 10);
 
-  const [settings, summary, trend, categories, upcoming, forecast] =
-    await Promise.all([
-      getUserSettings(OWNER_USER_ID),
-      getCashFlowSummary({ from: monthStart, to: today }),
-      getMonthlyExpenditureTrend(6),
-      listCategories(true),
-      listTransactions({
-        status: "pending",
-        occurredFrom: today,
-        occurredTo: in90Days,
-        limit: 20,
-      }),
-      getCashFlowSummary({ from: forecastFrom, to: forecastTo }, true),
-    ]);
+  const [
+    settings,
+    summary,
+    trend,
+    categories,
+    upcoming,
+    forecast,
+    latestCycleCards,
+  ] = await Promise.all([
+    getUserSettings(OWNER_USER_ID),
+    getCashFlowSummary({ from: monthStart, to: today }),
+    getMonthlyExpenditureTrend(6),
+    listCategories(true),
+    listTransactions({
+      status: "pending",
+      occurredFrom: today,
+      occurredTo: in90Days,
+      limit: 20,
+    }),
+    getCashFlowSummary({ from: forecastFrom, to: forecastTo }, true),
+    getLatestCycleTransactionsPerCard(),
+  ]);
 
   // v1.6.3: fold in the household's planned/logged credit card cycle
   // payment (same figure the Intel page's own donuts and month-on-
@@ -203,6 +236,25 @@ async function generateInsightText(): Promise<string | null> {
     )
     .join("\n");
 
+  // v3.5.4 — each card's own latest billing cycle, as compact
+  // "date: description (amount)" lines, one card block per card
+  // (blank line between cards) so the model can reason about each
+  // card's own pattern separately rather than one merged list where a
+  // repeated purchase on two different cards wouldn't visibly repeat.
+  const cardCycleLines = latestCycleCards
+    .map((card) => {
+      const header = `${card.cardLabel} — ${monthLabel(card.cycleMonth)} cycle (${card.billingPeriodStart} to ${card.billingPeriodEnd}):`;
+      const lines =
+        card.transactions
+          .map(
+            (t) =>
+              `- ${t.date}: ${t.description} (${formatMoneyDisplay(t.amount, t.currency)})`,
+          )
+          .join("\n") || "(no transactions this cycle)";
+      return `${header}\n${lines}`;
+    })
+    .join("\n\n");
+
   const prompt = buildInsightPrompt({
     monthStart,
     today,
@@ -210,6 +262,7 @@ async function generateInsightText(): Promise<string | null> {
     categoryLines,
     trendLines,
     upcomingLines,
+    cardCycleLines,
     totalIncome: formatMoneyDisplay(summary.totalIncome, currency),
     totalExpense: formatMoneyDisplay(combinedCurrentExpense, currency),
     net: formatMoneyDisplay(combinedNet, currency),

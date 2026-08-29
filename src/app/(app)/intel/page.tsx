@@ -580,7 +580,15 @@ export default async function IntelPage({
             )}
           </div>
           {storedInsight ? (
-            <p className="text-sm leading-relaxed text-ink">
+            // v3.5.4 — the insight is now two short paragraphs (cash
+            // flow, then a credit card spending callout — see
+            // IntelService.buildInsightPrompt's own comment),
+            // separated by a blank line in the stored text.
+            // whitespace-pre-line is what actually turns that blank
+            // line into a visible paragraph break; a plain <p> would
+            // collapse it to a single run-together block, same as any
+            // other HTML text node.
+            <p className="whitespace-pre-line text-sm leading-relaxed text-ink">
               {storedInsight.text}
             </p>
           ) : (
