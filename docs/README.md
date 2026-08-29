@@ -144,13 +144,17 @@ they say so.
   genuinely just proving the connection works, and whether it works at
   all depends on the school tenant's own IMAP policy — see doc 00's
   v3.4.4 through v3.4.12 sections.
-  Dashboard shows the full cycle-wise income/expense breakdown (absorbed
-  Budgets in v2.1.0). Log is a hub for Recurring (bulk cycle-tagging),
-  Accounts (with inline balance correction), and Imports — a statement
-  import now also prompts to log its due amount as a real Dashboard
-  expense (v2.5.4) and to check for AI-suggested duplicate merchants
-  (v2.5.5/v2.5.6). Transactions is now a read-only historical log, moved
-  under More. Credit card statement imports (HDFC Infinia / Tata Neu
+  Dashboard shows a plain running total for the cycle (income, expenses,
+  net) plus everything logged, no separate planning/comparison layer
+  (v3.4.14 — Recurring's template + bulk-cycle-tag workflow and
+  `/budgets` were both removed entirely, the household found them too
+  complicated; `/transactions` is the primary add/edit/delete/tag-to-
+  cycle screen again instead, and a one-tap "Repeat last cycle" button
+  replaces templates for anything that recurs). Log is a hub for
+  Transactions, Accounts (with inline balance correction), and Imports —
+  a statement import now also prompts to log its due amount as a real
+  Dashboard expense (v2.5.4) and to check for AI-suggested duplicate
+  merchants (v2.5.5/v2.5.6). Credit card statement imports (HDFC Infinia / Tata Neu
   Plus, Axis Horizon / Airtel, ICICI Amazon Pay / RuPay) feed a shared
   Merchant Dictionary, which now supports AI-suggested merges plus
   inline/bulk merging directly on `/merchants` (v2.5.5–v2.5.7). Intel has

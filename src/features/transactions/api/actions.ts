@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import {
   createTransaction,
+  listTransactions,
   markTransactionPaid,
   markTransactionPending,
   updateTransaction,
@@ -13,6 +14,7 @@ import {
   createTransactionInputSchema,
   updateTransactionInputSchema,
 } from "@/features/transactions/schemas";
+import { shiftMonth } from "@/lib/dates/month";
 
 export interface CreateTransactionFormState {
   error?: string;
@@ -238,7 +240,6 @@ export async function updateTransactionAction(
 
   revalidatePath("/transactions");
   revalidatePath("/dashboard");
-  revalidatePath("/budgets");
   revalidatePath("/accounts");
   return { success: true };
 }
@@ -284,7 +285,110 @@ export async function voidTransactionAction(
 
   revalidatePath("/transactions");
   revalidatePath("/dashboard");
-  revalidatePath("/budgets");
   revalidatePath("/accounts");
   return {};
+}
+
+export interface RepeatLastCycleFormState {
+  error?: string;
+  success?: boolean;
+  copiedCount?: number;
+}
+
+/**
+ * v3.4.14 — the "Repeat last cycle" button's action, Recurring's
+ * replacement. Duplicates every live (non-void) transaction tagged to
+ * the cycle immediately before `targetMonth` into `targetMonth` itself —
+ * plain, ordinary transactions, no template concept involved. Copies
+ * land dated today (not the original occurredOn — this represents
+ * "happening again this cycle," and keeping last cycle's literal dates
+ * would misdate everything by a month) and always `status: "pending"`
+ * (mirrors logCardPaymentAction's own reasoning: a freshly duplicated
+ * line hasn't actually happened yet at the moment of duplication — the
+ * household reviews/mark-paids each one via TransactionRow's existing
+ * controls, same as any other pending row, rather than it silently
+ * posting against balances).
+ *
+ * Sequential, not Promise.all — same "known, reportable partial state on
+ * failure" reasoning ReminderService.sendCandidates and the old
+ * (now-deleted) applyCycleTags used: if one copy fails partway through,
+ * the household sees exactly how many succeeded rather than an
+ * all-or-nothing rollback or a silently incomplete batch.
+ */
+export async function repeatLastCycleAction(
+  _prevState: RepeatLastCycleFormState,
+  formData: FormData,
+): Promise<RepeatLastCycleFormState> {
+  const targetMonth = formValue(formData, "targetMonth");
+  if (!targetMonth) {
+    return { error: "Missing target cycle" };
+  }
+
+  const sourceMonth = shiftMonth(targetMonth, -1);
+  const { transactions } = await listTransactions({
+    cycleMonth: sourceMonth,
+    limit: 300,
+  });
+  const live = transactions.filter((t) => t.status !== "void");
+  const today = new Date().toISOString().slice(0, 10);
+
+  let copiedCount = 0;
+  for (const t of live) {
+    const base = {
+      accountId: t.accountId,
+      currencyCode: t.currencyCode,
+      occurredOn: today,
+      payee: t.payee,
+      memo: t.memo,
+      cycleMonth: targetMonth,
+      amount: t.amount,
+    };
+    const raw =
+      t.kind === "transfer"
+        ? {
+            ...base,
+            kind: "transfer" as const,
+            transferAccountId: t.transferAccountId,
+            status: "pending" as const,
+          }
+        : t.splits.length > 1
+          ? {
+              ...base,
+              kind: t.kind,
+              status: "pending" as const,
+              splits: t.splits.map((s) => ({
+                categoryId: s.categoryId,
+                amount: s.amount,
+                memo: s.memo,
+              })),
+            }
+          : {
+              ...base,
+              kind: t.kind,
+              status: "pending" as const,
+              categoryId: t.splits[0]?.categoryId,
+            };
+
+    const parsed = createTransactionInputSchema.safeParse(raw);
+    if (!parsed.success) break; // stop and report partial progress rather than a silent partial batch
+
+    try {
+      await createTransaction(parsed.data);
+      copiedCount++;
+    } catch {
+      break;
+    }
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/transactions");
+  revalidatePath("/accounts");
+
+  if (copiedCount === live.length) {
+    return { success: true, copiedCount };
+  }
+  return {
+    error: `Copied ${copiedCount} of ${live.length} before stopping.`,
+    copiedCount,
+  };
 }

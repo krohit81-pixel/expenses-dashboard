@@ -57,12 +57,14 @@ function CalendarIcon(props: SVGProps<SVGSVGElement>) {
  * - "Home" is relabeled "Dashboard" (same /dashboard route) now that it
  *   absorbs Budgets' full breakdown too — "where I see the budget:
  *   monthly cycle-wise break up of expenses/income," in their words.
- * - "Log" is new: a landing hub (tag recurring items, correct an
- *   account balance, import a statement) for the three things that
- *   used to be scattered under More as separate destinations.
+ * - "Log" is new: a landing hub (add/edit a transaction, correct an
+ *   account balance, import a statement) for the things that used to
+ *   be scattered under More as separate destinations.
  *
- * Accounts, Recurring, and Imports move out of the More-group matcher
- * below accordingly — they're reachable from Log now, not More.
+ * Accounts, Transactions, and Imports move out of the More-group
+ * matcher below accordingly — they're reachable from Log now, not
+ * More. (Recurring used to be here too — removed entirely in v3.4.14,
+ * see docs/00-current-state.md.)
  *
  * v2.5.8: More itself is gone from here — it's a hamburger icon next
  * to the logo in Hero now (components/ui/hero.tsx), not a fifth item
@@ -78,7 +80,7 @@ const PRIMARY_ITEMS: NavItem[] = [
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/log") {
-    return ["/log", "/recurring", "/accounts", "/imports"].some((path) =>
+    return ["/log", "/transactions", "/accounts", "/imports"].some((path) =>
       pathname.startsWith(path),
     );
   }

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   FileText,
-  History,
   ListTree,
   LogOut,
   Settings,
@@ -23,17 +22,15 @@ export const metadata: Metadata = {
  * v2.1.0: Budgets, Accounts, Recurring, and Imports all moved out of
  * here — Budgets was absorbed into Dashboard, and Accounts/Recurring/
  * Imports are reachable from the new Log tab instead. What's left is
- * genuinely secondary: historical browsing, net worth, the Merchant
- * Dictionary's admin screens, tax reporting, and account settings.
+ * genuinely secondary: net worth, the Merchant Dictionary's admin
+ * screens, tax reporting, and account settings.
+ *
+ * v3.4.14: Transactions moved out too, joining Accounts/Imports on
+ * Log — it's the primary add/edit/delete screen again (Recurring,
+ * which used to hold that spot on Log, is gone entirely), so it
+ * belongs one tap away, not filed under secondary/admin screens here.
  */
 const ITEMS = [
-  {
-    href: "/transactions",
-    label: "Transactions",
-    description:
-      "Historical log, read-only — filter and browse what already happened.",
-    icon: History,
-  },
   {
     href: "/net-worth",
     label: "Net worth",

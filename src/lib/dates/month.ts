@@ -40,19 +40,22 @@ export function currentCycleMonth(date: Date = new Date()): string {
 }
 
 /**
- * The last calendar date inside cycle month `cycleMonth`'s own window —
- * "2026-08" (Jul 25 – Aug 24, per currentCycleMonth's rollover rule
- * above) ends on "2026-08-24", the day before it rolls into "2026-09".
- * Always day 24, so no month-length edge cases to handle.
- *
- * v3.1.2: added so a date-driven action can be scoped to whichever
- * cycle is currently being *viewed* rather than literally today — see
- * generateDueTransactionsAction's own comment for why that distinction
- * mattered (Recurring's "Generate due transactions" used to always run
- * against real today, ignoring the cycle shown on screen).
+ * "Aug 25" — when cycle month `cycleMonth` rolls into the next one, per
+ * currentCycleMonth's rollover rule above. Relocated here from the
+ * now-deleted lib/budget/cycle-compare.ts in v3.4.14 (that file was
+ * entirely cycle-over-cycle comparison logic, all deleted alongside
+ * Dashboard's simplification — this one helper is comparison-
+ * independent and still a useful caption, so it moved in with its
+ * sibling date helpers instead of being deleted too).
  */
-export function cycleWindowEnd(cycleMonth: string): string {
-  return `${cycleMonth}-24`;
+export function cycleCloseLabel(month: string): string {
+  const [year, m] = month.split("-").map(Number);
+  const date = new Date(Date.UTC(year, m - 1, 25));
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(date);
 }
 
 export function monthLabel(month: string): string {

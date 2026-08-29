@@ -4,7 +4,7 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.4.13**
+correction layer: what's actually true today, current as of **v3.4.14**
 (August 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
@@ -1545,13 +1545,114 @@ automatic reminder for the same event already fired, or never will.
   Telegram credentials were never exercised in this session, so no
   real message was sent during verification.
 
+## v3.4.14: cycle tracking simplified — Recurring removed, Transactions is primary again, Dashboard is plain totals
+
+A significant rework of the v2.0/v2.1 revamp above (read that section
+first for what this replaces). The household doesn't use the monthly
+cycle income/expense tracking day to day — their real workflow is
+Calendar + credit card PDF imports + Merchant maintenance + Intel's
+card breakdown — and found the Recurring template + bulk-cycle-tag
+workflow that v2.0/v2.1 introduced too complicated. Three changes,
+confirmed via `AskUserQuestion` before planning:
+
+- **`/transactions` is the primary add/edit/delete screen again**,
+  reversing the v2.0.0 read-only demotion. Turned out to be nearly
+  free: `TransactionRow`/`RecentTransactionsSection`'s inline edit
+  (amount/date/cycle-month/memo), delete (confirm-then-void), and
+  mark-paid/pending controls, plus `AddTransactionSection`/
+  `CreateTransactionForm` (kind toggle, account, cycle-month select,
+  single-category-by-default with an opt-in split mode), were already
+  fully built and just unmounted/gated behind `readOnly` — this was a
+  straight re-enable, no schema or service work. `/transactions` moved
+  from More to a card on `/log`'s hub (replacing Recurring's old slot);
+  `src/components/app-nav.tsx`'s Log-tab matcher updated to match.
+- **Recurring (templates + bulk cycle-tag) is deleted entirely** —
+  `src/app/(app)/recurring/`, `src/features/recurring/`,
+  `RecurringTransactionService.ts`, and `lib/dates/recurrence.ts` (the
+  frequency/interval/day-of-month recurrence-rule math, confirmed to
+  have no other importers). Replaced by **"Repeat last cycle"**
+  (`RepeatLastCycleButton.tsx`, `repeatLastCycleAction` in
+  `features/transactions/api/actions.ts`) — a one-tap duplicate of last
+  cycle's whole non-void transaction list into the cycle being viewed,
+  landing as plain, ordinary, fully editable/deletable transactions
+  (dated today, always `status: pending` so they're reviewed/marked
+  paid like any other row — no template concept survives). No dedupe
+  guard: clicking it again duplicates again, same "manual action, no
+  restrictions" call this session already made for the calendar's
+  "Send reminder now" button — the two-step Confirm/No only guards
+  against an accidental tap. The DB tables
+  (`finance.recurring_transactions`, `finance.recurring_transaction_splits`)
+  and `transactions.recurring_transaction_id` (nullable FK) are
+  **deliberately left in place**, orphaned but harmless — same
+  "unlink, don't delete" precedent as `/budgets` below. A follow-up
+  migration to drop them is safe and easy whenever wanted; not done
+  here to avoid any data-loss risk in this pass.
+- **`BudgetSnapshotService` flattened**: `getMonthlyBudgetSnapshot`
+  used to branch each transaction into `SnapshotLine[]`
+  (`income`/`fixedExpenses`, template-linked only) vs. `OneOffLine[]`
+  (everything else) based on `recurringTransactionId`. With templates
+  gone that branch has no basis — it now returns one flat
+  `MonthlyBudgetSnapshot { month, lines: OneOffLine[], incomeTotal, expenseTotal }`,
+  every live (non-void) transaction tagged to the cycle, uniformly
+  shaped. `home-stats.ts`'s `computeCommittedExpenseTotal`/
+  `computeCardDuesTotal` updated to read `snapshot.lines`;
+  `computeProjectedClosing` deleted (its only caller was `/budgets`).
+  `getPlannedCardDuesForMonths` (still used by `IntelService`'s AI
+  insight generation) needed no changes — it only consumes the
+  `Map<string, Money>` return value, never the snapshot shape.
+- **Dashboard simplified to a plain running total** — Income/Expenses/
+  Net stat tiles for the cycle being viewed, no more "vs last cycle"
+  comparison. Deleted `CycleBriefCard` (deficit/surplus meter + summary
+  sentence), `CycleStatGrid` (4-stat "this cycle vs last" grid),
+  `BiggestChanges` (cycle-over-cycle swing tiles), and
+  `lib/budget/cycle-compare.ts` (the comparison math behind all three)
+  — except `cycleCloseLabel`, comparison-independent and still a useful
+  "cycle closes on X" caption, relocated to `lib/dates/month.ts`
+  alongside its sibling date helpers (replacing that file's own
+  `cycleWindowEnd`, which had become dead code once Recurring's
+  `generateDueTransactionsAction` — its only caller — was deleted).
+  `DashboardMonthNav` used to render *inside* `CycleBriefCard`; now
+  rendered directly by the page. The old "Full Breakdown" (two
+  `SplitCard`s, income vs. fixed-expense) and "Logged This Cycle"
+  (`LoggedFeedList`) sections merged into one — once there's no more
+  recurring-vs-one-off distinction, both were showing the same data two
+  different ways; `LoggedFeedList` already rendered exactly the flat,
+  kind-tagged shape this needed, reused completely unchanged.
+- **`/budgets` deleted entirely**, not just left unlinked — confirmed
+  zero live inbound links anywhere (already fully unlinked from nav
+  per the v2.1 revamp above) and it depended on the exact
+  template-routing logic being removed; keeping it would mean
+  maintaining a dead-end page for no reader.
+- **`CardPaymentQuickLog.tsx` stays unmounted** — `LogCardDuePrompt`
+  (Imports flow) already covers "log a card due as a transfer"; a
+  deliberate choice, not an oversight.
+- **Verified**: `npx tsc --noEmit && npx eslint . && npx prettier
+  --check . && npx vitest run` all pass (510, net -3 after removing
+  `cycle-compare.test.ts`/`recurrence.test.ts` and adding new coverage
+  for `BudgetSnapshotService` — its first direct unit tests) and
+  `npm run build` succeeds, with `/recurring` and `/budgets` correctly
+  absent from the route list. Browser-verified against real production
+  data (temporary `PUBLIC_PATHS` entries, reverted before finishing):
+  Transactions' add form and inline edit render correctly with a
+  working cycle-month select; Dashboard's plain stat tiles and merged
+  "Logged This Cycle" list render real numbers; "Repeat last cycle"
+  correctly computed "17 transactions, −₹35,714.00, from August 2026"
+  from real data and its confirm-step rendered correctly — **the
+  actual Confirm click was deliberately not exercised**, to avoid
+  writing 17 real duplicate transactions into the household's
+  production database without checking first; `/recurring` and
+  `/budgets` both 404; `/log` shows Transactions/Accounts/Imports, no
+  Recurring.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions
-  (income/expense/transfer/split, now read-only day-to-day — see the
-  revamp section above), recurring transactions (cycle-tagged, not
-  individually posted), budgets (now shown on Dashboard, not a separate
-  tab), attachments, assets/liabilities/loans, net worth.
+  (income/expense/transfer/split — `/transactions` is the primary
+  add/edit/delete screen again as of v3.4.14, see that section),
+  attachments, assets/liabilities/loans, net worth. Recurring
+  (templates + bulk cycle-tag) and `/budgets` were both removed
+  entirely in v3.4.14 — a transaction is tagged to a cycle directly on
+  Transactions now, no separate template/planning layer.
 - **Credit card statement imports**: upload a PDF (password-protected or
   not), it's parsed deterministically (no LLM) into a structured statement
   + transaction rows, reconciled against the statement's own printed

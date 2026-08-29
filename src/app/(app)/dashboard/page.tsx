@@ -1,6 +1,5 @@
-import Link from "next/link";
 import type { Metadata } from "next";
-import { Repeat } from "lucide-react";
+import Link from "next/link";
 
 import { requireUser } from "@/lib/auth/require-user";
 import { listAccounts } from "@/services/AccountService";
@@ -11,77 +10,59 @@ import {
   formatMoneyDisplay,
   isNegativeMoney,
   negateMoney,
-  sumMoney,
 } from "@/lib/money";
-import {
-  computeCardDuesTotal,
-  computeCommittedExpenseTotal,
-} from "@/lib/budget/home-stats";
-import {
-  buildCycleSummary,
-  computeBiggestChanges,
-  computeCycleDelta,
-  cycleCloseLabel,
-  findLargestExpenseName,
-  meterPosition,
-  pickCycleState,
-} from "@/lib/budget/cycle-compare";
+import { computeCommittedExpenseTotal } from "@/lib/budget/home-stats";
 import {
   currentCycleMonth,
+  cycleCloseLabel,
   isValidMonth,
   monthLabel,
   shiftMonth,
 } from "@/lib/dates/month";
 import { Hero } from "@/components/ui/hero";
-import { SplitCard } from "@/components/ui/split-card";
 import { SectionHeading } from "@/features/dashboard/components/SectionHeading";
-import { CycleBriefCard } from "@/features/dashboard/components/CycleBriefCard";
-import {
-  CycleStatGrid,
-  type CycleStat,
-} from "@/features/dashboard/components/CycleStatGrid";
-import { BiggestChanges } from "@/features/dashboard/components/BiggestChanges";
+import { DashboardMonthNav } from "@/features/dashboard/components/DashboardMonthNav";
 import { LoggedFeedList } from "@/features/dashboard/components/LoggedFeedList";
+import { RepeatLastCycleButton } from "@/features/dashboard/components/RepeatLastCycleButton";
 
 export const metadata: Metadata = {
   title: "Dashboard",
 };
 
 /**
- * v2.1: absorbs Budgets entirely — one monthly-cycle budget view instead
- * of two nearly-identical pages (a condensed Home glance that just linked
- * out to a separate, fuller Budgets page for the real breakdown). The
- * household's own framing for this version: Dashboard is "where I see
- * the budget: monthly cycle-wise break up of expenses/income" — so this
- * now shows both the quick glance (income/expenses/net stat row) AND the
- * full editable-style breakdown (every recurring income/fixed-expense
- * line, plus one-off/card-due items tagged to this cycle) on one screen,
- * exactly what /budgets used to show, sourced from the same
- * getMonthlyBudgetSnapshot data.
+ * v3.4.14 rewrite: a plain running total, replacing the v3.1.0
+ * comparison-framed rebuild below (kept for history). Recurring
+ * (templates + bulk cycle-tag) is gone entirely — the household found
+ * it too complicated for how they actually use the app — and this page
+ * no longer compares this cycle against last cycle's snapshot at all;
+ * it just shows what's real: this cycle's income, expenses, net, and
+ * the actual list of what's logged, sourced from
+ * BudgetSnapshotService's own flattened shape (see that service's
+ * v3.4.14 comment). The old "Full Breakdown" (two SplitCards, income
+ * vs. fixed-expense) and "Logged This Cycle" (LoggedFeedList) sections
+ * showed the same underlying data two different ways once there's no
+ * more recurring-vs-one-off distinction — merged into one list here,
+ * reusing LoggedFeedList unchanged. The old `/recurring` link-card is
+ * replaced by `RepeatLastCycleButton` — Recurring's replacement, a
+ * one-tap duplicate of last cycle's transactions into this one.
  *
- * /budgets itself is left running, untouched, in case anything still
- * links to it directly — it's just no longer in More's nav, since
- * everything it showed now lives here.
+ * `DashboardMonthNav` used to render *inside* the now-deleted
+ * CycleBriefCard; it's rendered directly here now — it's the real
+ * prev/next/Today cycle pager, not cosmetic.
  *
- * No accounts balance strip (removed in v2.0, still gone) and no "mark
- * as paid" anywhere — whatever's tagged to a cycle (via Recurring, see
- * Log) is assumed to happen. Editing/tagging still happens on Recurring;
- * this page is a read of that same data, not a second place to edit it.
+ * (v3.1.0, superseded above): the household pointed at another app's
+ * header/dashboard for a "more professional finance planner" look —
+ * net moved into a Cycle Brief card (deficit/surplus meter + summary
+ * sentence), a 4-stat "this cycle vs last" grid, and a "Biggest
+ * Changes" comparison section. All three needed a second
+ * getMonthlyBudgetSnapshot(prevMonth) call and lib/budget/cycle-compare.ts
+ * (now deleted) to build.
  *
- * v3.1.0 rebuild: the household pointed at another app's header and
- * dashboard for a "more professional finance planner" look — see
- * Hero's own v3.1.0 comment for the header half, and
- * lib/budget/cycle-compare.ts for the pure logic behind everything
- * below. Concretely: the net figure moved out of Hero into a new
- * "Cycle Brief" card (a deficit/surplus meter plus a real, data-only
- * summary paragraph); the old 3-stat "at a glance" row is replaced by
- * a 4-stat grid compared against last cycle's snapshot (one extra
- * getMonthlyBudgetSnapshot call — the function already takes any
- * month, no schema change needed); "Biggest Changes" is new, built
- * from the same two snapshots; the Full breakdown split-cards and the
- * bottom Recurring/Intel link-cards are unchanged. "Logged this
- * cycle" is restyled (pill tags instead of a plain list) but reads
- * the exact same snapshot.oneOff data as before.
+ * (v2.1, superseded further back): absorbed Budgets entirely — one
+ * monthly-cycle budget view instead of two nearly-identical pages.
+ * `/budgets` itself is now deleted too (v3.4.14) — it depended on the
+ * exact recurring-template routing that's gone, and nothing linked to
+ * it anymore anyway.
  */
 export default async function DashboardPage({
   searchParams,
@@ -104,109 +85,40 @@ export default async function DashboardPage({
   const currency = settings?.baseCurrency ?? "USD";
   const accountName = new Map(accounts.map((a) => [a.id, a.name]));
 
-  function cycleTotals(snap: typeof snapshot) {
-    const oneOffIncome = sumMoney(
-      snap.oneOff.filter((l) => l.kind === "income").map((l) => l.amount),
-    );
-    const totalIncome = addMoney(snap.incomeTotal, oneOffIncome);
-    const totalExpense = computeCommittedExpenseTotal(snap);
-    const net = addMoney(totalIncome, negateMoney(totalExpense));
-    const cardDues = computeCardDuesTotal(snap);
-    return { totalIncome, totalExpense, net, cardDues };
-  }
+  const expenseTotal = computeCommittedExpenseTotal(snapshot);
+  const net = addMoney(snapshot.incomeTotal, negateMoney(expenseTotal));
+  const netIsNegative = isNegativeMoney(net);
+  const netDisplay = `${netIsNegative ? "−" : "+"}${formatMoneyDisplay(netIsNegative ? negateMoney(net) : net, currency)}`;
 
-  const current = cycleTotals(snapshot);
-  const previous = cycleTotals(prevSnapshot);
+  const stats = [
+    {
+      label: "Income",
+      display: `+${formatMoneyDisplay(snapshot.incomeTotal, currency)}`,
+      tone: "text-positive",
+    },
+    {
+      label: "Expenses",
+      display: `−${formatMoneyDisplay(expenseTotal, currency)}`,
+      tone: "text-negative",
+    },
+    {
+      label: "Net",
+      display: netDisplay,
+      tone: netIsNegative ? "text-negative" : "text-positive",
+    },
+  ];
 
-  const netIsNegative = isNegativeMoney(current.net);
-  const netAbsolute = netIsNegative ? negateMoney(current.net) : current.net;
-  const netDisplay = `${netIsNegative ? "−" : "+"}${formatMoneyDisplay(netAbsolute, currency)}`;
-
-  const oneOffTotal = sumMoney(
-    snapshot.oneOff
-      .filter(
-        (line) => line.kind !== "transfer" || line.transferReducesCashOnHand,
-      )
-      .map((line) =>
-        line.kind === "income" ? line.amount : negateMoney(line.amount),
-      ),
+  // "Repeat last cycle" preview — same live-only, non-void set the
+  // action itself will actually copy (BudgetSnapshotService already
+  // filters void rows out of `lines`), so this count/total is exactly
+  // what clicking through will do, not an approximation.
+  const prevExpenseTotal = computeCommittedExpenseTotal(prevSnapshot);
+  const prevNet = addMoney(
+    prevSnapshot.incomeTotal,
+    negateMoney(prevExpenseTotal),
   );
-
-  // Cycle Brief
-  const cycleState = pickCycleState(current.net, current.totalIncome);
-  const netDelta = computeCycleDelta(current.net, previous.net);
-  const qualifier =
-    netDelta.direction === "pos"
-      ? "Better than last cycle"
-      : netDelta.direction === "neg"
-        ? "Tighter than last cycle"
-        : "About the same as last cycle";
-  const meterPct = meterPosition(
-    current.net,
-    addMoney(current.totalIncome, current.totalExpense),
-  );
-  const summary = buildCycleSummary({
-    totalIncome: current.totalIncome,
-    net: current.net,
-    currency,
-    largestExpenseName: findLargestExpenseName(snapshot),
-  });
-  const closeLabel = cycleCloseLabel(month);
-
-  // This Cycle vs Last
-  const stats: CycleStat[] = (
-    [
-      {
-        label: "Income",
-        current: current.totalIncome,
-        previous: previous.totalIncome,
-        moreIsGood: true,
-      },
-      {
-        label: "Expenses",
-        current: current.totalExpense,
-        previous: previous.totalExpense,
-        moreIsGood: false,
-      },
-      {
-        label: "Net",
-        current: current.net,
-        previous: previous.net,
-        moreIsGood: true,
-      },
-      {
-        label: "Card dues",
-        current: current.cardDues,
-        previous: previous.cardDues,
-        moreIsGood: false,
-      },
-    ] as const
-  ).map(({ label, current: cur, previous: prev, moreIsGood }) => {
-    const delta = computeCycleDelta(cur, prev);
-    const curNeg = isNegativeMoney(cur);
-    const prevNeg = isNegativeMoney(prev);
-    return {
-      label,
-      valueDisplay: `${curNeg ? "−" : label === "Net" ? "+" : ""}${formatMoneyDisplay(curNeg ? negateMoney(cur) : cur, currency)}`,
-      prevDisplay: `${prevNeg ? "−" : label === "Net" ? "+" : ""}${formatMoneyDisplay(prevNeg ? negateMoney(prev) : prev, currency)}`,
-      current: cur,
-      previous: prev,
-      direction:
-        delta.direction === "flat"
-          ? "flat"
-          : (delta.direction === "pos") === moreIsGood
-            ? "pos"
-            : "neg",
-      changeLabel: delta.label ?? "No change",
-    } satisfies CycleStat;
-  });
-
-  // Biggest Changes
-  const biggestChanges = computeBiggestChanges(
-    snapshot,
-    prevSnapshot,
-    currency,
-  );
+  const prevNetIsNegative = isNegativeMoney(prevNet);
+  const prevNetDisplay = `${prevNetIsNegative ? "−" : "+"}${formatMoneyDisplay(prevNetIsNegative ? negateMoney(prevNet) : prevNet, currency)}`;
 
   return (
     <div>
@@ -214,137 +126,46 @@ export default async function DashboardPage({
 
       <div className="space-y-6 p-5 sm:p-8">
         <section>
-          <SectionHeading index="01" title="Cycle Brief" meta="this cycle" />
-          <CycleBriefCard
-            month={month}
-            isCurrentMonth={isCurrentMonth}
-            state={cycleState}
-            qualifier={qualifier}
-            qualifierTone={netDelta.direction}
-            netDisplay={netDisplay}
-            meterPct={meterPct}
-            summary={summary}
-            closeLabel={closeLabel}
+          <SectionHeading
+            index="01"
+            title="This Cycle"
+            meta={`closes ${cycleCloseLabel(month)}`}
           />
+          <DashboardMonthNav month={month} isCurrentMonth={isCurrentMonth} />
+          <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+            {stats.map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-2xl border border-line bg-surface p-3"
+              >
+                <div className="text-[11px] font-semibold text-ink-soft">
+                  {stat.label}
+                </div>
+                <div
+                  className={`mt-1 truncate font-display text-lg font-extrabold tracking-tight ${stat.tone}`}
+                >
+                  {stat.display}
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section>
           <SectionHeading
             index="02"
-            title="This Cycle vs Last"
-            meta="4 figures"
-          />
-          <CycleStatGrid stats={stats} />
-        </section>
-
-        <section>
-          <SectionHeading
-            index="03"
-            title="Biggest Changes"
-            meta="vs last cycle"
-          />
-          <BiggestChanges tiles={biggestChanges} />
-        </section>
-
-        <section>
-          <SectionHeading
-            index="04"
-            title="Full Breakdown"
+            title="Logged This Cycle"
             meta={monthLabel(month)}
           />
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <SplitCard
-              title="Income & receivables"
-              titleColorClass="text-positive"
-              total={`+${formatMoneyDisplay(snapshot.incomeTotal, currency)}`}
-              isEmpty={snapshot.income.length === 0}
-            >
-              {snapshot.income.map((line) => (
-                <li
-                  key={line.id}
-                  className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-3 last:border-b-0"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-ink">
-                      {line.name}
-                    </p>
-                    {line.status === "pending" && (
-                      <p className="text-[11px] text-ink-faint">Not yet paid</p>
-                    )}
-                  </div>
-                  <p className="whitespace-nowrap font-display text-sm font-bold text-positive">
-                    +{formatMoneyDisplay(line.amount, line.currencyCode)}
-                  </p>
-                </li>
-              ))}
-            </SplitCard>
-
-            <SplitCard
-              title="Fixed expenses"
-              titleColorClass="text-negative"
-              total={`−${formatMoneyDisplay(snapshot.fixedExpenseTotal, currency)}`}
-              isEmpty={snapshot.fixedExpenses.length === 0}
-            >
-              {snapshot.fixedExpenses.map((line) => (
-                <li
-                  key={line.id}
-                  className="flex items-center justify-between gap-3 border-b border-line px-[18px] py-3 last:border-b-0"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-ink">
-                      {line.name}
-                    </p>
-                    {line.status === "pending" && (
-                      <p className="text-[11px] text-ink-faint">Not yet paid</p>
-                    )}
-                  </div>
-                  <p className="whitespace-nowrap font-display text-sm font-bold text-negative">
-                    &minus;
-                    {formatMoneyDisplay(line.amount, line.currencyCode)}
-                  </p>
-                </li>
-              ))}
-            </SplitCard>
-          </div>
+          <LoggedFeedList items={snapshot.lines} accountName={accountName} />
         </section>
 
-        <section>
-          <SectionHeading
-            index="05"
-            title="Logged This Cycle"
-            meta={`${formatMoneyDisplay(oneOffTotal, currency)} net`}
-          />
-          <LoggedFeedList items={snapshot.oneOff} accountName={accountName} />
-        </section>
-
-        <p className="text-xs text-ink-faint">
-          Recurring items only show up here once tagged to this cycle &mdash;
-          tag templates, edit amounts, or delete them on{" "}
-          <Link href="/log" className="underline">
-            Log
-          </Link>
-          .
-        </p>
-
-        <Link
-          href="/recurring"
-          className="flex items-center gap-3 rounded-[20px] bg-surface p-5 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]"
-        >
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-[11px] bg-accent-soft text-accent">
-            <Repeat className="size-4.5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="font-display text-[14.5px] font-extrabold text-ink">
-              Key in or edit this cycle
-            </div>
-            <div className="mt-0.5 text-[11.5px] text-ink-faint">
-              Tag recurring income/expenses to {monthLabel(month)} on Recurring
-            </div>
-          </div>
-          <span className="shrink-0 font-display text-xs font-bold text-accent">
-            Go &rarr;
-          </span>
-        </Link>
+        <RepeatLastCycleButton
+          targetMonth={month}
+          lastCycleLabel={monthLabel(prevMonth)}
+          count={prevSnapshot.lines.length}
+          totalDisplay={prevNetDisplay}
+        />
 
         <Link
           href="/intel"

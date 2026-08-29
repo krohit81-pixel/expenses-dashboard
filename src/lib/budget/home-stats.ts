@@ -1,49 +1,22 @@
-import { addMoney, negateMoney, sumMoney, type Money } from "@/lib/money";
+import { sumMoney, type Money } from "@/lib/money";
 import type { MonthlyBudgetSnapshot } from "@/services/BudgetSnapshotService";
 
 /**
- * All income (recurring + one-off) minus everything committed to go out
- * (fixed recurring expenses, card payments, and other one-off expenses)
- * — "will this month end up positive."
+ * Every logged expense this cycle, plus transfers that behave like a
+ * real cash outflow (paying down a card/loan — see
+ * BudgetSnapshotService's comment on `transferReducesCashOnHand`). Used
+ * for Dashboard's Net figure and by Intel's month-on-month chart/donut
+ * for "how much will this month cost."
  *
- * One-off income counts here now — it didn't in an earlier version,
- * which excluded it as "not income receivables specifically." That fell
- * apart on a real case: a one-off entry representing starting cash
- * ("Balance left in July," tagged as income) sat outside the formula
- * entirely and made the projected balance read as far more negative
- * than the person's actual position. Any money coming in should offset
- * money going out regardless of whether it's recurring or one-off —
- * the narrower reading was over-strict, not the intended behavior.
- *
- * v1.1.4 excluded every transfer from oneOffCommitted, reasoning that a
- * transfer between your own accounts doesn't change your overall
- * position. True for net worth, but this figure is a cash-on-hand
- * projection, not a net-worth one — v1.1.4 went too far and stopped
- * subtracting real credit-card payments too (a transfer TO a card is a
- * real cash outflow this cycle, even though it doesn't touch net
- * worth). v1.1.5 narrows it back: a transfer only contributes to
- * oneOffCommitted when transferReducesCashOnHand is true (destination
- * isn't a spendable account — see BudgetSnapshotService and
- * lib/accounts/spendable.ts). A transfer between two spendable accounts
- * still contributes nothing, same as v1.1.4 intended.
- */
-/**
- * Fixed recurring expenses plus one-off items that behave like a real
- * cash outflow this month (real expenses, and transfers that reduce
- * cash on hand — see BudgetSnapshotService's comment on
- * transferReducesCashOnHand). This is the "committed" half of
- * computeProjectedClosing below, split out as its own function (v1.2)
- * so Intel's month-on-month chart and donut can reuse the exact same
- * "how much will this month cost" figure for a not-yet-real future
- * month (a snapshot for a month with no actual transactions yet still
- * has real fixedExpenses/oneOff data once recurring items are tagged
- * to that cycle) instead of a third hand-copy of this filter.
+ * v3.4.14: simplified alongside BudgetSnapshotService's flattening —
+ * there's no more separate "fixed recurring expenses" total to add on
+ * top of; every expense line lives in `snapshot.lines` now.
  */
 export function computeCommittedExpenseTotal(
   snapshot: MonthlyBudgetSnapshot,
 ): Money {
-  const oneOffCommitted = sumMoney(
-    snapshot.oneOff
+  return sumMoney(
+    snapshot.lines
       .filter(
         (line) =>
           line.kind === "expense" ||
@@ -51,7 +24,6 @@ export function computeCommittedExpenseTotal(
       )
       .map((line) => line.amount),
   );
-  return addMoney(snapshot.fixedExpenseTotal, oneOffCommitted);
 }
 
 /**
@@ -74,28 +46,15 @@ export function computeCommittedExpenseTotal(
  * household's true obligation until every card has a parser (today,
  * only one of theirs does) -- this planned/logged figure is whatever
  * they've already tagged for that cycle (e.g. via "Log a card
- * payment" on Transactions, during Atlas's own Planning phase), which
- * is complete regardless of parser coverage.
+ * payment" on Transactions), which is complete regardless of parser
+ * coverage.
  */
 export function computeCardDuesTotal(snapshot: MonthlyBudgetSnapshot): Money {
   return sumMoney(
-    snapshot.oneOff
+    snapshot.lines
       .filter(
         (line) => line.kind === "transfer" && line.transferReducesCashOnHand,
       )
       .map((line) => line.amount),
   );
-}
-
-export function computeProjectedClosing(
-  snapshot: MonthlyBudgetSnapshot,
-): Money {
-  const oneOffIncome = sumMoney(
-    snapshot.oneOff
-      .filter((line) => line.kind === "income")
-      .map((line) => line.amount),
-  );
-  const totalIncome = addMoney(snapshot.incomeTotal, oneOffIncome);
-  const totalCommitted = computeCommittedExpenseTotal(snapshot);
-  return addMoney(totalIncome, negateMoney(totalCommitted));
 }

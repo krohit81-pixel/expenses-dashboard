@@ -3,28 +3,32 @@ import type { Metadata } from "next";
 import { listTransactions } from "@/services/TransactionService";
 import { listAccounts } from "@/services/AccountService";
 import { listCategories } from "@/services/CategoryService";
+import { getUserSettings } from "@/services/UserSettingsService";
+import { requireUser } from "@/lib/auth/require-user";
 import { Hero } from "@/components/ui/hero";
 import { RecentTransactionsSection } from "@/features/transactions/components/RecentTransactionsSection";
+import { AddTransactionSection } from "@/features/transactions/components/AddTransactionSection";
 
 export const metadata: Metadata = {
   title: "Transactions",
 };
 
 /**
- * v2.0.0: retired as a primary destination (dropped from the bottom
- * nav) and demoted to a read-only historical log, reachable from
- * More. The household is moving Atlas away from an execution/logging
- * app toward a reporting one — "key in what a cycle is expected to
- * look like" now happens entirely on Recurring (tag a template to a
- * cycle) and Budgets (view/edit what's tagged), neither of which
- * needed anything from this page to begin with. What's gone from
- * here specifically: CardPaymentQuickLog (logging a card due as a
- * one-off transfer) and AddTransactionSection (ad-hoc income/expense/
- * transfer entry) — both still exist as files, just unused, in case a
- * future version wants either back. RecentTransactionsSection is
- * still rendered, but with readOnly passed all the way down to
- * TransactionRow — no edit, delete, or mark-paid/pending controls on
- * any row anymore, just a filterable list of what already happened.
+ * v3.4.14: back to being the app's primary add/edit/delete screen — the
+ * v2.0.0 read-only demotion (below, kept for history) is reversed. The
+ * household found the Recurring-template + bulk-cycle-tag workflow that
+ * replaced direct entry too complicated and wasn't using it; Recurring
+ * is now deleted entirely (see docs/00-current-state.md) and this page
+ * is where a transaction gets added, edited, deleted, and tagged to a
+ * cycle again — `AddTransactionSection`/`CreateTransactionForm` and
+ * `TransactionRow`'s inline edit/delete/mark-paid controls already
+ * existed, fully built, just unmounted/hidden behind `readOnly` since
+ * v2.0.0; this is a straight re-enable, no new form/schema work.
+ *
+ * (v2.0.0, superseded above): retired as a primary destination and
+ * demoted to a read-only historical log — "key in what a cycle is
+ * expected to look like" moved entirely to Recurring/Budgets. Both
+ * those pages are gone now too.
  */
 
 interface TransactionsPageProps {
@@ -46,17 +50,21 @@ export default async function TransactionsPage({
 
   const kind = KIND_VALUES.find((value) => value === params.kind);
 
-  const [accounts, categories, { transactions, total }] = await Promise.all([
-    listAccounts(),
-    listCategories(true),
-    listTransactions({
-      accountId: params.account || undefined,
-      kind,
-      search: params.search || undefined,
-      occurredFrom: params.from || undefined,
-      occurredTo: params.to || undefined,
-    }),
-  ]);
+  const user = await requireUser();
+  const [accounts, categories, settings, { transactions, total }] =
+    await Promise.all([
+      listAccounts(),
+      listCategories(true),
+      getUserSettings(user.id),
+      listTransactions({
+        accountId: params.account || undefined,
+        kind,
+        search: params.search || undefined,
+        occurredFrom: params.from || undefined,
+        occurredTo: params.to || undefined,
+      }),
+    ]);
+  const defaultCurrency = settings?.baseCurrency ?? "USD";
 
   const accountName = new Map(
     accounts.map((account) => [account.id, account.name]),
@@ -71,10 +79,17 @@ export default async function TransactionsPage({
     <div>
       <Hero
         title="Transactions"
-        sub="Read-only historical log. To key in what a cycle is expected to look like, use Recurring or Budgets."
+        sub="Add, edit, delete, and tag every transaction to a cycle."
       />
 
       <div className="space-y-6 p-5 sm:p-8">
+        <AddTransactionSection
+          accounts={accounts}
+          categories={categories}
+          defaultCurrency={defaultCurrency}
+          hasAccounts={accounts.length > 0}
+        />
+
         <div className="rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
           <h2 className="mb-3 font-display text-[15px] font-bold text-ink">
             Filter
@@ -182,7 +197,6 @@ export default async function TransactionsPage({
           total={total}
           accountName={accountName}
           categoryName={categoryName}
-          readOnly
         />
       </div>
     </div>

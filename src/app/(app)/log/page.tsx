@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Landmark, Repeat, Upload } from "lucide-react";
+import { Landmark, Receipt, Upload } from "lucide-react";
 
 import { Hero } from "@/components/ui/hero";
 
@@ -10,11 +10,10 @@ export const metadata: Metadata = {
 
 const ITEMS = [
   {
-    href: "/recurring",
-    label: "Recurring",
-    description:
-      "Tag templates to this cycle — everything due starts pre-selected.",
-    icon: Repeat,
+    href: "/transactions",
+    label: "Transactions",
+    description: "Add, edit, or delete a transaction — tag it to a cycle.",
+    icon: Receipt,
   },
   {
     href: "/accounts",
@@ -31,21 +30,22 @@ const ITEMS = [
 ] as const;
 
 /**
- * v2.1: new primary tab, replacing Transactions in the bottom nav. The
- * household's own framing: day-to-day "logging" is really three distinct
- * things — tagging recurring income/expenses to a cycle, correcting an
- * account balance that's drifted from reality, and importing a credit
- * card statement — each already a full page in its own right, so this is
- * a landing hub rather than one giant merged screen. Everything else
- * (net worth, merchants, categories, settings, the read-only Transactions
- * history) stays under More.
+ * v2.1: new primary tab, replacing Transactions in the bottom nav (a
+ * landing hub for the things that used to be scattered under More).
+ *
+ * v3.4.14: the Recurring card is gone — Recurring (templates + bulk
+ * cycle-tag) was removed entirely, too complicated for how this
+ * household actually uses the app (see docs/00-current-state.md).
+ * Transactions takes its place instead: it's the primary add/edit/
+ * delete/cycle-tag screen again (reversing its v2.0.0 read-only
+ * demotion), so it belongs here, one tap away, rather than under More.
  */
 export default function LogPage() {
   return (
     <div>
       <Hero
         title="Log"
-        sub="Tag recurring items, correct a balance, or import a statement."
+        sub="Add or edit a transaction, correct a balance, or import a statement."
       />
       <div className="space-y-4 p-5 sm:p-8">
         <ul className="rounded-[20px] bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
