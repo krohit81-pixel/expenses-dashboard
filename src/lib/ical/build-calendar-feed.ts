@@ -33,30 +33,48 @@ import type { RecurringCalendarEvent } from "@/services/RecurringCalendarEventSe
 
 const SCHOOL_PERSON_NAME = { ahaana: "Ahaana", rohana: "Rohana" } as const;
 
+// Rohana studies in Singapore -- her own recurring classes (and any
+// future timed event tagged to her) are wall-clock SINGAPORE time
+// (UTC+8, no DST), not IST like the rest of the household's own base
+// in India (UTC+5:30, no DST). "Calculus, Tuesday 8am" means 8am in
+// Singapore, not 8am IST -- household-confirmed, not a guess. Neither
+// zone observes DST, so a fixed numeric offset is safe year-round.
+const IST_OFFSET_MINUTES = 5 * 60 + 30;
+const SINGAPORE_OFFSET_MINUTES = 8 * 60;
+
+/** Rohana is the only household member based outside India (see travelers.ts's known four) -- her own tagged items are Singapore time, everyone else's (or an untagged item) is IST, the household's own base. */
+function offsetMinutesFor(people: string[]): number {
+  return people.includes("Rohana")
+    ? SINGAPORE_OFFSET_MINUTES
+    : IST_OFFSET_MINUTES;
+}
+
 /**
- * A Date whose UTC-field getters equal the given IST wall-clock
- * date+time — NOT the real UTC instant it represents. Paired with
- * `floating: true` (never `timezone: "Asia/Kolkata"`) on the event.
+ * The real UTC instant a wall-clock date+time represents, given the
+ * zone it's actually in (IST or Singapore — see offsetMinutesFor).
+ * Deliberately produces a plain UTC instant with NO `timezone` or
+ * `floating` field set on the event, so `ical-generator` serializes it
+ * as a real `DTSTART...Z` value using `Date#getUTCHours()` etc.
  *
- * This looks backwards, but it's a deliberate, confirmed workaround:
- * `ical-generator`'s own DTSTART/RRULE-UNTIL formatting, when an
- * event declares a `timezone`, reads the Date back out using the
- * RUNNING NODE PROCESS's *local* getters (`getHours()`, `getMinutes()`
- * — the server's own system timezone), not a real IANA conversion of
- * the given TZID. On Vercel (server TZ is UTC) that silently shifted
- * every timed event and recurring rule by the full IST offset — a bug
- * that stayed invisible testing locally in this sandbox, whose own
- * system timezone already happens to be Asia/Calcutta. Confirmed with
- * `TZ=UTC node -e ...` reproducing the shift, and fixed by sidestepping
- * that whole code path: a floating (TZID-less) event has its digits
- * read via `getUTCHours()` etc. instead, so constructing the Date's
- * UTC fields to equal the target wall-clock time directly, with no
- * `timezone` field on the event at all, is what actually produces the
- * correct output regardless of the server's own system timezone. A
- * floating time is also the semantically right choice here anyway —
- * this calendar's entire audience is in India already.
+ * That's a deliberate, confirmed choice, not the obvious one: setting a
+ * per-event `timezone` (a real TZID) sounds like the "more correct"
+ * option, but `ical-generator`'s own DTSTART/RRULE-UNTIL formatting, in
+ * that mode, reads the Date back out using the RUNNING NODE PROCESS's
+ * own *local* getters (`getHours()`, `getMinutes()`) instead of doing
+ * a real IANA conversion of the declared TZID — on Vercel (server TZ:
+ * UTC) that silently shifted every timed event by a fixed offset, a
+ * bug that stayed invisible testing locally in this sandbox, whose own
+ * system timezone happens to already be Asia/Calcutta (see git history
+ * for the confirmed repro). A real UTC-Z timestamp sidesteps that
+ * broken code path entirely — it's also the only representation that
+ * displays correctly for BOTH audiences at once: Rohana's own
+ * Singapore-set device shows her classes at the true Singapore
+ * wall-clock time, while a household member viewing the same shared
+ * feed from India sees the same real-world instant correctly converted
+ * to IST — which a single floating/local wall-clock value could never
+ * do for two viewers in different zones.
  */
-function wallClockDateTime(date: string, time: string): Date {
+function utcInstant(date: string, time: string, offsetMinutes: number): Date {
   const [hours, minutes] = time.split(":").map(Number);
   return new Date(
     Date.UTC(
@@ -65,7 +83,8 @@ function wallClockDateTime(date: string, time: string): Date {
       Number(date.slice(8, 10)),
       hours,
       minutes,
-    ),
+    ) -
+      offsetMinutes * 60_000,
   );
 }
 
@@ -125,7 +144,7 @@ function reminderAlarms(
     : alarmDaysBefore(remindLeadDays);
 }
 
-/** School items are static in-code data with no per-item reminder toggle -- they already always get a fixed 1-day-before Telegram reminder (see ReminderService.ts's own SCHOOL_CALENDAR_LEAD_DAYS); this is that same fixed lead time, kept as its own copy here for the same "each pure module keeps its own tiny constant" reasoning as wallClockDateTime's IST handling used to. */
+/** School items are static in-code data with no per-item reminder toggle -- they already always get a fixed 1-day-before Telegram reminder (see ReminderService.ts's own SCHOOL_CALENDAR_LEAD_DAYS); this is that same fixed lead time, kept as its own copy here for the same "each pure module keeps its own tiny constant" reasoning as offsetMinutesFor's IST/Singapore handling. */
 const SCHOOL_CALENDAR_LEAD_DAYS = 1;
 
 function tripToEvent(trip: Trip): ICalEventData {
@@ -190,12 +209,12 @@ function calendarEventToEvent(event: CalendarEvent): ICalEventData {
   // CalendarEventService has no separate end-time column -- one hour
   // is a reasonable default duration for a timed appointment, not a
   // fact the data actually states.
-  const start = wallClockDateTime(event.startDate, event.startTime);
+  const offset = offsetMinutesFor(event.people);
+  const start = utcInstant(event.startDate, event.startTime, offset);
   return {
     id: `atlas-event-${event.id}`,
     start,
     end: new Date(start.getTime() + 60 * 60_000),
-    floating: true,
     summary: event.title,
     description,
     categories: category(TAG_LABELS[event.tag]),
@@ -204,11 +223,11 @@ function calendarEventToEvent(event: CalendarEvent): ICalEventData {
 }
 
 function recurringRuleToEvent(rule: RecurringCalendarEvent): ICalEventData {
+  const offset = offsetMinutesFor(rule.people);
   return {
     id: `atlas-recurring-${rule.id}`,
-    start: wallClockDateTime(rule.startDate, rule.startTime),
-    end: wallClockDateTime(rule.startDate, rule.endTime),
-    floating: true,
+    start: utcInstant(rule.startDate, rule.startTime, offset),
+    end: utcInstant(rule.startDate, rule.endTime, offset),
     summary: rule.title,
     description: joinNonEmpty([
       rule.people.length > 0 ? `Tagged: ${rule.people.join(", ")}` : null,
@@ -219,7 +238,7 @@ function recurringRuleToEvent(rule: RecurringCalendarEvent): ICalEventData {
     repeating: {
       freq: ICalEventRepeatingFreq.WEEKLY,
       byDay: rule.daysOfWeek.map((day) => DAY_TO_ICAL_WEEKDAY[day]),
-      until: wallClockDateTime(rule.endDate, "23:59"),
+      until: utcInstant(rule.endDate, "23:59", offset),
     },
     // A VALARM on a recurring VEVENT applies to every instance the
     // RRULE generates, each firing relative to that instance's own

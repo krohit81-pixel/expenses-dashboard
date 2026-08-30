@@ -149,23 +149,46 @@ describe("buildCalendarFeedEvents — manual calendar events", () => {
     expect(event.floating).toBeUndefined();
   });
 
-  it("is a floating-time event defaulting to a 1-hour duration when startTime is set", () => {
+  it("is a real UTC-instant event (no timezone/floating field) defaulting to a 1-hour duration, IST for a non-Rohana event", () => {
     const [event] = buildCalendarFeedEvents(
       [],
       [],
-      [calendarEvent({ startDate: "2026-09-02", startTime: "18:00" })],
+      [
+        calendarEvent({
+          people: ["Rohit"],
+          startDate: "2026-09-02",
+          startTime: "18:00",
+        }),
+      ],
       [],
     );
-    // Floating (no `timezone`), not real-instant UTC math -- see
-    // wallClockDateTime's own comment for why: the Date's UTC-field
-    // getters carry the wall-clock digits directly.
-    expect(event.floating).toBe(true);
+    expect(event.floating).toBeUndefined();
     expect(event.timezone).toBeUndefined();
     expect(event.allDay).toBeUndefined();
     const start = event.start as Date;
     const end = event.end as Date;
     expect(end.getTime() - start.getTime()).toBe(60 * 60_000);
-    expect(start.toISOString()).toBe("2026-09-02T18:00:00.000Z");
+    // 18:00 IST == 12:30 UTC.
+    expect(start.toISOString()).toBe("2026-09-02T12:30:00.000Z");
+  });
+
+  it("uses the Singapore offset instead when the event is tagged to Rohana", () => {
+    const [event] = buildCalendarFeedEvents(
+      [],
+      [],
+      [
+        calendarEvent({
+          people: ["Rohana"],
+          startDate: "2026-09-02",
+          startTime: "18:00",
+        }),
+      ],
+      [],
+    );
+    // 18:00 Singapore (UTC+8) == 10:00 UTC.
+    expect((event.start as Date).toISOString()).toBe(
+      "2026-09-02T10:00:00.000Z",
+    );
   });
 
   it("lists tagged people and notes in the description", () => {
@@ -189,36 +212,59 @@ describe("buildCalendarFeedEvents — recurring rules", () => {
     });
   });
 
-  it("anchors start/end on the rule's own start date and start/end time, as floating local time", () => {
+  it("anchors start/end on the rule's own start date and start/end time, using the Singapore offset for a Rohana-tagged rule", () => {
     const [event] = buildCalendarFeedEvents(
       [],
       [],
       [],
       [
         recurringRule({
+          people: ["Rohana"],
           startDate: "2026-08-11",
           startTime: "08:00",
           endTime: "09:30",
         }),
       ],
     );
-    expect(event.floating).toBe(true);
+    expect(event.floating).toBeUndefined();
     expect(event.timezone).toBeUndefined();
+    // 08:00/09:30 Singapore (UTC+8) == 00:00/01:30 UTC.
     expect((event.start as Date).toISOString()).toBe(
-      "2026-08-11T08:00:00.000Z",
+      "2026-08-11T00:00:00.000Z",
     );
-    expect((event.end as Date).toISOString()).toBe("2026-08-11T09:30:00.000Z");
+    expect((event.end as Date).toISOString()).toBe("2026-08-11T01:30:00.000Z");
   });
 
-  it("sets the repeating until bound from the rule's own end date", () => {
+  it("uses the IST offset for a rule not tagged to Rohana", () => {
     const [event] = buildCalendarFeedEvents(
       [],
       [],
       [],
-      [recurringRule({ endDate: "2026-12-01" })],
+      [
+        recurringRule({
+          people: ["Ahaana"],
+          startDate: "2026-08-01",
+          startTime: "17:00",
+          endTime: "18:00",
+        }),
+      ],
+    );
+    // 17:00 IST == 11:30 UTC.
+    expect((event.start as Date).toISOString()).toBe(
+      "2026-08-01T11:30:00.000Z",
+    );
+  });
+
+  it("sets the repeating until bound from the rule's own end date, in the same offset as start/end", () => {
+    const [event] = buildCalendarFeedEvents(
+      [],
+      [],
+      [],
+      [recurringRule({ people: ["Rohana"], endDate: "2026-12-01" })],
     );
     const until = (event.repeating as { until: Date }).until;
-    expect(until.toISOString()).toBe("2026-12-01T23:59:00.000Z");
+    // 23:59 Singapore (UTC+8) == 15:59 UTC.
+    expect(until.toISOString()).toBe("2026-12-01T15:59:00.000Z");
   });
 });
 

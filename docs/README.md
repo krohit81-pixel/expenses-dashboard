@@ -133,19 +133,22 @@ they say so.
   week, with a headline naming whoever's busiest. Grew out of a
   "Family" dashboard prototype the household reviewed and put on hold,
   keeping just this one section. See doc 00's v3.6.3 section.
-- **Live iCal subscription feed (v3.6.4–v3.6.6):** `GET
+- **Live iCal subscription feed (v3.6.4–v3.6.7):** `GET
   /api/calendar.ics` (public, `ical-generator`) turns every trip,
   school date, manual event, and recurring class rule into a real,
   always-up-to-date feed Apple/Google Calendar can subscribe to — a
   "Subscribe in Apple Calendar" card on `/calendar` links straight to
   it via `webcal://`. v3.6.5 fixed a real bug the same day: every timed
-  event came back shifted by the full IST offset on the actual Vercel
+  event came back shifted by a fixed offset on the actual Vercel
   deployment (an `ical-generator` quirk that only worked by coincidence
-  in local testing) — fixed by switching timed events to RFC 5545
-  floating local time. v3.6.6 added real Apple Calendar alerts
+  in local testing). v3.6.6 added real Apple Calendar alerts
   (`VALARM`), reusing each row's own existing Telegram reminder
-  settings rather than a separate scheme. See doc 00's
-  v3.6.4/v3.6.5/v3.6.6 sections.
+  settings. v3.6.7 corrected Rohana's recurring classes to Singapore
+  time (she studies there) instead of IST — every timed event now
+  carries a real UTC instant computed per-person (Singapore for her,
+  IST for everyone else), which also displays correctly for two
+  viewers in different zones at once, not just one shared local time.
+  See doc 00's v3.6.4–v3.6.7 sections.
 - Log is a hub for Transactions, Accounts (with inline balance
   correction), and Imports — a statement import also prompts to log its
   due amount as a real Dashboard expense (v2.5.4) and to check for

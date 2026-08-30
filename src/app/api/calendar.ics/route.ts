@@ -41,10 +41,12 @@ export async function GET() {
     // local Date getters whenever this is set, not a real IANA
     // conversion -- correct by coincidence in a sandbox whose system
     // timezone happens to be Asia/Calcutta, wrong (silently shifted)
-    // on Vercel's actual UTC runtime. Every timed event uses floating
-    // local time instead of a declared timezone for the same root
-    // cause -- see wallClockDateTime's own comment in
-    // build-calendar-feed.ts for the full story.
+    // on Vercel's actual UTC runtime. Every timed event uses a real
+    // UTC-instant Date with no per-event `timezone` field either, for
+    // the same root cause -- see utcInstant's own comment in
+    // build-calendar-feed.ts for the full story (and why a real
+    // Singapore/IST offset per person, not one shared floating time,
+    // is what Rohana's own Singapore-time classes actually need).
     prodId: { company: "Atlas", product: "Calendar Feed", language: "EN" },
     // A refresh-interval hint -- Apple Calendar applies its own
     // background-refresh cadence regardless, but it's a harmless,

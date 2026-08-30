@@ -2303,6 +2303,46 @@ trigger. `npx tsc --noEmit && npx eslint . && npx prettier --check .
 && npx vitest run` all pass (587 — 5 new tests) and `npm run build`
 succeeds.
 
+## v3.6.7: Rohana's recurring classes are Singapore time, not IST
+
+Household correction: Rohana studies in Singapore (this app's own real
+school-calendar data already reflected that — her static calendar's
+"National Day" entry is a Singapore public holiday — but her recurring
+classes were still being treated as IST wall-clock time, same as the
+rest of the household). "Calculus, Tuesday 8am" means 8am *Singapore*
+time, not 8am IST — every one of her real recurring rules
+(Econometrics, Macroeconomics, AI, Calculus) needed the same fix, and
+any future timed item tagged to her should get it automatically too.
+
+- `build-calendar-feed.ts` now resolves a per-item UTC offset from
+  who's tagged: `offsetMinutesFor(people)` returns the Singapore
+  offset (UTC+8) when `people` includes "Rohana" (the only household
+  member based outside India — see `travelers.ts`'s known four),
+  IST (UTC+5:30) otherwise. Applied to every timed manual event and
+  every recurring rule's start/end/`RRULE UNTIL`.
+- This also fully replaces v3.6.5's floating-time fix, which had been
+  correct only by assuming the whole calendar's audience was in one
+  zone — true for everyone but Rohana. Timed events (and recurring
+  rules) now carry a real absolute UTC instant with NO `timezone` or
+  `floating` field on the event at all (see `utcInstant`'s own
+  comment) — that still sidesteps `ical-generator`'s confirmed
+  local-getter bug from v3.6.5 (a real UTC-Z timestamp doesn't go
+  through that code path), while also being the only representation
+  that displays correctly for two viewers in different zones at once:
+  Rohana's own Singapore-set device shows her real Singapore time,
+  while a household member viewing the same feed from India sees the
+  same real-world moment correctly converted to IST.
+
+Verified against real production data: regenerated the feed with the
+server forced to `TZ=UTC` (matching Vercel), independently re-parsed
+with Python's `icalendar` — Ahaana's French Class still resolves to
+17:00 IST unchanged, and all four of Rohana's real classes now resolve
+to their correct Singapore local times (Calculus 08:00 SGT,
+Econometrics/AI 12:00 SGT, Macroeconomics 14:00 SGT) instead of being
+misread as those same clock numbers in IST. `npx tsc --noEmit && npx
+eslint . && npx prettier --check . && npx vitest run` all pass (589 —
+2 new tests) and `npm run build` succeeds.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions
