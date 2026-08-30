@@ -56,8 +56,11 @@ export default async function SettingsPage() {
 
         {/* v3.4.0 Phase 3 — the weekly summary of Ahaana's mini-app
             activity (her weekly schedule + completion notes), sent to
-            this same Telegram channel above every Sunday. See
-            docs/00-current-state.md's v3.4.0 section. */}
+            this same Telegram channel above every Sunday. v3.6.2 moved
+            the automatic send from Sunday morning to Sunday evening
+            (its own dedicated cron) so the week's own Sunday activities
+            have actually happened by the time it goes out. See
+            docs/00-current-state.md's v3.4.0/v3.6.2 sections. */}
         <div className="rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
           <h2 className="mb-3 font-display text-[15px] font-bold text-ink">
             Ahaana&rsquo;s weekly report
@@ -65,7 +68,7 @@ export default async function SettingsPage() {
           <p className="mb-2 text-xs text-ink-faint">
             Sends a summary of Ahaana&rsquo;s scheduled activities, what she
             marked complete, and her notes for the week — automatically every
-            Sunday, or run it by hand any time.
+            Sunday evening, or run it by hand any time.
           </p>
           <RunAhaanaWeeklyReportButton />
         </div>

@@ -147,7 +147,10 @@ async function sendCandidates(
  * Driven by the slower of the two Vercel Cron schedules
  * (`/api/cron/reminders`, every 4 hours) — see runHourlyReminders for
  * the hour-based counterpart on its own, more frequent schedule
- * (`/api/cron/reminders-hourly`, v3.2.2).
+ * (`/api/cron/reminders-hourly`, v3.2.2). The parent's weekly Ahaana
+ * report used to ride this same cadence (v3.4.0 Phase 3) but moved to
+ * its own dedicated schedule in v3.6.2 — see
+ * runAhaanaWeeklyReportCron's own comment for why.
  *
  * `asOf` defaults to today but is overridable for testing/backfill —
  * same reasoning as RecurringTransactionService.generateDueTransactions'
@@ -156,20 +159,11 @@ async function sendCandidates(
 export async function runReminders(
   asOf: string = new Date().toISOString().slice(0, 10),
 ): Promise<ReminderRunResult> {
-  const [weekStart, , , , , , weekEnd] = getWeekDates(asOf);
-  const [events, trips, recurringRules, ahaanaActivities, ahaanaLogs] =
-    await Promise.all([
-      listCalendarEvents(),
-      listTrips(),
-      listRecurringCalendarEvents(),
-      // v3.4.0 Phase 3 — fetched every run (not just Sunday) since this
-      // is a cheap read and detectAhaanaWeeklyReport itself is the one
-      // that gates on day-of-week; keeps this function's own fetch list
-      // uniform rather than conditionally skipping two calls 6 days a
-      // week for a negligible saving.
-      listAhaanaActivities(),
-      listAhaanaActivityLogs(weekStart, weekEnd),
-    ]);
+  const [events, trips, recurringRules] = await Promise.all([
+    listCalendarEvents(),
+    listTrips(),
+    listRecurringCalendarEvents(),
+  ]);
 
   const candidates: ReminderCandidate[] = [
     ...detectCalendarEventReminders(events, asOf),
@@ -187,13 +181,40 @@ export async function runReminders(
       asOf,
       SCHOOL_CALENDAR_LEAD_DAYS,
     ),
-    // v3.4.0 Phase 3 — the parent's weekly Ahaana report, riding this
-    // same 4-hourly cron rather than a dedicated one (see the
-    // add_ahaana_weekly_report_event_type migration's own comment for
-    // why); only ever actually produces a candidate on Sunday.
-    ...detectAhaanaWeeklyReport(ahaanaActivities, ahaanaLogs, asOf),
   ];
 
+  return sendCandidates(candidates, ["telegram"]);
+}
+
+/**
+ * v3.6.2 — the parent's weekly Ahaana report, on its own dedicated
+ * Vercel Cron schedule (`/api/cron/ahaana-weekly-report`, `30 14 * * 0`
+ * = Sunday 20:00 IST) instead of riding runReminders' general 4-hourly
+ * cadence the way it did from v3.4.0 Phase 3 through v3.6.1. That
+ * cadence fired the report at the FIRST tick where the calendar date
+ * crossed into Sunday — 00:00 UTC, i.e. 5:30am IST — which is why the
+ * household reported receiving it "Sunday morning" still showing
+ * Sunday's own activities as pending: a genuine week-just-ended summary
+ * needs to run near the end of Sunday, not the start, and no tick on
+ * the shared 4-hourly grid (UTC 0/4/8/12/16/20 → IST 5:30/9:30/13:30/
+ * 17:30/21:30/1:30) lands anywhere near evening IST.
+ *
+ * Still calls detectAhaanaWeeklyReport non-forced (unlike the manual
+ * "Send weekly report now" button's runAhaanaWeeklyReportNow below) —
+ * this cron is scheduled to only ever fire on Sunday, but keeping the
+ * Sunday gate costs nothing and guards against a misconfigured
+ * schedule silently sending on the wrong day.
+ */
+export async function runAhaanaWeeklyReportCron(
+  asOf: string = new Date().toISOString().slice(0, 10),
+): Promise<ReminderRunResult> {
+  const [weekStart, , , , , , weekEnd] = getWeekDates(asOf);
+  const [activities, logs] = await Promise.all([
+    listAhaanaActivities(),
+    listAhaanaActivityLogs(weekStart, weekEnd),
+  ]);
+
+  const candidates = detectAhaanaWeeklyReport(activities, logs, asOf);
   return sendCandidates(candidates, ["telegram"]);
 }
 

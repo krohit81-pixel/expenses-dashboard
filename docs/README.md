@@ -113,7 +113,19 @@ they say so.
   ready-to-paste LLM analysis prompt plus the full combined transaction
   table. Found and fixed a real pre-existing bug in `Button`'s
   `asChild` mode along the way (broke every existing usage, not just
-  this one). See doc 00's v3.6.0 section for the full detail.
+  this one). v3.6.1 fixed two real production bugs found right after
+  shipping: the report was actually crashing on Vercel every time (a
+  `pdfkit` font-file bundling gap, fixed via `outputFileTracingIncludes`)
+  and the trigger gave no loading feedback (a plain `<a href>` full-page
+  navigation to a blank tab — replaced with a client-side fetch +
+  spinner + error text). See doc 00's v3.6.0/v3.6.1 sections for the
+  full detail.
+- **Ahaana's weekly report moves to Sunday evening (v3.6.2):** it used
+  to ride the general 4-hourly reminders cron, which meant it fired at
+  the very first tick that crossed into Sunday — 5:30am IST — before
+  that day's own activities had happened. Now has its own dedicated
+  cron (`/api/cron/ahaana-weekly-report`, Sunday 20:00 IST). See doc
+  00's v3.6.2 section.
 - Log is a hub for Transactions, Accounts (with inline balance
   correction), and Imports — a statement import also prompts to log its
   due amount as a real Dashboard expense (v2.5.4) and to check for

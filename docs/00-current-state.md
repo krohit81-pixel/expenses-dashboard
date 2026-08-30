@@ -2069,6 +2069,49 @@ deployment after deploying.
 `npx tsc --noEmit && npx eslint . && npx prettier --check . && npx
 vitest run` all pass (553) and `npm run build` succeeds.
 
+## v3.6.2: Ahaana's weekly report moves to Sunday evening
+
+Household-reported: "the weekly received on Telegram (Sunday morning)
+shows Sunday activity pending" — the report was landing before the
+day's own activities had happened yet.
+
+Root cause: since v3.4.0 Phase 3, the weekly report rode
+`ReminderService.runReminders()`'s general 4-hourly cron
+(`/api/cron/reminders`, `0 */4 * * *`), gated inside
+`detectAhaanaWeeklyReport` to only ever produce a candidate on Sunday.
+That schedule ticks at UTC 0/4/8/12/16/20 — 5:30am/9:30am/1:30pm/
+5:30pm/9:30pm/1:30am IST — so the report fired at the very FIRST tick
+where the calendar date crossed into Sunday: 00:00 UTC, 5:30am IST.
+`notification_log`'s per-week dedupe (keyed by the week's Monday date)
+then meant that one early-morning send was the only one that would
+ever go out that week, regardless of how many later Sunday ticks
+occurred.
+
+- Fixed: the weekly report now has its own dedicated Vercel Cron,
+  `/api/cron/ahaana-weekly-report`, scheduled `30 14 * * 0` (Vercel
+  Cron is always UTC — 14:30 UTC Sunday = 20:00 IST Sunday). New
+  `ReminderService.runAhaanaWeeklyReportCron()` — same fetch/detect/send
+  shape as the existing manual-trigger `runAhaanaWeeklyReportNow()`, but
+  non-forced (keeps `detectAhaanaWeeklyReport`'s own Sunday gate as a
+  safety net against a misconfigured schedule, rather than trusting the
+  cron schedule alone).
+- `runReminders()` no longer fetches Ahaana activities/logs or calls
+  `detectAhaanaWeeklyReport` at all — that's now solely the new cron's
+  job. Its own day-based sources (calendar events, trips, recurring
+  events, school calendar) are unaffected.
+- Settings page copy updated ("automatically every Sunday evening").
+- Real caveat, not a bug: a week that already had its report sent (e.g.
+  this Sunday's early-morning send, before this fix shipped) stays
+  deduped — the new evening cron won't re-send for a week already
+  recorded in `notification_log`, forced or not. Takes full effect
+  starting the following Sunday.
+
+Verified: `npx tsc --noEmit && npx eslint . && npx prettier --check .
+&& npx vitest run` all pass (557 — 4 new tests for the new cron route,
+mirroring the existing `/api/cron/reminders`/`ahaana-reminders` route
+test pattern) and `npm run build` succeeds, with the new route
+confirmed present in the build output.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions
