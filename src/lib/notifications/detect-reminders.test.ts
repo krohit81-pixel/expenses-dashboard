@@ -23,6 +23,7 @@ function calendarEvent(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
     startDate: "2026-10-15",
     endDate: "2026-10-15",
     startTime: null,
+    endTime: null,
     notes: null,
     remindEnabled: true,
     remindLeadDays: 3,

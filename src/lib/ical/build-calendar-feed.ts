@@ -206,15 +206,18 @@ function calendarEventToEvent(event: CalendarEvent): ICalEventData {
     };
   }
 
-  // CalendarEventService has no separate end-time column -- one hour
-  // is a reasonable default duration for a timed appointment, not a
-  // fact the data actually states.
+  // v3.6.8 — endTime is optional (see the migration comment); when
+  // it's missing, one hour is a reasonable default duration for a
+  // timed appointment, not a fact the data actually states.
   const offset = offsetMinutesFor(event.people);
   const start = utcInstant(event.startDate, event.startTime, offset);
+  const end = event.endTime
+    ? utcInstant(event.startDate, event.endTime, offset)
+    : new Date(start.getTime() + 60 * 60_000);
   return {
     id: `atlas-event-${event.id}`,
     start,
-    end: new Date(start.getTime() + 60 * 60_000),
+    end,
     summary: event.title,
     description,
     categories: category(TAG_LABELS[event.tag]),

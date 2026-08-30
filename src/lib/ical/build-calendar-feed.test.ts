@@ -43,6 +43,7 @@ function calendarEvent(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
     startDate: "2026-09-02",
     endDate: "2026-09-02",
     startTime: null,
+    endTime: null,
     notes: null,
     remindEnabled: false,
     remindLeadDays: 0,
@@ -199,6 +200,28 @@ describe("buildCalendarFeedEvents — manual calendar events", () => {
       [],
     );
     expect(event.description).toBe("Tagged: Rohit, Ahaana\nBring the cake");
+  });
+
+  it("uses the real end time when set, instead of the 1-hour default", () => {
+    const [event] = buildCalendarFeedEvents(
+      [],
+      [],
+      [
+        calendarEvent({
+          people: ["Rohit"],
+          startDate: "2026-09-03",
+          startTime: "16:00",
+          endTime: "20:00",
+        }),
+      ],
+      [],
+    );
+    // 16:00-20:00 IST == 10:30-14:30 UTC -- a real 4-hour span, not the
+    // 1-hour default.
+    expect((event.start as Date).toISOString()).toBe(
+      "2026-09-03T10:30:00.000Z",
+    );
+    expect((event.end as Date).toISOString()).toBe("2026-09-03T14:30:00.000Z");
   });
 });
 

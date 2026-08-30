@@ -23,6 +23,8 @@ export interface CalendarEvent {
   endDate: string;
   /** v3.2.2 — optional time of day; null for an event with no specific time (see the migration comment). "HH:MM", trimmed from Postgres's "HH:MM:SS" the same way RecurringCalendarEventService's startTime already is. */
   startTime: string | null;
+  /** v3.6.8 — optional; null means no specific end was recorded, in which case every reader (the iCal feed, in particular) falls back to a 1-hour-after-start default. Only meaningful once startTime is also set (enforced at the Zod schema level). */
+  endTime: string | null;
   notes: string | null;
   /** v3.2.0 — see supabase/migrations/20260822061100_create_notifications.sql. Whether ReminderService should notify about this event. */
   remindEnabled: boolean;
@@ -33,7 +35,7 @@ export interface CalendarEvent {
 }
 
 const CALENDAR_EVENT_SELECT =
-  "id, title, tag, people, start_date, end_date, start_time, notes, remind_enabled, remind_lead_days, remind_lead_hours";
+  "id, title, tag, people, start_date, end_date, start_time, end_time, notes, remind_enabled, remind_lead_days, remind_lead_hours";
 
 function mapRow(row: {
   id: string;
@@ -43,6 +45,7 @@ function mapRow(row: {
   start_date: string;
   end_date: string;
   start_time: string | null;
+  end_time: string | null;
   notes: string | null;
   remind_enabled: boolean;
   remind_lead_days: number;
@@ -56,6 +59,7 @@ function mapRow(row: {
     startDate: row.start_date,
     endDate: row.end_date,
     startTime: row.start_time ? row.start_time.slice(0, 5) : null,
+    endTime: row.end_time ? row.end_time.slice(0, 5) : null,
     notes: row.notes,
     remindEnabled: row.remind_enabled,
     remindLeadDays: row.remind_lead_days,
@@ -116,6 +120,7 @@ export async function createCalendarEvent(
       start_date: parsed.startDate,
       end_date: parsed.endDate,
       start_time: parsed.startTime,
+      end_time: parsed.endTime,
       notes: parsed.notes ?? null,
       remind_enabled: parsed.remindEnabled,
       remind_lead_days: parsed.remindLeadDays,
@@ -146,6 +151,7 @@ export async function updateCalendarEvent(
       start_date: parsed.startDate,
       end_date: parsed.endDate,
       start_time: parsed.startTime,
+      end_time: parsed.endTime,
       notes: parsed.notes ?? null,
       remind_enabled: parsed.remindEnabled,
       remind_lead_days: parsed.remindLeadDays,

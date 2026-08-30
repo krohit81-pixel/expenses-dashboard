@@ -1079,6 +1079,7 @@ export type Database = {
           start_date: string;
           end_date: string;
           start_time: string | null;
+          end_time: string | null;
           notes: string | null;
           remind_enabled: boolean;
           remind_lead_days: number;
@@ -1095,6 +1096,7 @@ export type Database = {
           start_date: string;
           end_date: string;
           start_time?: string | null;
+          end_time?: string | null;
           notes?: string | null;
           remind_enabled?: boolean;
           remind_lead_days?: number;
@@ -1111,6 +1113,7 @@ export type Database = {
           start_date?: string;
           end_date?: string;
           start_time?: string | null;
+          end_time?: string | null;
           notes?: string | null;
           remind_enabled?: boolean;
           remind_lead_days?: number;

@@ -82,6 +82,16 @@ const baseCalendarEventFields = z.object({
     .nullable()
     .optional()
     .transform((v) => v ?? null),
+  // v3.6.8 — optional, and only meaningful once startTime is also set
+  // (refineEndTimeNeedsStartTime below) — household request: a manual
+  // event's own duration was always assumed to be 1 hour wherever one
+  // was needed (the iCal feed), even for something that actually runs
+  // 4 hours. Null keeps that same 1-hour-default behavior; every
+  // reader falls back to it exactly like before this field existed.
+  endTime: zTimeOfDay
+    .nullable()
+    .optional()
+    .transform((v) => v ?? null),
   notes: z.string().trim().max(1000).nullable().optional(),
   ...zReminderFields.shape,
   ...zHourlyReminderFields.shape,
@@ -113,17 +123,46 @@ function refineHourlyNeedsStartTime<
   }
 }
 
+/** An end time needs a start time to be relative to — same reasoning as refineHourlyNeedsStartTime, and enforced the same way (schema-level, not the database). */
+function refineEndTimeNeedsStartTime<
+  T extends { startTime: string | null; endTime: string | null },
+>(value: T, ctx: z.RefinementCtx) {
+  if (value.endTime !== null && !value.startTime) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Add a start time before setting an end time",
+      path: ["endTime"],
+    });
+  }
+}
+
+/** Same-day only (this table has no notion of an event spanning past midnight) — a plain string comparison is safe since zTimeOfDay already guarantees zero-padded HH:MM for both. */
+function refineEndTimeAfterStartTime<
+  T extends { startTime: string | null; endTime: string | null },
+>(value: T, ctx: z.RefinementCtx) {
+  if (value.startTime && value.endTime && value.endTime <= value.startTime) {
+    ctx.addIssue({
+      code: "custom",
+      message: "End time must be after the start time",
+      path: ["endTime"],
+    });
+  }
+}
+
 function refineCalendarEvent(
   value: {
     startDate: string;
     endDate: string;
     startTime: string | null;
+    endTime: string | null;
     remindLeadHours: number | null;
   },
   ctx: z.RefinementCtx,
 ) {
   refineDateOrder(value, ctx);
   refineHourlyNeedsStartTime(value, ctx);
+  refineEndTimeNeedsStartTime(value, ctx);
+  refineEndTimeAfterStartTime(value, ctx);
 }
 
 export const createCalendarEventInputSchema =

@@ -91,6 +91,15 @@ const DEFAULT_END_TIME = "09:30";
  * that prop comes from); the real enforcement is server-side, in
  * sendCalendarEventReminderNowAction itself, since a disabled
  * attribute is a UI nicety, not a security boundary.
+ *
+ * v3.6.8: a one-off event gained its own optional "Ends" field
+ * (household report: the iCal feed's 1-hour default was wrong for a
+ * real 4-hour event) — only shown once a start time exists, blank by
+ * default (unlike isRecurring's own required "Ends" field a few lines
+ * down, which always starts at DEFAULT_END_TIME). Kept as a separate
+ * `oneOffEndTime` state rather than reusing `endTime` — the two modes
+ * need different defaults/required-ness, even though both submit
+ * under the same `endTime` form field name.
  */
 export function AddEventModal({
   open,
@@ -124,6 +133,12 @@ export function AddEventModal({
   // silently pointing at nothing.
   const [startTime, setStartTime] = useState("");
   const [remindLeadHours, setRemindLeadHours] = useState<number | null>(null);
+  // v3.6.8 — a one-off event's own end time, entirely optional (unlike
+  // isRecurring's required `endTime` below, which always has
+  // DEFAULT_END_TIME as a starting value). Blank means "no specific
+  // end recorded" — every reader (the iCal feed, in particular) falls
+  // back to a 1-hour-after-start default, same as before this existed.
+  const [oneOffEndTime, setOneOffEndTime] = useState("");
 
   // v3.3.0 — "Repeats weekly" mode. Add-flow only (never toggled on
   // while isEditing) — see the component comment.
@@ -134,7 +149,10 @@ export function AddEventModal({
 
   function handleStartTimeChange(value: string) {
     setStartTime(value);
-    if (!value) setRemindLeadHours(null);
+    if (!value) {
+      setRemindLeadHours(null);
+      setOneOffEndTime("");
+    }
   }
 
   function handleRecurringToggle(value: boolean) {
@@ -185,6 +203,7 @@ export function AddEventModal({
       setRemindEnabled(editingEvent.remindEnabled);
       setRemindLeadDays(editingEvent.remindLeadDays);
       setStartTime(editingEvent.startTime ?? "");
+      setOneOffEndTime(editingEvent.endTime ?? "");
       setRemindLeadHours(editingEvent.remindLeadHours);
     } else {
       setTitle("");
@@ -197,6 +216,7 @@ export function AddEventModal({
       setRemindEnabled(false);
       setRemindLeadDays(0);
       setStartTime("");
+      setOneOffEndTime("");
       setRemindLeadHours(null);
     }
   }, [open, editingEvent, initialDate]);
@@ -427,19 +447,45 @@ export function AddEventModal({
             </div>
           ) : (
             <div className="space-y-1.5">
-              <Label htmlFor="event-startTime">
-                Time{" "}
-                <span className="font-normal text-ink-faint">
-                  (optional — needed for an hours-before reminder)
-                </span>
-              </Label>
-              <Input
-                id="event-startTime"
-                name="startTime"
-                type="time"
-                value={startTime}
-                onChange={(e) => handleStartTimeChange(e.target.value)}
-              />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="event-startTime">
+                    Time{" "}
+                    <span className="font-normal text-ink-faint">
+                      (optional)
+                    </span>
+                  </Label>
+                  <Input
+                    id="event-startTime"
+                    name="startTime"
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => handleStartTimeChange(e.target.value)}
+                  />
+                </div>
+                {startTime && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="event-oneOffEndTime">
+                      Ends{" "}
+                      <span className="font-normal text-ink-faint">
+                        (optional — default 1 hr)
+                      </span>
+                    </Label>
+                    <Input
+                      id="event-oneOffEndTime"
+                      name="endTime"
+                      type="time"
+                      value={oneOffEndTime}
+                      onChange={(e) => setOneOffEndTime(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+              <p className="text-[11px] leading-relaxed text-ink-faint">
+                Needed for an hours-before reminder, and used as the real
+                duration on the calendar feed — otherwise it defaults to 1 hour
+                there.
+              </p>
             </div>
           )}
 

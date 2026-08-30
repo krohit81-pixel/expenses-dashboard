@@ -133,7 +133,7 @@ they say so.
   week, with a headline naming whoever's busiest. Grew out of a
   "Family" dashboard prototype the household reviewed and put on hold,
   keeping just this one section. See doc 00's v3.6.3 section.
-- **Live iCal subscription feed (v3.6.4–v3.6.7):** `GET
+- **Live iCal subscription feed (v3.6.4–v3.6.8):** `GET
   /api/calendar.ics` (public, `ical-generator`) turns every trip,
   school date, manual event, and recurring class rule into a real,
   always-up-to-date feed Apple/Google Calendar can subscribe to — a
@@ -148,7 +148,10 @@ they say so.
   carries a real UTC instant computed per-person (Singapore for her,
   IST for everyone else), which also displays correctly for two
   viewers in different zones at once, not just one shared local time.
-  See doc 00's v3.6.4–v3.6.7 sections.
+  v3.6.8 gave manual calendar events a real, optional end time
+  (`calendar_events.end_time`, a new column) — a "Bowling" event that
+  actually runs 4 hours no longer collapses to the feed's 1-hour
+  default. See doc 00's v3.6.4–v3.6.8 sections.
 - Log is a hub for Transactions, Accounts (with inline balance
   correction), and Imports — a statement import also prompts to log its
   due amount as a real Dashboard expense (v2.5.4) and to check for

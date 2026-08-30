@@ -2343,6 +2343,47 @@ misread as those same clock numbers in IST. `npx tsc --noEmit && npx
 eslint . && npx prettier --check . && npx vitest run` all pass (589 —
 2 new tests) and `npm run build` succeeds.
 
+## v3.6.8: manual calendar events gain an optional end time
+
+Household report: the iCal feed's "1 hour after start" default was
+just wrong for a real event — "Bowling" actually runs 4 hours, not 1.
+`finance.calendar_events` never had an end-time column at all (only
+`start_time`, v3.2.2); this adds one, optional, so the fix isn't just
+to the feed's own default but to the real data model.
+
+- New nullable `end_time` column
+  (`20260830170741_add_end_time_to_calendar_events.sql`) — needs to be
+  applied by hand in the Supabase SQL Editor before this deploy goes
+  live (no live migration access from this sandbox — see doc's own
+  "Working environment" section); until it's run, `listCalendarEvents`
+  would fail outright (it selects a column that doesn't exist yet), so
+  this one has to land *before* the code that depends on it, not
+  alongside it the way most of this app's other schema changes have.
+- `CalendarEvent.endTime: string | null` (service, schema, both server
+  actions) — same optional/nullable shape and "HH:MM" trimming
+  convention `startTime` already established.
+- New Zod refinements in `schemas.ts`: an `endTime` needs a `startTime`
+  to be relative to (same reasoning as the existing
+  `remindLeadHours`-needs-`startTime` rule), and `endTime` must be
+  after `startTime` same-day (plain string comparison — this table has
+  no notion of an event spanning past midnight).
+- `AddEventModal.tsx`'s one-off (non-recurring) event path gained its
+  own optional "Ends" field, shown once a start time is set — a
+  separate `oneOffEndTime` state from the recurring mode's own
+  required "Ends" field (different defaults/required-ness, same form
+  field name).
+- `build-calendar-feed.ts` now uses the real `endTime` when set,
+  falling back to the existing 1-hour default only when it's still
+  null — nothing changes for a row nobody has set one on yet.
+
+Verified: new schema-refinement tests (`schemas.test.ts`, a first for
+this file) plus an iCal-feed test proving a real 4-hour span (16:00–
+20:00 IST) round-trips correctly instead of collapsing to the 1-hour
+default. `npx tsc --noEmit && npx eslint . && npx prettier --check .
+&& npx vitest run` all pass (595 — 6 new tests) and `npm run build`
+succeeds. Full browser/production verification (including the real
+migration) happens once the household has applied the SQL above.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions
