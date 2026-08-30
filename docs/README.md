@@ -126,6 +126,13 @@ they say so.
   that day's own activities had happened. Now has its own dedicated
   cron (`/api/cron/ahaana-weekly-report`, Sunday 20:00 IST). See doc
   00's v3.6.2 section.
+- **"Who's Busiest" on the public Calendar tab (v3.6.3):** a new
+  section 01 on Calendar's Summary view (Monthly Schedule and This
+  Week's Schedule renumbered down to 02/03) — one bar per household
+  member, sized by how many calendar items they have in the coming
+  week, with a headline naming whoever's busiest. Grew out of a
+  "Family" dashboard prototype the household reviewed and put on hold,
+  keeping just this one section. See doc 00's v3.6.3 section.
 - Log is a hub for Transactions, Accounts (with inline balance
   correction), and Imports — a statement import also prompts to log its
   due amount as a real Dashboard expense (v2.5.4) and to check for

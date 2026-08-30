@@ -95,7 +95,10 @@ export function WeekScheduleGrid({
   return (
     <section>
       <SectionHeading
-        index="02"
+        // v3.6.3 — was "02"; BusiestWeekCard became the Summary tab's
+        // new 01 (TravelCalendarSection.tsx), pushing Monthly Schedule
+        // to 02 and this to 03.
+        index="03"
         title="This Week's Schedule"
         meta={rangeLabel}
         right={

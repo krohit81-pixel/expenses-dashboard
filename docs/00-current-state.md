@@ -2112,6 +2112,50 @@ mirroring the existing `/api/cron/reminders`/`ahaana-reminders` route
 test pattern) and `npm run build` succeeds, with the new route
 confirmed present in the build output.
 
+## v3.6.3: "Who's Busiest" — a new section 01 on the public Calendar tab
+
+Household request, after reviewing an HTML prototype of a separate
+"Family" dashboard tab (put on hold — see the prototype's own handover
+notes): pull just the "who's busiest" idea out of that prototype and
+put it directly at the top of the real, already-public `/calendar`
+page's Summary view, above Monthly Schedule and This Week's Schedule
+(both renumbered down to keep the section index consistent: 01 → 02,
+02 → 03; Add Event 03 → 04).
+
+- New pure module `src/features/travel/busiest-week.ts` —
+  `buildBusiestWeekSummary()` re-flattens the same four calendar
+  sources `TripDetailedList`'s own `buildDetailedGroups` already merges
+  (school items, trips, manual events, recurring occurrences — see
+  `detailed-list.ts`) into a much smaller shape, filters to one week,
+  and counts items per person — but only the four known household
+  members (`travelers.ts`), not an arbitrary name typed into a manual
+  event. Deliberately ignores the page's own Ahaana/Rohana/Travel/
+  Rohit/Aradhana visibility filters — this is a household-wide summary,
+  not scoped to whatever the reader currently has toggled. A second
+  function, `describeBusiestWeek()`, turns that into a single
+  always-grammatical headline (handles a lone busiest person, a tie
+  between several, and the genuinely-nobody's-busy week).
+- **Which week, exactly** — flagged to the household rather than
+  guessed: `getWeekDates(todayISODate())` (the same "current
+  Monday–Sunday week" `WeekScheduleGrid` already defaults to) is wrong
+  on a Sunday specifically, since that week is then six-sevenths over.
+  Confirmed with the household, who picked "week ahead": a new
+  `weekAheadRange()` matches the current week every day except Sunday,
+  where it looks at the week starting tomorrow instead — diverging from
+  This Week's Schedule's own range only on that one day, by design.
+- New `BusiestWeekCard.tsx` — one bar per household member (color/
+  initials from the existing `travelerColorClass`/`travelerSoftColorClass`/
+  `travelerTextColorClass`/`travelerInitials` helpers, so a person reads
+  the same color here as everywhere else on this page), sized relative
+  to whoever has the most, under the headline sentence.
+
+Verified against real production data: on Aug 30 2026 (a Sunday),
+correctly showed "Aug 31 – Sep 6" (not the nearly-over Aug 24–30) with
+Ahaana and Rohana tied at 5 items each, matching the real school
+calendar/trip data for that week. `npx tsc --noEmit && npx eslint .
+&& npx prettier --check . && npx vitest run` all pass (569 — 12 new
+tests) and `npm run build` succeeds.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions

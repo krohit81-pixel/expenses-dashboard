@@ -1,21 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { CalendarPlus } from "lucide-react";
 
 import { currentMonth } from "@/lib/dates/month";
+import { todayISODate } from "@/lib/dates/calendar-grid";
 import { cn } from "@/lib/utils";
 import { SectionHeading } from "@/features/dashboard/components/SectionHeading";
 import { AddEventModal } from "@/features/calendar/components/AddEventModal";
 import { AddRecurringEventModal } from "@/features/calendar/components/AddRecurringEventModal";
 import { LoggingSection } from "@/features/calendar/components/LoggingSection";
 import { RecurringEventsList } from "@/features/calendar/components/RecurringEventsList";
+import { BusiestWeekCard } from "@/features/travel/components/BusiestWeekCard";
 import { GoodTravelWindows } from "@/features/travel/components/GoodTravelWindows";
 import { TripCalendarGrid } from "@/features/travel/components/TripCalendarGrid";
 import { TripDetailedList } from "@/features/travel/components/TripDetailedList";
 import { WeekScheduleGrid } from "@/features/travel/components/WeekScheduleGrid";
 import { AddTripModal } from "@/features/travel/components/AddTripModal";
+import {
+  buildBusiestWeekSummary,
+  weekAheadRange,
+} from "@/features/travel/busiest-week";
 import { travelerColorClass } from "@/features/travel/travelers";
 import type { VisibilityFilter } from "@/features/travel/detailed-list";
 import type { PersonTravelWindow } from "@/features/travel/travel-windows";
@@ -128,6 +134,24 @@ export function TravelCalendarSection({
     travel: true,
   });
   const [activeTab, setActiveTab] = useState<SectionTab>("dashboard");
+
+  // v3.6.3 — "Who's Busiest" (section 01, above Monthly Schedule).
+  // weekAheadRange matches This Week's Schedule's own default week
+  // every day except Sunday, where it deliberately looks at next
+  // week instead (a household call — see busiest-week.ts's own
+  // comment). Ignores the visibility filters above on purpose too —
+  // same comment.
+  const busiestWeekSummary = useMemo(() => {
+    const { weekStart, weekEnd } = weekAheadRange(todayISODate());
+    return buildBusiestWeekSummary(
+      trips,
+      schoolItems,
+      calendarEvents,
+      recurringOccurrences,
+      weekStart,
+      weekEnd,
+    );
+  }, [trips, schoolItems, calendarEvents, recurringOccurrences]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
   const [modalDefaultTab, setModalDefaultTab] = useState<"upload" | "manual">(
@@ -238,8 +262,10 @@ export function TravelCalendarSection({
 
       {activeTab === "dashboard" && (
         <div className="space-y-6">
+          <BusiestWeekCard summary={busiestWeekSummary} />
+
           <section>
-            <SectionHeading index="01" title="Monthly Schedule" />
+            <SectionHeading index="02" title="Monthly Schedule" />
             <TripCalendarGrid
               month={month}
               onMonthChange={setMonth}
@@ -272,7 +298,7 @@ export function TravelCalendarSection({
               this is just a second door into the identical modal, not a
               separate flow. */}
           <section>
-            <SectionHeading index="03" title="Add Event" />
+            <SectionHeading index="04" title="Add Event" />
             <button
               type="button"
               onClick={openAddEventModal}
