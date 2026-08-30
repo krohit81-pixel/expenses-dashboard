@@ -2175,13 +2175,13 @@ to `middleware.ts`'s `PUBLIC_PATHS`.
   and school items become all-day `VEVENT`s (with a correctly
   *exclusive* end date per RFC 5545 — a 2-day event needs `DTEND` =
   start + 2, not + 1, or Apple Calendar shows it one day short).
-  Manual events are all-day when they carry no time, or a timed,
-  Asia/Kolkata event (defaulting to a 1-hour duration — this table has
-  no end-time column) when they do. Recurring class rules become ONE
-  real recurring `VEVENT` each with a genuine `WEEKLY` `RRULE`
-  (`BYDAY`) — not one `VEVENT` per already-expanded occurrence the way
-  this app's own UI grids build things internally — so Apple Calendar
-  handles the repetition itself.
+  Manual events are all-day when they carry no time, or a timed event
+  when they do (defaulting to a 1-hour duration — this table has no
+  end-time column). Recurring class rules become ONE real recurring
+  `VEVENT` each with a genuine `WEEKLY` `RRULE` (`BYDAY`) — not one
+  `VEVENT` per already-expanded occurrence the way this app's own UI
+  grids build things internally — so Apple Calendar handles the
+  repetition itself.
 - **A real, confirmed bug found and fixed during verification**:
   setting a calendar-level `timezone` option on `ical-generator`'s
   `ical({...})` call silently reformats both `DTSTAMP` and every
@@ -2191,9 +2191,10 @@ to `middleware.ts`'s `PUBLIC_PATHS`.
   here does). Confirmed by generating a real feed, diffing it with and
   without that option, and independently re-parsing the result with
   Python's `icalendar` library. Fixed by dropping the calendar-level
-  `timezone` entirely — each timed event already declares its own
-  `timezone: "Asia/Kolkata"`, which is what actually puts the correct
-  `DTSTART;TZID=Asia/Kolkata:...` on those events.
+  `timezone` entirely — each timed event declared its own
+  `timezone: "Asia/Kolkata"` at the time, which is what put the correct
+  `DTSTART;TZID=Asia/Kolkata:...` on those events (superseded in
+  v3.6.5 below by a bigger fix to a second bug in that same mechanism).
 - The `/calendar` page itself gained a "Subscribe in Apple Calendar"
   card — a `webcal://` link (what makes tapping it on an Apple device
   open Calendar.app's own "Add Subscription" sheet directly) plus the
@@ -2209,7 +2210,62 @@ bound and every timed event's local time matched the real underlying
 data exactly. `npx tsc --noEmit && npx eslint . && npx prettier
 --check . && npx vitest run` all pass (582 — 13 new tests) and `npm
 run build` succeeds, with `/api/calendar.ics` confirmed present in the
-build output.
+build output. **This verification pass itself turned out to be
+incomplete** — see v3.6.5 immediately below, found minutes later while
+double-checking against the real deployed URL rather than stopping at
+the local check above.
+
+## v3.6.5: fixed v3.6.4 — every timed event was silently wrong on the real deployment
+
+v3.6.4's own verification above checked out completely — locally. Then,
+as a further check against the actual deployed Vercel URL (this
+session's own established habit of not trusting a local check alone),
+every recurring class and every timed one-off event came back shifted
+by exactly the IST offset (5 hours 30 minutes) — French Class showing
+11:30 instead of 17:00, and so on for every other timed event.
+
+Root cause, confirmed directly: `ical-generator` formats a `DTSTART`/
+`DTEND`/`RRULE UNTIL` for an event carrying a `timezone` option by
+reading the JS `Date` back out using the RUNNING NODE PROCESS's own
+*local* getters (`getHours()`, `getFullYear()`, ...) — not a real IANA
+conversion of the declared TZID string at all. That's only correct
+when the server process's own system timezone happens to already equal
+the declared one. It stayed invisible in v3.6.4's own local
+verification because this sandbox's own system timezone already
+happens to be `Asia/Calcutta` — every recurring event and timed
+one-off looked right there, matching real DB values exactly, purely by
+coincidence. Confirmed the exact mechanism with `TZ=UTC node -e ...`
+reproducing the shift on demand, independent of any specific route or
+even this app's own code — a minimal reproduction using
+`ical-generator` directly.
+
+- Fixed by dropping BOTH `timezone` options entirely (the calendar's
+  own, from v3.6.4's first fix, and now each event's too): every timed
+  event (manual events with a time, every recurring class rule) now
+  uses RFC 5545 floating local time instead — `floating: true` on the
+  event, paired with a `Date` deliberately constructed so its own
+  UTC-field getters carry the wall-clock digits directly (see
+  `wallClockDateTime`'s own comment in `build-calendar-feed.ts` for the
+  full reasoning) rather than a real UTC instant. A floating time is
+  also the semantically correct choice here independent of the bug:
+  this calendar's entire audience is already in India, so there's no
+  real viewer for a declared TZID to matter for.
+- All-day events (trips, school items, untimed manual events) were
+  never affected — those already used plain date-only strings, with no
+  timezone/floating handling involved at all.
+
+Verified properly this time: regenerated the feed with the local dev
+server's Node process explicitly forced to `TZ=UTC` (`TZ=UTC npm run
+start`, matching Vercel's real runtime precisely, not relying on this
+sandbox's own coincidentally-IST system timezone), independently
+re-parsed with Python's `icalendar` library, and confirmed every
+recurring rule and every timed one-off matched real production data
+exactly — then redeployed and re-verified against the real, live
+`https://expdash.vercel.app/api/calendar.ics` URL itself, one more
+time, with the same independent re-parse. `npx tsc --noEmit && npx
+eslint . && npx prettier --check . && npx vitest run` all pass (582 —
+existing tests updated for the new floating-time semantics, no new
+test count change) and `npm run build` succeeds.
 
 ## What's actually built
 

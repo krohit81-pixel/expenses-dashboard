@@ -31,15 +31,30 @@ import type { RecurringCalendarEvent } from "@/services/RecurringCalendarEventSe
 
 const SCHOOL_PERSON_NAME = { ahaana: "Ahaana", rohana: "Rohana" } as const;
 
-// Atlas's servers don't run in India's timezone (see lib/version.ts's
-// getIndiaDateLabel) -- combining an IST wall-clock date+time into the
-// real UTC instant it represents is the same private helper already
-// duplicated in lib/notifications/detect-reminders.ts and
-// detect-ahaana-reminders.ts; kept as its own copy here too, same
-// "each pure module keeps its own tiny copy" reasoning those give.
-const IST_OFFSET_MINUTES = 5 * 60 + 30;
-
-function istDateTime(date: string, time: string): Date {
+/**
+ * A Date whose UTC-field getters equal the given IST wall-clock
+ * date+time — NOT the real UTC instant it represents. Paired with
+ * `floating: true` (never `timezone: "Asia/Kolkata"`) on the event.
+ *
+ * This looks backwards, but it's a deliberate, confirmed workaround:
+ * `ical-generator`'s own DTSTART/RRULE-UNTIL formatting, when an
+ * event declares a `timezone`, reads the Date back out using the
+ * RUNNING NODE PROCESS's *local* getters (`getHours()`, `getMinutes()`
+ * — the server's own system timezone), not a real IANA conversion of
+ * the given TZID. On Vercel (server TZ is UTC) that silently shifted
+ * every timed event and recurring rule by the full IST offset — a bug
+ * that stayed invisible testing locally in this sandbox, whose own
+ * system timezone already happens to be Asia/Calcutta. Confirmed with
+ * `TZ=UTC node -e ...` reproducing the shift, and fixed by sidestepping
+ * that whole code path: a floating (TZID-less) event has its digits
+ * read via `getUTCHours()` etc. instead, so constructing the Date's
+ * UTC fields to equal the target wall-clock time directly, with no
+ * `timezone` field on the event at all, is what actually produces the
+ * correct output regardless of the server's own system timezone. A
+ * floating time is also the semantically right choice here anyway —
+ * this calendar's entire audience is in India already.
+ */
+function wallClockDateTime(date: string, time: string): Date {
   const [hours, minutes] = time.split(":").map(Number);
   return new Date(
     Date.UTC(
@@ -48,8 +63,7 @@ function istDateTime(date: string, time: string): Date {
       Number(date.slice(8, 10)),
       hours,
       minutes,
-    ) -
-      IST_OFFSET_MINUTES * 60_000,
+    ),
   );
 }
 
@@ -132,12 +146,12 @@ function calendarEventToEvent(event: CalendarEvent): ICalEventData {
   // CalendarEventService has no separate end-time column -- one hour
   // is a reasonable default duration for a timed appointment, not a
   // fact the data actually states.
-  const start = istDateTime(event.startDate, event.startTime);
+  const start = wallClockDateTime(event.startDate, event.startTime);
   return {
     id: `atlas-event-${event.id}`,
     start,
     end: new Date(start.getTime() + 60 * 60_000),
-    timezone: "Asia/Kolkata",
+    floating: true,
     summary: event.title,
     description,
     categories: category(TAG_LABELS[event.tag]),
@@ -147,9 +161,9 @@ function calendarEventToEvent(event: CalendarEvent): ICalEventData {
 function recurringRuleToEvent(rule: RecurringCalendarEvent): ICalEventData {
   return {
     id: `atlas-recurring-${rule.id}`,
-    start: istDateTime(rule.startDate, rule.startTime),
-    end: istDateTime(rule.startDate, rule.endTime),
-    timezone: "Asia/Kolkata",
+    start: wallClockDateTime(rule.startDate, rule.startTime),
+    end: wallClockDateTime(rule.startDate, rule.endTime),
+    floating: true,
     summary: rule.title,
     description: joinNonEmpty([
       rule.people.length > 0 ? `Tagged: ${rule.people.join(", ")}` : null,
@@ -160,7 +174,7 @@ function recurringRuleToEvent(rule: RecurringCalendarEvent): ICalEventData {
     repeating: {
       freq: ICalEventRepeatingFreq.WEEKLY,
       byDay: rule.daysOfWeek.map((day) => DAY_TO_ICAL_WEEKDAY[day]),
-      until: istDateTime(rule.endDate, "23:59"),
+      until: wallClockDateTime(rule.endDate, "23:59"),
     },
   };
 }

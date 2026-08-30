@@ -37,15 +37,14 @@ export async function GET() {
     name: "Atlas Calendar",
     // Deliberately NOT setting a calendar-level `timezone` here --
     // confirmed (by generating a real feed and diffing) that
-    // ical-generator uses it to reformat BOTH DTSTAMP and every
-    // recurring event's RRULE UNTIL into a bare local timestamp with
-    // no trailing "Z", which RFC 5545 requires for both (UNTIL
-    // specifically MUST be UTC whenever DTSTART carries a TZID, which
-    // every recurring event here does). Each timed event still
-    // declares its own `timezone: "Asia/Kolkata"` (see
-    // build-calendar-feed.ts) -- that's what puts the correct
-    // `DTSTART;TZID=Asia/Kolkata:...` on those events, independent of
-    // this calendar-level setting.
+    // ical-generator formats DTSTAMP using the RUNNING PROCESS's own
+    // local Date getters whenever this is set, not a real IANA
+    // conversion -- correct by coincidence in a sandbox whose system
+    // timezone happens to be Asia/Calcutta, wrong (silently shifted)
+    // on Vercel's actual UTC runtime. Every timed event uses floating
+    // local time instead of a declared timezone for the same root
+    // cause -- see wallClockDateTime's own comment in
+    // build-calendar-feed.ts for the full story.
     prodId: { company: "Atlas", product: "Calendar Feed", language: "EN" },
     // A refresh-interval hint -- Apple Calendar applies its own
     // background-refresh cadence regardless, but it's a harmless,
