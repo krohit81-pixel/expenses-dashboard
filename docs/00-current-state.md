@@ -2156,6 +2156,61 @@ calendar/trip data for that week. `npx tsc --noEmit && npx eslint .
 && npx prettier --check . && npx vitest run` all pass (569 — 12 new
 tests) and `npm run build` succeeds.
 
+## v3.6.4: a live iCal feed of Atlas's calendar, subscribable from Apple/Google Calendar
+
+Household request: "create the Apple iCal for our calendar events which
+can be imported to Apple Calendar." Built as a real, always-live
+subscription feed (not a one-time export) — `GET /api/calendar.ics`,
+public (same reasoning `/calendar` itself is: a calendar app's
+background refresh has no way to carry the access-gate cookie), added
+to `middleware.ts`'s `PUBLIC_PATHS`.
+
+- New dependency: `ical-generator` (zero runtime dependencies, own
+  TypeScript types; `npm audit` unchanged at 7 high / 0 critical).
+- New pure module `src/lib/ical/build-calendar-feed.ts` —
+  `buildCalendarFeedEvents()` turns the same four sources
+  `TravelCalendarSection` already renders (trips, the static
+  Ahaana/Rohana school calendars, manual events, recurring class
+  rules) into `ical-generator`'s own `ICalEventData[]` shape. Trips
+  and school items become all-day `VEVENT`s (with a correctly
+  *exclusive* end date per RFC 5545 — a 2-day event needs `DTEND` =
+  start + 2, not + 1, or Apple Calendar shows it one day short).
+  Manual events are all-day when they carry no time, or a timed,
+  Asia/Kolkata event (defaulting to a 1-hour duration — this table has
+  no end-time column) when they do. Recurring class rules become ONE
+  real recurring `VEVENT` each with a genuine `WEEKLY` `RRULE`
+  (`BYDAY`) — not one `VEVENT` per already-expanded occurrence the way
+  this app's own UI grids build things internally — so Apple Calendar
+  handles the repetition itself.
+- **A real, confirmed bug found and fixed during verification**:
+  setting a calendar-level `timezone` option on `ical-generator`'s
+  `ical({...})` call silently reformats both `DTSTAMP` and every
+  recurring event's `RRULE UNTIL` into a bare local timestamp with no
+  trailing `Z` — non-compliant with RFC 5545, which requires `UNTIL`
+  to be UTC whenever `DTSTART` carries a `TZID` (every recurring event
+  here does). Confirmed by generating a real feed, diffing it with and
+  without that option, and independently re-parsing the result with
+  Python's `icalendar` library. Fixed by dropping the calendar-level
+  `timezone` entirely — each timed event already declares its own
+  `timezone: "Asia/Kolkata"`, which is what actually puts the correct
+  `DTSTART;TZID=Asia/Kolkata:...` on those events.
+- The `/calendar` page itself gained a "Subscribe in Apple Calendar"
+  card — a `webcal://` link (what makes tapping it on an Apple device
+  open Calendar.app's own "Add Subscription" sheet directly) plus the
+  plain `https://` URL for other apps (Google Calendar/Outlook "from
+  URL"), both built from the real request host via `headers()` so they
+  work unchanged on production, a preview deploy, or localhost.
+
+Verified against real production data, independently: generated the
+real feed (126 events — 117 all-day, 5 recurring, 4 timed one-offs),
+and re-parsed it with Python's `icalendar` library (not just
+eyeballing the raw text) — every recurring rule's weekdays/times/UNTIL
+bound and every timed event's local time matched the real underlying
+data exactly. `npx tsc --noEmit && npx eslint . && npx prettier
+--check . && npx vitest run` all pass (582 — 13 new tests) and `npm
+run build` succeeds, with `/api/calendar.ics` confirmed present in the
+build output.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions

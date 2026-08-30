@@ -89,8 +89,9 @@ retype the value rather than pasting.
 true and this file wasn't updated when it changed. Corrected here.**
 
 There **is** a real password barrier: `APP_ACCESS_PASSWORD`. Every route
-except `/calendar` (deliberately public — see below) requires it once per
-browser, enforced in `src/middleware.ts` via an HMAC-signed cookie
+except `/calendar` and `/api/calendar.ics` (deliberately public — see
+below) requires it once per browser, enforced in `src/middleware.ts` via
+an HMAC-signed cookie
 (`APP_SESSION_SECRET` signs it, so it can't be forged without that
 secret). This is **not** Supabase Auth — there's no session, no sign-in
 API call, nothing tied to `auth.users` at request time. It's just a
@@ -100,12 +101,15 @@ model" section for the full picture, including why Supabase Auth itself
 isn't the live enforcement boundary (RLS is bypassed by the service-role
 client every service uses — see that same section).
 
-`/calendar` is the one deliberate exception — public and shareable
-without a password, so it's safe to send the link to anyone, but nothing
-financial lives there (just the shared family calendar and travel
-dates). If this URL is ever shared, indexed, or guessed, that page (and
-only that page) is visible with no barrier — a conscious tradeoff, not
-an oversight.
+`/calendar` (and, since v3.6.4, its `/api/calendar.ics` iCal feed — see
+doc 00's v3.6.4 section) are the deliberate exceptions — public and
+shareable without a password, so it's safe to send either link to
+anyone, but nothing financial lives there (just the shared family
+calendar and travel dates). If either URL is ever shared, indexed, or
+guessed, that data (and only that data) is visible with no barrier — a
+conscious tradeoff, not an oversight. `/api/calendar.ics` has to be
+public for a real reason, not just consistency: a calendar app's
+background refresh has no way to carry the access-gate cookie at all.
 
 Ahaana's mini app (`/ahaana/*`) has its own, completely separate
 password (`AHAANA_ACCESS_PASSWORD`) — knowing one password never

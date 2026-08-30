@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 import { Hero } from "@/components/ui/hero";
 import { ACCESS_COOKIE_NAME, verifyAccessToken } from "@/lib/access-gate";
@@ -56,12 +56,13 @@ export const metadata: Metadata = {
  * for why the button needs this at all.
  */
 export default async function CalendarPage() {
-  const [trips, calendarEvents, recurringRules, cookieStore] =
+  const [trips, calendarEvents, recurringRules, cookieStore, headerList] =
     await Promise.all([
       listTrips(),
       listCalendarEvents(),
       listRecurringCalendarEvents(),
       cookies(),
+      headers(),
     ]);
   const isLoggedIn = verifyAccessToken(
     cookieStore.get(ACCESS_COOKIE_NAME)?.value,
@@ -72,6 +73,15 @@ export default async function CalendarPage() {
   const recurringOccurrences = ruleRange
     ? expandRecurringOccurrences(recurringRules, ruleRange.start, ruleRange.end)
     : [];
+
+  // v3.6.4 — the real request host, so the subscribe link below works
+  // unchanged on production, a Vercel preview deploy, or localhost,
+  // with no hardcoded domain. webcal:// is what makes tapping the link
+  // on an Apple device open Calendar.app's own "Add Subscription"
+  // sheet directly, rather than just downloading a file.
+  const host = headerList.get("host") ?? "";
+  const feedUrlHttps = `https://${host}/api/calendar.ics`;
+  const feedUrlWebcal = `webcal://${host}/api/calendar.ics`;
 
   return (
     <div>
@@ -87,6 +97,27 @@ export default async function CalendarPage() {
           travelWindows={travelWindows}
           isLoggedIn={isLoggedIn}
         />
+
+        <div className="rounded-[20px] bg-surface p-5 shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+          <h2 className="mb-1.5 font-display text-[13px] font-bold text-ink">
+            Subscribe in Apple Calendar
+          </h2>
+          <p className="mb-3 text-[11.5px] leading-relaxed text-ink-faint">
+            Adds every trip, school date, and class on this page to your own
+            calendar app, and keeps it updated automatically — no re-importing
+            needed when something changes here.
+          </p>
+          <a
+            href={feedUrlWebcal}
+            className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 font-display text-xs font-bold text-white"
+          >
+            Subscribe
+          </a>
+          <p className="mt-3 break-all text-[10.5px] text-ink-faint">
+            Other apps (Google Calendar, Outlook): add a calendar from URL using{" "}
+            {feedUrlHttps}
+          </p>
+        </div>
 
         <p className="text-[11px] leading-relaxed text-ink-faint">
           This page is public — anyone with the link can view it, including any

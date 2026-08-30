@@ -16,7 +16,9 @@
 - **App-level access gate**, not Supabase Auth: an HMAC-signed cookie
   (`src/lib/access-gate.ts`), set once per browser after entering
   `APP_ACCESS_PASSWORD`, enforced in `src/middleware.ts` for every route
-  except `/calendar` (deliberately public/shareable, no financial data).
+  except `/calendar` and its `/api/calendar.ics` iCal feed (v3.6.4,
+  deliberately public/shareable, no financial data — a subscribed
+  calendar app's background refresh has no way to carry the cookie).
   Chosen specifically because the earlier per-request
   `signInWithPassword` design tripped Supabase's own sign-in rate limiting
   under concurrent mobile-Safari requests — a real production failure

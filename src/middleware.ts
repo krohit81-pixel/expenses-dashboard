@@ -59,6 +59,12 @@ const PUBLIC_PATHS = [
   "/calendar",
   "/login",
   "/api/cron",
+  // v3.6.4 -- the subscribable iCal feed of everything /calendar shows.
+  // Public for the same reason /calendar itself is: a calendar app's
+  // background refresh has no way to carry the access-gate cookie, and
+  // this feed contains nothing /calendar doesn't already show anyone
+  // with the link.
+  "/api/calendar.ics",
   "/ahaana-manifest.webmanifest",
   "/ahaana-sw.js",
 ];

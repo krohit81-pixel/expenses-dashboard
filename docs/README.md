@@ -133,6 +133,12 @@ they say so.
   week, with a headline naming whoever's busiest. Grew out of a
   "Family" dashboard prototype the household reviewed and put on hold,
   keeping just this one section. See doc 00's v3.6.3 section.
+- **Live iCal subscription feed (v3.6.4):** `GET /api/calendar.ics`
+  (public, `ical-generator`) turns every trip, school date, manual
+  event, and recurring class rule into a real, always-up-to-date feed
+  Apple/Google Calendar can subscribe to — a "Subscribe in Apple
+  Calendar" card on `/calendar` links straight to it via `webcal://`.
+  See doc 00's v3.6.4 section.
 - Log is a hub for Transactions, Accounts (with inline balance
   correction), and Imports — a statement import also prompts to log its
   due amount as a real Dashboard expense (v2.5.4) and to check for
