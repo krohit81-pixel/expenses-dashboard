@@ -222,6 +222,84 @@ describe("buildCalendarFeedEvents — recurring rules", () => {
   });
 });
 
+describe("buildCalendarFeedEvents — reminder alarms", () => {
+  it("gives a trip no alarm when reminders are off, and a day-based one when on", () => {
+    const [off] = buildCalendarFeedEvents(
+      [trip({ remindEnabled: false })],
+      [],
+      [],
+      [],
+    );
+    expect(off.alarms).toBeUndefined();
+
+    const [on] = buildCalendarFeedEvents(
+      [trip({ remindEnabled: true, remindLeadDays: 2 })],
+      [],
+      [],
+      [],
+    );
+    expect(on.alarms).toEqual([
+      { type: "display", triggerBefore: 2 * 24 * 60 * 60 },
+    ]);
+  });
+
+  it("always gives a school item a fixed 1-day-before alarm", () => {
+    const [event] = buildCalendarFeedEvents([], [schoolItem()], [], []);
+    expect(event.alarms).toEqual([
+      { type: "display", triggerBefore: 24 * 60 * 60 },
+    ]);
+  });
+
+  it("gives a manual event a day-based alarm when only remindLeadDays is set", () => {
+    const [event] = buildCalendarFeedEvents(
+      [],
+      [],
+      [calendarEvent({ remindEnabled: true, remindLeadDays: 1 })],
+      [],
+    );
+    expect(event.alarms).toEqual([
+      { type: "display", triggerBefore: 24 * 60 * 60 },
+    ]);
+  });
+
+  it("prefers an hour-based alarm over the day-based lead when both could apply", () => {
+    const [event] = buildCalendarFeedEvents(
+      [],
+      [],
+      [
+        calendarEvent({
+          remindEnabled: true,
+          remindLeadDays: 1,
+          remindLeadHours: 3,
+          startTime: "18:00",
+        }),
+      ],
+      [],
+    );
+    expect(event.alarms).toEqual([
+      { type: "display", triggerBefore: 3 * 60 * 60 },
+    ]);
+  });
+
+  it("gives a recurring rule no alarm when reminders are off, and an hour-based one when on", () => {
+    const [off] = buildCalendarFeedEvents(
+      [],
+      [],
+      [],
+      [recurringRule({ remindEnabled: false })],
+    );
+    expect(off.alarms).toBeUndefined();
+
+    const [on] = buildCalendarFeedEvents(
+      [],
+      [],
+      [],
+      [recurringRule({ remindEnabled: true, remindLeadHours: 1 })],
+    );
+    expect(on.alarms).toEqual([{ type: "display", triggerBefore: 60 * 60 }]);
+  });
+});
+
 describe("buildCalendarFeedEvents", () => {
   it("combines all four sources in order", () => {
     const events = buildCalendarFeedEvents(

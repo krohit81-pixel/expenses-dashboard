@@ -16,8 +16,10 @@
  */
 
 import {
+  ICalAlarmType,
   ICalEventRepeatingFreq,
   ICalWeekday,
+  type ICalAlarmData,
   type ICalCategoryData,
   type ICalEventData,
 } from "ical-generator";
@@ -92,6 +94,40 @@ function joinNonEmpty(lines: (string | null)[]): string | undefined {
   return kept.length > 0 ? kept.join("\n") : undefined;
 }
 
+/** A single native display alert `n` days before the event's own start — VALARM baked into the feed itself, so it fires for every subscriber, unlike a per-event alert added afterward in a read-only subscribed calendar (which doesn't stick). */
+function alarmDaysBefore(days: number): ICalAlarmData[] {
+  return [{ type: ICalAlarmType.display, triggerBefore: days * 24 * 60 * 60 }];
+}
+
+/** Same as alarmDaysBefore, but for the hour-based lead time timed items can use instead (see zHourlyReminderFields — mutually exclusive with a day-based lead in practice). */
+function alarmHoursBefore(hours: number): ICalAlarmData[] {
+  return [{ type: ICalAlarmType.display, triggerBefore: hours * 60 * 60 }];
+}
+
+/**
+ * Reuses whatever reminder lead time the household already configured
+ * for this row (the exact same remindEnabled/remindLeadDays/
+ * remindLeadHours fields that drive its Telegram reminder — see
+ * ReminderService.ts) rather than inventing a separate "default alert"
+ * scheme — so a native Apple Calendar alert fires exactly when a
+ * Telegram reminder would, for anyone who's turned reminders on for
+ * that row. No alarm at all when remindEnabled is false, same as no
+ * Telegram reminder either.
+ */
+function reminderAlarms(
+  remindEnabled: boolean,
+  remindLeadDays: number,
+  remindLeadHours: number | null,
+): ICalAlarmData[] | undefined {
+  if (!remindEnabled) return undefined;
+  return remindLeadHours !== null
+    ? alarmHoursBefore(remindLeadHours)
+    : alarmDaysBefore(remindLeadDays);
+}
+
+/** School items are static in-code data with no per-item reminder toggle -- they already always get a fixed 1-day-before Telegram reminder (see ReminderService.ts's own SCHOOL_CALENDAR_LEAD_DAYS); this is that same fixed lead time, kept as its own copy here for the same "each pure module keeps its own tiny constant" reasoning as wallClockDateTime's IST handling used to. */
+const SCHOOL_CALENDAR_LEAD_DAYS = 1;
+
 function tripToEvent(trip: Trip): ICalEventData {
   return {
     id: `atlas-trip-${trip.id}`,
@@ -107,6 +143,7 @@ function tripToEvent(trip: Trip): ICalEventData {
       trip.notes,
     ]),
     categories: category("Trip"),
+    alarms: reminderAlarms(trip.remindEnabled, trip.remindLeadDays, null),
   };
 }
 
@@ -122,6 +159,7 @@ function schoolItemToEvent(item: SchoolCalendarItem): ICalEventData {
     summary: `${SCHOOL_PERSON_NAME[item.person]}: ${item.title}`,
     description: item.meta,
     categories: category(TAG_LABELS[item.tag]),
+    alarms: alarmDaysBefore(SCHOOL_CALENDAR_LEAD_DAYS),
   };
 }
 
@@ -130,6 +168,11 @@ function calendarEventToEvent(event: CalendarEvent): ICalEventData {
     event.people.length > 0 ? `Tagged: ${event.people.join(", ")}` : null,
     event.notes,
   ]);
+  const alarms = reminderAlarms(
+    event.remindEnabled,
+    event.remindLeadDays,
+    event.remindLeadHours,
+  );
 
   if (!event.startTime) {
     return {
@@ -140,6 +183,7 @@ function calendarEventToEvent(event: CalendarEvent): ICalEventData {
       summary: event.title,
       description,
       categories: category(TAG_LABELS[event.tag]),
+      alarms,
     };
   }
 
@@ -155,6 +199,7 @@ function calendarEventToEvent(event: CalendarEvent): ICalEventData {
     summary: event.title,
     description,
     categories: category(TAG_LABELS[event.tag]),
+    alarms,
   };
 }
 
@@ -176,6 +221,14 @@ function recurringRuleToEvent(rule: RecurringCalendarEvent): ICalEventData {
       byDay: rule.daysOfWeek.map((day) => DAY_TO_ICAL_WEEKDAY[day]),
       until: wallClockDateTime(rule.endDate, "23:59"),
     },
+    // A VALARM on a recurring VEVENT applies to every instance the
+    // RRULE generates, each firing relative to that instance's own
+    // start -- no special per-occurrence handling needed.
+    alarms: reminderAlarms(
+      rule.remindEnabled,
+      rule.remindLeadDays,
+      rule.remindLeadHours,
+    ),
   };
 }
 

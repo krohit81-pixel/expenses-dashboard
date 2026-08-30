@@ -2267,6 +2267,42 @@ eslint . && npx prettier --check . && npx vitest run` all pass (582 —
 existing tests updated for the new floating-time semantics, no new
 test count change) and `npm run build` succeeds.
 
+## v3.6.6: the iCal feed gained real Apple Calendar alerts (VALARM)
+
+Household follow-up, after asking whether Apple Calendar's own
+notifications would work on the subscribed feed: they don't by
+default (a subscribed calendar is read-only — a reminder added
+afterward in the Calendar app doesn't stick past the next refresh),
+but a `VALARM` baked into the feed itself does fire normally for every
+subscriber. Asked for exactly that.
+
+- Deliberately reuses each row's OWN existing reminder configuration —
+  the same `remindEnabled`/`remindLeadDays`/`remindLeadHours` fields
+  that already drive that row's Telegram reminder (see
+  `ReminderService.ts`) — rather than inventing a separate "default
+  alert" scheme. No alarm at all when `remindEnabled` is false, same as
+  no Telegram reminder either; an hour-based lead wins over a day-based
+  one when both could apply, matching the app's existing "mutually
+  exclusive in practice" convention.
+- School items (static data, no per-item toggle) get a fixed 1-day-before
+  alarm unconditionally — the same fixed lead time they already always
+  get for their Telegram reminder (`SCHOOL_CALENDAR_LEAD_DAYS`).
+- New helpers in `build-calendar-feed.ts`: `alarmDaysBefore`/
+  `alarmHoursBefore` (native `ICalAlarmType.display` alerts) and
+  `reminderAlarms()`, which picks between them from a row's own
+  reminder fields.
+
+Verified against real production data: regenerated the feed with the
+server process forced to `TZ=UTC` (matching Vercel), independently
+re-parsed with Python's `icalendar` library — 114 of 126 events
+correctly carry a `VALARM`, and cross-checked directly against the raw
+`finance.trips` rows: only `Satara` and `Delhi` have
+`remind_enabled = true` in the real data, and those are the only two
+trips that came back with an alarm, at the correct 1-day-before
+trigger. `npx tsc --noEmit && npx eslint . && npx prettier --check .
+&& npx vitest run` all pass (587 — 5 new tests) and `npm run build`
+succeeds.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions
