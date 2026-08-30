@@ -55,7 +55,10 @@ vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: () => ({ from: fromMock }),
 }));
 
-import { getLatestCycleTransactionsPerCard } from "./CreditCardIntelService";
+import {
+  getLatestCycleTransactionsPerCard,
+  getLatestCycleReportData,
+} from "./CreditCardIntelService";
 
 function statement(overrides: Record<string, unknown> = {}) {
   return {
@@ -63,10 +66,20 @@ function statement(overrides: Record<string, unknown> = {}) {
     issuer: "HDFC",
     card_type: "Infinia",
     card_last4: "1234",
+    primary_cardholder: "Rohit",
     statement_date: "2026-08-05",
     cycle_month: "2026-08",
     billing_period_start: "2026-07-06",
     billing_period_end: "2026-08-05",
+    due_date: "2026-08-25",
+    total_amount_due: 45000,
+    minimum_due: 4500,
+    previous_statement_due: 0,
+    payments_received: 0,
+    purchases_debit: 45000,
+    finance_charges: 0,
+    available_credit_limit: 55000,
+    total_credit_limit: 100000,
     ...overrides,
   };
 }
@@ -207,5 +220,103 @@ describe("getLatestCycleTransactionsPerCard", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].transactions).toEqual([]);
+  });
+});
+
+describe("getLatestCycleReportData", () => {
+  it("returns an empty array when no statements exist", async () => {
+    const result = await getLatestCycleReportData();
+    expect(result).toEqual([]);
+    expect(fromMock).not.toHaveBeenCalledWith("credit_card_transactions");
+  });
+
+  it("picks the newest statement per card, same grouping as getLatestCycleTransactionsPerCard", async () => {
+    statementsResult = {
+      data: [
+        statement({ id: "stmt-newer", statement_date: "2026-08-05" }),
+        statement({ id: "stmt-older", statement_date: "2026-07-05" }),
+      ],
+      error: null,
+    };
+
+    const result = await getLatestCycleReportData();
+
+    expect(result).toHaveLength(1);
+    expect(result[0].statementDate).toBe("2026-08-05");
+    expect(result[0].cardKey).toBe("HDFC|Infinia|1234");
+  });
+
+  it("carries statement header facts as Money", async () => {
+    statementsResult = { data: [statement()], error: null };
+
+    const result = await getLatestCycleReportData();
+
+    expect(result[0].totalAmountDue).toBe("45000.00");
+    expect(result[0].minimumDue).toBe("4500.00");
+    expect(result[0].availableCreditLimit).toBe("55000.00");
+    expect(result[0].totalCreditLimit).toBe("100000.00");
+    expect(result[0].dueDate).toBe("2026-08-25");
+  });
+
+  it("resolves a transaction's merchant, category, and subcategory when tagged", async () => {
+    statementsResult = { data: [statement({ id: "stmt-1" })], error: null };
+    transactionsResult = {
+      data: [
+        transaction({
+          id: "txn-1",
+          statement_id: "stmt-1",
+          description: "RAYMOND STORE",
+          merchants: {
+            id: "merch-1",
+            display_name: "Raymond",
+            atlas_category_id: "cat-shopping",
+            atlas_subcategory_id: "cat-clothing",
+          },
+        }),
+      ],
+      error: null,
+    };
+
+    const result = await getLatestCycleReportData();
+
+    expect(result[0].transactions).toHaveLength(1);
+    const txn = result[0].transactions[0];
+    expect(txn.description).toBe("Raymond");
+    expect(txn.merchantId).toBe("merch-1");
+    expect(txn.merchantDisplayName).toBe("Raymond");
+    expect(txn.atlasCategoryId).toBe("cat-shopping");
+    expect(txn.atlasSubcategoryId).toBe("cat-clothing");
+  });
+
+  it("leaves merchant/category fields null and falls back to the raw description when untagged", async () => {
+    statementsResult = { data: [statement({ id: "stmt-1" })], error: null };
+    transactionsResult = {
+      data: [
+        transaction({
+          id: "txn-2",
+          statement_id: "stmt-1",
+          description: "UNKNOWN VENDOR 123",
+          merchants: null,
+        }),
+      ],
+      error: null,
+    };
+
+    const result = await getLatestCycleReportData();
+
+    const txn = result[0].transactions[0];
+    expect(txn.description).toBe("UNKNOWN VENDOR 123");
+    expect(txn.merchantId).toBeNull();
+    expect(txn.merchantDisplayName).toBeNull();
+    expect(txn.atlasCategoryId).toBeNull();
+    expect(txn.atlasSubcategoryId).toBeNull();
+  });
+
+  it("throws a clear error when the transactions query fails", async () => {
+    statementsResult = { data: [statement()], error: null };
+    transactionsResult = { data: [], error: { message: "boom" } };
+    await expect(getLatestCycleReportData()).rejects.toThrow(
+      /Failed to load credit card transactions/,
+    );
   });
 });

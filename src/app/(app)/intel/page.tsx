@@ -36,6 +36,7 @@ import {
 } from "@/lib/dates/month";
 import { Hero } from "@/components/ui/hero";
 import { Spinner } from "@/components/ui/spinner";
+import { Button } from "@/components/ui/button";
 import { GenerateInsightButton } from "@/features/intel/components/GenerateInsightButton";
 import { CardMonthNav } from "@/features/intel/components/CardMonthNav";
 import { DonutSliceLink } from "@/features/intel/components/DonutSliceLink";
@@ -381,6 +382,40 @@ async function CardLevelBreakdownSection({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * v3.6.0 — the combined credit card PDF report's download trigger.
+ * hasAnyCreditCardStatement() is the same cheap existence check
+ * CardLevelBreakdownSection already runs, gating on "any statement
+ * ever imported" rather than "this specific month" -- the report
+ * itself always covers each card's own latest statement, independent
+ * of whatever month is currently being viewed above.
+ */
+async function CombinedReportSection() {
+  const anyCardStatements = await hasAnyCreditCardStatement();
+  if (!anyCardStatements) return null;
+
+  return (
+    <details open className="group">
+      <summary className="mb-3 flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
+        <SectionChevron />
+        <span className="font-display text-sm font-bold text-ink">
+          Combined report
+        </span>
+      </summary>
+      <div className="rounded-[20px] border-[1.5px] border-line bg-surface p-5">
+        <p className="mb-3 text-sm leading-relaxed text-ink-soft">
+          A single PDF across every card&apos;s own latest statement — overall
+          breakdown, category-to-merchant detail, a per-card summary, and an
+          appendix with a ready-to-paste AI analysis prompt.
+        </p>
+        <Button asChild variant="outline" size="sm">
+          <a href="/api/reports/credit-cards">Download combined report (PDF)</a>
+        </Button>
+      </div>
+    </details>
   );
 }
 
@@ -796,6 +831,10 @@ export default async function IntelPage({
             />
           </Suspense>
         </details>
+
+        <Suspense fallback={null}>
+          <CombinedReportSection />
+        </Suspense>
       </div>
     </div>
   );

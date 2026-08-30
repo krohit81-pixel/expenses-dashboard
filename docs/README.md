@@ -104,6 +104,16 @@ they say so.
   fixed that output cutting off mid-sentence (a too-tight AI response
   token budget). See doc 00's v3.4.14–v3.5.5 sections for the full
   detail.
+- **Combined credit card PDF report (v3.6.0):** a manual "Download
+  combined report (PDF)" button on Intel generates a real PDF
+  (`@react-pdf/renderer`) across every card's own latest statement —
+  Intel's category donut reused as-is, a category-to-merchant
+  drill-down, a per-card summary, top merchants/largest transactions,
+  an executive-styled cover, and a data-oriented appendix carrying a
+  ready-to-paste LLM analysis prompt plus the full combined transaction
+  table. Found and fixed a real pre-existing bug in `Button`'s
+  `asChild` mode along the way (broke every existing usage, not just
+  this one). See doc 00's v3.6.0 section for the full detail.
 - Log is a hub for Transactions, Accounts (with inline balance
   correction), and Imports — a statement import also prompts to log its
   due amount as a real Dashboard expense (v2.5.4) and to check for

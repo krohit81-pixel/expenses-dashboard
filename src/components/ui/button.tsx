@@ -63,8 +63,14 @@ export function Button({
       aria-busy={loading || undefined}
       {...props}
     >
-      {!asChild && loading && <Spinner className="size-4" />}
-      {children}
+      {asChild ? (
+        children
+      ) : (
+        <>
+          {loading && <Spinner className="size-4" />}
+          {children}
+        </>
+      )}
     </Comp>
   );
 }

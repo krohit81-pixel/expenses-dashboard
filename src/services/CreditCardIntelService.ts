@@ -164,17 +164,45 @@ export interface LatestCycleCard {
 }
 
 /**
- * v3.5.4 — every card's own MOST RECENT statement (by `statement_date`,
- * not `cycle_month` — a household could import an old backlog
- * statement after a newer one, and "most recent" should mean the
- * latest real cycle, not whichever row happened to import last) and
- * its debit transactions, one entry per distinct card
- * (issuer/card_type/card_last4). Built for IntelService's "Generate
- * commentary" — feeding the model each card's latest cycle so it can
- * flag potentially-avoidable spending patterns (repeated similar
- * purchases, back-to-back dining, one outsized one-off), the same way
- * getCardCategoryBreakdown already feeds it one month's aggregate
- * total, just at transaction-line granularity instead.
+ * The full statement-header column set both `getLatestCycleTransactionsPerCard`
+ * and `getLatestCycleReportData` (v3.6.0) need — kept as one shared select
+ * list/query so a card's "latest statement" is found identically by both,
+ * even though each caller only reads a subset of the columns back out.
+ */
+const LATEST_STATEMENT_COLUMNS =
+  "id, issuer, card_type, card_last4, primary_cardholder, statement_date, cycle_month, billing_period_start, billing_period_end, due_date, total_amount_due, minimum_due, previous_statement_due, payments_received, purchases_debit, finance_charges, available_credit_limit, total_credit_limit";
+
+type LatestStatementRow = {
+  id: string;
+  issuer: string;
+  card_type: string;
+  card_last4: string;
+  primary_cardholder: string;
+  statement_date: string;
+  cycle_month: string;
+  billing_period_start: string;
+  billing_period_end: string;
+  due_date: string;
+  total_amount_due: number;
+  minimum_due: number;
+  previous_statement_due: number;
+  payments_received: number;
+  purchases_debit: number;
+  finance_charges: number;
+  available_credit_limit: number;
+  total_credit_limit: number;
+};
+
+/**
+ * Every card's own MOST RECENT statement (by `statement_date`, not
+ * `cycle_month` — a household could import an old backlog statement
+ * after a newer one, and "most recent" should mean the latest real
+ * cycle, not whichever row happened to import last), one entry per
+ * distinct card (issuer/card_type/card_last4). Extracted from
+ * `getLatestCycleTransactionsPerCard` in v3.6.0 so the combined
+ * credit-card report's own richer query (`getLatestCycleReportData`)
+ * shares this exact same "find latest per card" step rather than
+ * re-implementing it.
  *
  * Groups in application code, not a SQL DISTINCT ON — same "no
  * aggregate RPC/view exists yet, this app's data volume doesn't need
@@ -182,34 +210,46 @@ export interface LatestCycleCard {
  * Statements fetched newest-first so the first one seen per card key
  * is already the latest — no separate max() pass needed.
  */
-export async function getLatestCycleTransactionsPerCard(): Promise<
-  LatestCycleCard[]
-> {
-  const supabase = createServiceClient();
-
-  const { data: statements, error: statementsError } = await supabase
+async function loadLatestStatementPerCard(
+  supabase: ReturnType<typeof createServiceClient>,
+): Promise<LatestStatementRow[]> {
+  const { data: statements, error } = await supabase
     .from("credit_card_statements")
-    .select(
-      "id, issuer, card_type, card_last4, statement_date, cycle_month, billing_period_start, billing_period_end",
-    )
+    .select(LATEST_STATEMENT_COLUMNS)
     .eq("user_id", OWNER_USER_ID)
     .order("statement_date", { ascending: false });
 
-  if (statementsError) {
-    throw new Error(
-      `Failed to load credit card statements: ${statementsError.message}`,
-    );
+  if (error) {
+    throw new Error(`Failed to load credit card statements: ${error.message}`);
   }
-  if (statements.length === 0) return [];
 
-  const latestByCard = new Map<string, (typeof statements)[number]>();
+  const latestByCard = new Map<string, LatestStatementRow>();
   for (const statement of statements) {
     const cardKey = `${statement.issuer}|${statement.card_type}|${statement.card_last4}`;
     if (!latestByCard.has(cardKey)) {
       latestByCard.set(cardKey, statement);
     }
   }
-  const latestStatements = Array.from(latestByCard.values());
+  return Array.from(latestByCard.values());
+}
+
+/**
+ * v3.5.4 — every card's own latest statement (see
+ * `loadLatestStatementPerCard`) and its debit transactions. Built for
+ * IntelService's "Generate commentary" — feeding the model each card's
+ * latest cycle so it can flag potentially-avoidable spending patterns
+ * (repeated similar purchases, back-to-back dining, one outsized
+ * one-off), the same way getCardCategoryBreakdown already feeds it one
+ * month's aggregate total, just at transaction-line granularity
+ * instead.
+ */
+export async function getLatestCycleTransactionsPerCard(): Promise<
+  LatestCycleCard[]
+> {
+  const supabase = createServiceClient();
+
+  const latestStatements = await loadLatestStatementPerCard(supabase);
+  if (latestStatements.length === 0) return [];
   const statementIds = latestStatements.map((s) => s.id);
 
   const { data: transactions, error: transactionsError } = await supabase
@@ -246,6 +286,109 @@ export async function getLatestCycleTransactionsPerCard(): Promise<
         description: txn.merchants?.display_name ?? txn.description,
         amount: dbNumberToMoney(txn.amount),
         currency: txn.currency,
+      }),
+    ),
+  }));
+}
+
+export interface LatestCycleReportTransaction {
+  id: string;
+  date: string;
+  /** The resolved merchant display name when one's been tagged, else the statement's own raw description — same fallback as LatestCycleCardTransaction. */
+  description: string;
+  amount: Money;
+  currency: string;
+  merchantId: string | null;
+  merchantDisplayName: string | null;
+  atlasCategoryId: string | null;
+  atlasSubcategoryId: string | null;
+}
+
+export interface LatestCycleReportCard {
+  cardKey: string;
+  cardLabel: string;
+  issuer: string;
+  primaryCardholder: string;
+  statementDate: string;
+  cycleMonth: string;
+  billingPeriodStart: string;
+  billingPeriodEnd: string;
+  dueDate: string;
+  totalAmountDue: Money;
+  minimumDue: Money;
+  availableCreditLimit: Money;
+  totalCreditLimit: Money;
+  transactions: LatestCycleReportTransaction[];
+}
+
+/**
+ * v3.6.0 — the richer sibling of `getLatestCycleTransactionsPerCard`,
+ * built for the combined credit-card PDF report: every card's own
+ * latest statement (shared "find latest per card" step, see
+ * `loadLatestStatementPerCard`), but carrying the statement's own
+ * header facts (due date, total/minimum due, credit limits) and each
+ * transaction's resolved merchant + atlas category/subcategory ids —
+ * none of which `getLatestCycleTransactionsPerCard` needs for its own
+ * caller (the AI insight prompt), so that function is left untouched
+ * and this is additive, not a replacement.
+ */
+export async function getLatestCycleReportData(): Promise<
+  LatestCycleReportCard[]
+> {
+  const supabase = createServiceClient();
+
+  const latestStatements = await loadLatestStatementPerCard(supabase);
+  if (latestStatements.length === 0) return [];
+  const statementIds = latestStatements.map((s) => s.id);
+
+  const { data: transactions, error: transactionsError } = await supabase
+    .from("credit_card_transactions")
+    .select(
+      "id, statement_id, transaction_date, description, amount, currency, merchants(id, display_name, atlas_category_id, atlas_subcategory_id)",
+    )
+    .eq("user_id", OWNER_USER_ID)
+    .eq("transaction_type", "debit")
+    .in("statement_id", statementIds)
+    .order("transaction_date", { ascending: true });
+
+  if (transactionsError) {
+    throw new Error(
+      `Failed to load credit card transactions: ${transactionsError.message}`,
+    );
+  }
+
+  const transactionsByStatement = new Map<string, typeof transactions>();
+  for (const txn of transactions) {
+    const list = transactionsByStatement.get(txn.statement_id) ?? [];
+    list.push(txn);
+    transactionsByStatement.set(txn.statement_id, list);
+  }
+
+  return latestStatements.map((statement) => ({
+    cardKey: `${statement.issuer}|${statement.card_type}|${statement.card_last4}`,
+    cardLabel: `${statement.issuer} ${statement.card_type} •••• ${statement.card_last4}`,
+    issuer: statement.issuer,
+    primaryCardholder: statement.primary_cardholder,
+    statementDate: statement.statement_date,
+    cycleMonth: statement.cycle_month,
+    billingPeriodStart: statement.billing_period_start,
+    billingPeriodEnd: statement.billing_period_end,
+    dueDate: statement.due_date,
+    totalAmountDue: dbNumberToMoney(statement.total_amount_due),
+    minimumDue: dbNumberToMoney(statement.minimum_due),
+    availableCreditLimit: dbNumberToMoney(statement.available_credit_limit),
+    totalCreditLimit: dbNumberToMoney(statement.total_credit_limit),
+    transactions: (transactionsByStatement.get(statement.id) ?? []).map(
+      (txn) => ({
+        id: txn.id,
+        date: txn.transaction_date,
+        description: txn.merchants?.display_name ?? txn.description,
+        amount: dbNumberToMoney(txn.amount),
+        currency: txn.currency,
+        merchantId: txn.merchants?.id ?? null,
+        merchantDisplayName: txn.merchants?.display_name ?? null,
+        atlasCategoryId: txn.merchants?.atlas_category_id ?? null,
+        atlasSubcategoryId: txn.merchants?.atlas_subcategory_id ?? null,
       }),
     ),
   }));

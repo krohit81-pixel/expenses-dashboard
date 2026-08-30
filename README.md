@@ -21,8 +21,11 @@ layer, and wins wherever they disagree).
 - **Log** — add/edit/delete a transaction and tag it to a cycle,
   correct an account balance, or import a credit card statement PDF.
 - **Intel** — spending charts by category and by card, month-on-month
-  trends, and a button-triggered AI commentary (cash flow, plus a
-  credit-card-spending callout) via Anthropic or Gemini.
+  trends, a button-triggered AI commentary (cash flow, plus a
+  credit-card-spending callout) via Anthropic or Gemini, and a
+  downloadable combined PDF report across every card's latest billing
+  cycle (overall breakdown, category-to-merchant detail, per-card
+  summary, and an appendix with a ready-to-paste AI analysis prompt).
 - **Calendar** — the one public, password-free page: a shared family
   calendar merging a static school calendar, booked trips, one-off
   events, and weekly-repeating recurring events (classes, etc.), with

@@ -1923,6 +1923,89 @@ either — same reasoning as v3.5.4's own report, a real billed LLM call
 that would overwrite the household's saved insight — left for the
 household to confirm the fix on their next real generation.
 
+## v3.6.0: combined credit card expense report — a downloadable PDF across every card's latest cycle
+
+Household request: a single document pulling one cycle's spend across
+all six cards together — reusing Intel's category donut, adding a
+category-to-merchant drill-down (e.g. "Shopping" expands to "Raymond,"
+tagged "Clothing"), totals/percentages throughout, a few more
+summary/detail views, an executive-styled cover ("like a BCG/Deloitte
+consultant would submit," using Atlas's own colors), and an appendix
+carrying a ready-to-paste LLM analysis prompt plus the full combined
+transaction table — for now behind a manual "Download combined report
+(PDF)" button on Intel, not an automated month-end job.
+
+- New dependency: `@react-pdf/renderer` — composes the PDF from React
+  components server-side (`renderToBuffer`), no headless browser. `npm
+  audit` unchanged at 7 high / 0 critical after adding it.
+- **Data scope**: each card's own MOST RECENT statement (not a fixed
+  calendar `cycle_month`) — the same semantics
+  `getLatestCycleTransactionsPerCard` already used for the v3.5.4 AI
+  insight. `CreditCardIntelService.ts` gained
+  `getLatestCycleReportData()`, a richer sibling carrying statement
+  header facts (due date, total/minimum due, credit limits) and each
+  transaction's resolved merchant + atlas category/subcategory ids —
+  the "find latest statement per card" step is now a shared private
+  helper (`loadLatestStatementPerCard`) so both functions stay in sync;
+  the original function is untouched, still feeding the AI insight.
+- New pure aggregation module `src/lib/intel/credit-card-report.ts`:
+  category totals (fed straight into `donut.ts`'s existing
+  `buildDonutSlices` — literal reuse of Intel's own top-5-plus-Other
+  bucketing), category-to-merchant breakdown, per-card summary
+  (including credit utilization), top merchants overall, largest
+  individual transactions, the full combined transaction table, a new
+  SVG donut-arc-path function (`donutArcPath` — react-pdf has no CSS
+  conic-gradient support, so the PDF's donut needs real arc geometry,
+  unlike the browser's), and the appendix's LLM analysis prompt builder
+  (`buildLlmAnalysisPrompt`) — a static, template-generated prompt only;
+  no LLM call happens anywhere in this feature.
+- New PDF component tree under `src/features/intel/pdf/`: a cover page
+  (KPI tiles + a few deterministic, computed-from-real-numbers
+  sentences — no fabricated prose, that's deliberately left to whatever
+  LLM the household pastes the appendix prompt into), overall breakdown
+  (donut + category table), category-to-merchant detail, per-card
+  summary, other views (top merchants, largest transactions), and a
+  data-oriented appendix (the LLM prompt + full transaction table,
+  relying on react-pdf's automatic multi-page wrapping for ~250+ rows).
+  Atlas's real light-mode hex tokens are hardcoded for styling (react-pdf
+  has no access to CSS custom properties) — same "separate hardcoded hex
+  constant" precedent Intel's own `CATEGORY_COLORS` already set for
+  Recharts. No custom fonts bundled — react-pdf's built-in Helvetica, a
+  deliberate tradeoff (no font files exist anywhere in this repo).
+- New route `GET /api/reports/credit-cards` (Node runtime) — generates
+  and streams a fresh PDF buffer on every request (`Content-Disposition:
+  attachment`), unlike the attachments download route, which redirects
+  to stored content; there's nothing stored to redirect to here.
+- **Real bug found and fixed during this work**: `Button`'s `asChild`
+  mode was broken for every existing usage in the app (including the
+  attachments download button), not just this new one —
+  `{!asChild && loading && <Spinner />}` still evaluated to a literal
+  `false`, which counts as a second child even though nothing renders
+  from it, and Radix's `Slot` primitive requires exactly one element
+  child. Fixed by branching the JSX so `asChild` mode passes `children`
+  through with no sibling nodes at all.
+- **Currency rendering gotcha, found and fixed during verification**:
+  react-pdf's standard Helvetica/Courier fonts have no glyph for "₹" (or
+  the "→" arrow character used in a section heading) — both rendered as
+  garbled characters in the first real PDF pulled off production data.
+  Fixed with a PDF-only formatter (`features/intel/pdf/format.ts`,
+  `formatMoneyForPdf`) that uses the currency CODE ("INR 1,234.56")
+  instead of the symbol — `formatMoneyDisplay` in `lib/money` is
+  unchanged for the rest of the app, where the browser's own system
+  fonts render "₹" fine — and by replacing the one "→" in report copy
+  with plain text.
+- Verified against real production data (not fixtures): generated a
+  real PDF via a temporarily-public route + `next start` (reverted
+  before finishing) — 18 pages, 6 real cards, 267 real transactions,
+  ₹771,181.98 total spend, category percentages summing to 100%,
+  merchants matching the household's real Merchant Dictionary (Raymond,
+  Zara, Amazon, etc.) — plus the usual
+  `npx tsc --noEmit && npx eslint . && npx prettier --check . && npx
+  vitest run` (all pass) and `npm run build`. Subcategory tagging
+  itself showed "—" throughout in this real run — expected, not a bug:
+  the household hasn't tagged merchant subcategories yet, a separate,
+  pre-existing gap in the Merchant Dictionary data, not this feature.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions
