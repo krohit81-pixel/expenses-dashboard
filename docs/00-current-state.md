@@ -2006,6 +2006,69 @@ transaction table — for now behind a manual "Download combined report
   the household hasn't tagged merchant subcategories yet, a separate,
   pre-existing gap in the Merchant Dictionary data, not this feature.
 
+## v3.6.1: fixed v3.6.0 — the report actually crashed on Vercel, and gave no feedback while trying
+
+Household-reported, with a screenshot of a blank white page: pressing
+"Download combined report" showed nothing happening at all, still
+blank after 2 minutes.
+
+Two separate real bugs, found via `vercel logs` against the live
+deployment (not guessed):
+
+- **The report was actually crashing, every time, in production.** A
+  real 500: `Cannot find module
+  '/var/task/node_modules/pdfkit/js/standard-fonts/Helvetica.cjs'`.
+  `@react-pdf/renderer`'s underlying `pdfkit` loads its standard-14 font
+  data files via a runtime-computed path, not a static import/require —
+  Next's output file tracer can't see that reference, so Vercel's build
+  left those files out of the deployed serverless function entirely.
+  This is exactly why v3.6.0's own verification (a real `next build` +
+  `next start` + curl, which worked) didn't catch it: `next start` runs
+  the whole app as one process with the full `node_modules` tree
+  available, which isn't the same packaging Vercel actually deploys —
+  the gap between the two is real, and this feature is the first one in
+  this codebase to hit it. Fixed with `outputFileTracingIncludes` in
+  `next.config.ts`, forcing `node_modules/pdfkit/js/**` into this one
+  route's traced output regardless of what static analysis detects;
+  confirmed by inspecting the route's own `.next/.../route.js.nft.json`
+  trace file and finding `Helvetica.cjs` now present. Also added an
+  explicit `maxDuration = 60` on the route — generating an 18-page PDF
+  on a cold serverless start plausibly needs more than whatever
+  Vercel's platform default is.
+- **No loading feedback at all**, real bug or not: the trigger was a
+  plain `<a href="/api/reports/credit-cards">`, which fully navigates
+  the browser away to a blank tab for however long generation takes,
+  with no spinner and no way to show an error if something failed —
+  exactly the "blank white screen" experience reported. Replaced with a
+  new client component, `DownloadReportButton.tsx`
+  (`features/intel/components/`): fetches the route client-side, shows
+  the same loading-spinner/error-text pattern `GenerateInsightButton`
+  already uses elsewhere on this page, stays on the Intel page the
+  whole time, and hands the response off as a real browser download
+  (`Blob` + `URL.createObjectURL` + a programmatic anchor click) once
+  it's ready — with a 45s client-side timeout so a genuinely stuck
+  request surfaces a clear message instead of spinning forever.
+- **A third real bug found in passing, fixed alongside**: `Button`'s
+  `asChild` mode was already broken app-wide before this session
+  touched it (see v3.6.0's own note) — a stray `false` in the JSX
+  children counted as a second child for Radix's `Slot`. Already fixed
+  in v3.6.0; noted here again only because it's what made local
+  verification of the ORIGINAL `<a href>` button possible in the first
+  place.
+
+Verified: inspected the real `.nft.json` trace output (the exact
+missing file, `Helvetica.cjs`, now present, scoped only to this one
+route — confirmed zero `pdfkit` files leaked into the cron/attachments
+routes' own trace output). Browser-verified the new loading UX locally
+(button flips to "Generating…", a real network request fires, returns
+200, button reverts with no error shown, no console errors). The
+pdfkit fix itself can only be proven by a real Vercel deployment (not
+`next start`) — pushed to `main` and confirmed via a real
+`/api/reports/credit-cards` request against the live production
+deployment after deploying.
+`npx tsc --noEmit && npx eslint . && npx prettier --check . && npx
+vitest run` all pass (553) and `npm run build` succeeds.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions

@@ -36,10 +36,10 @@ import {
 } from "@/lib/dates/month";
 import { Hero } from "@/components/ui/hero";
 import { Spinner } from "@/components/ui/spinner";
-import { Button } from "@/components/ui/button";
 import { GenerateInsightButton } from "@/features/intel/components/GenerateInsightButton";
 import { CardMonthNav } from "@/features/intel/components/CardMonthNav";
 import { DonutSliceLink } from "@/features/intel/components/DonutSliceLink";
+import { DownloadReportButton } from "@/features/intel/components/DownloadReportButton";
 
 export const metadata: Metadata = {
   title: "Intel",
@@ -411,9 +411,7 @@ async function CombinedReportSection() {
           breakdown, category-to-merchant detail, a per-card summary, and an
           appendix with a ready-to-paste AI analysis prompt.
         </p>
-        <Button asChild variant="outline" size="sm">
-          <a href="/api/reports/credit-cards">Download combined report (PDF)</a>
-        </Button>
+        <DownloadReportButton />
       </div>
     </details>
   );

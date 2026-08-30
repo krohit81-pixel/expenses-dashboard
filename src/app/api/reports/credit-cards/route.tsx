@@ -24,6 +24,13 @@ import { CreditCardReportDocument } from "@/features/intel/pdf/CreditCardReportD
 // react-pdf's renderToBuffer (it isn't Edge-compatible).
 export const runtime = "nodejs";
 
+// Rendering an 18-page PDF (donut geometry + several tables + a ~250+
+// row appendix) is comfortably fast once warm, but a cold serverless
+// start plus first-time font loading can run past Vercel's platform
+// default. Generous, explicit headroom rather than relying on whatever
+// the default happens to be.
+export const maxDuration = 60;
+
 /**
  * v3.6.0 — the combined credit card expense report: every card's own
  * latest billing cycle, rolled into an executive-styled summary plus a
