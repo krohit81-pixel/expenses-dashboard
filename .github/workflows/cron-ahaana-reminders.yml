@@ -1,0 +1,26 @@
+name: Cron — ahaana-reminders (every 15 minutes)
+
+# v3.6.9: replaces vercel.json's own cron entry for this route. Same
+# reasoning as cron-reminders-hourly.yml — Vercel's Hobby plan can't run a
+# cron more than once a day, and Ahaana's push-notification reminders need
+# a 15-minute cadence to stay timely. See docs/00-current-state.md's
+# v3.4.0-v3.4.13 section for what this route does.
+#
+# Requires a repository secret named CRON_SECRET — see cron-reminders.yml
+# for how to set it.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  call:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/ahaana-reminders
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --request GET \
+            --header "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://expdash.vercel.app/api/cron/ahaana-reminders"

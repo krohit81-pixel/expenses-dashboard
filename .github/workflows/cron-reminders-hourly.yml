@@ -1,0 +1,27 @@
+name: Cron — reminders-hourly (every 15 minutes)
+
+# v3.6.9: replaces vercel.json's own cron entry for this route. Vercel's
+# Hobby plan caps its built-in cron feature to once a day — nowhere near
+# frequent enough for hour-based reminders ("3/4 hours before" an event
+# with a real time of day), so this route moves to GitHub Actions instead,
+# keeping its original 15-minute cadence regardless of Vercel plan. See
+# docs/00-current-state.md's v3.2.2 section for what this route does.
+#
+# Requires a repository secret named CRON_SECRET — see cron-reminders.yml
+# for how to set it.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  call:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/reminders-hourly
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --request GET \
+            --header "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://expdash.vercel.app/api/cron/reminders-hourly"

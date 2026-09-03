@@ -1,18 +1,6 @@
 {
   "crons": [
     {
-      "path": "/api/cron/reminders",
-      "schedule": "0 */4 * * *"
-    },
-    {
-      "path": "/api/cron/reminders-hourly",
-      "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/cron/ahaana-reminders",
-      "schedule": "*/15 * * * *"
-    },
-    {
       "path": "/api/cron/ahaana-weekly-report",
       "schedule": "30 14 * * 0"
     }

@@ -2384,6 +2384,88 @@ default. `npx tsc --noEmit && npx eslint . && npx prettier --check .
 succeeds. Full browser/production verification (including the real
 migration) happens once the household has applied the SQL above.
 
+## v3.6.9: three cron routes move to GitHub Actions, clearing the way for a Vercel Hobby downgrade
+
+Household question: "if downgrade vercel pro to hobby, will that work..
+any dependencies?" Researched live against Vercel's current docs (not
+from memory — this has changed more than once): Hobby allows the same
+100 cron jobs per project Pro does, but caps **every one of them to
+once a day at most** — a more-frequent `crons` entry fails the
+deployment outright, it doesn't just run less often. Function duration
+turned out to be a non-issue (Hobby's default and max is 300s, same as
+Pro's default), and nothing else in the project touches a
+Vercel-managed add-on (`@vercel/analytics`, `@vercel/kv`, etc. — none
+are installed).
+
+`vercel.json` had four cron entries; only `ahaana-weekly-report`
+(30 14 * * 0 — once a week) already fits Hobby's ceiling. The other
+three do not, and two of them exist specifically *because* an
+infrequent schedule isn't good enough:
+
+- `/api/cron/reminders`, every 4 hours (v3.2.1) — chosen deliberately
+  over once/twice-daily for lower latency between an event's reminder
+  being added or edited and it actually firing. Collapsing this to
+  once/day would be a real, felt regression, not a harmless
+  simplification — worth catching before treating it as free to
+  degrade.
+- `/api/cron/reminders-hourly`, every 15 minutes (v3.2.2) — hour-based
+  reminders ("3/4 hours before") need much finer granularity than
+  once/day can ever provide; there's no daily schedule that preserves
+  this route's purpose at all.
+- `/api/cron/ahaana-reminders`, every 15 minutes (v3.4.0) — same
+  reasoning, her push-notification reminders.
+
+Checked `checkCronAuth()` (`src/lib/cron-auth.ts`, v3.2.1/v3.2.2): a
+plain bearer-token check against `CRON_SECRET`, with zero
+Vercel-specific verification (no IP allowlist, no special header) —
+meaning any external scheduler that sends the same
+`Authorization: Bearer $CRON_SECRET` header can trigger these routes
+identically to Vercel's own built-in cron feature. That makes GitHub
+Actions' own free `schedule:` trigger a straightforward substitute,
+plan-independent — it works the same whether the project is on Pro or
+Hobby, so this isn't a stopgap that only matters after a downgrade.
+
+- **`vercel.json`** now carries a single cron entry —
+  `ahaana-weekly-report` — the only one that already fit Hobby's
+  once-daily ceiling.
+- **Three new workflow files**, one per route, each just a
+  `schedule:` trigger (the exact cron expression the route used to
+  have in `vercel.json`) plus `workflow_dispatch:` for manual testing,
+  and one `curl --fail-with-body` step sending
+  `Authorization: Bearer ${{ secrets.CRON_SECRET }}`:
+  `.github/workflows/cron-reminders.yml` (every 4 hours),
+  `cron-reminders-hourly.yml` and `cron-ahaana-reminders.yml` (both
+  every 15 minutes). Each keeps its route's *original* cadence exactly
+  — nothing about reminder latency or granularity was traded away for
+  this move.
+- Needs a GitHub **repository secret** named `CRON_SECRET`, set to the
+  exact same value already in Vercel's project env vars — a manual,
+  one-time step in the GitHub repo's own Settings → Secrets and
+  variables → Actions (or `gh secret set CRON_SECRET`), the same kind
+  of handoff this session already used for the Supabase migration in
+  v3.6.8. Until that secret is added, every scheduled run of these
+  three workflows will fail (visible as a red X in the repo's Actions
+  tab) rather than silently doing nothing.
+- `INSTALL.md`'s `CRON_SECRET` row updated to describe the new split:
+  one route still on Vercel's own cron, three on GitHub Actions,
+  same secret value needed in both places.
+- **Known GitHub Actions caveat, worth knowing**: a repo with no
+  commits for 60 days has its scheduled workflows disabled
+  automatically. Not a real risk for an actively-developed project,
+  but the reason these are worth revisiting if the repo ever goes
+  quiet for two months.
+
+Verified: `npx tsc --noEmit && npx eslint . && npx prettier --check .
+&& npx vitest run` (595 tests, unchanged — this is pure infra, no app
+code touched) and `npm run build` both pass; `vercel.json` re-validated
+as parseable JSON; all three new workflow YAML files parsed
+successfully with Python's `yaml` module as an independent syntax
+check. **Not yet verified**: an actual scheduled GitHub Actions run
+against production — that needs the `CRON_SECRET` repository secret
+added first (household's own step), after which the `workflow_dispatch`
+manual trigger on each workflow is the fastest way to confirm a real
+end-to-end call before waiting for the first real schedule tick.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions

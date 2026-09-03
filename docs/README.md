@@ -152,6 +152,17 @@ they say so.
   (`calendar_events.end_time`, a new column) — a "Bowling" event that
   actually runs 4 hours no longer collapses to the feed's 1-hour
   default. See doc 00's v3.6.4–v3.6.8 sections.
+- **Three cron routes move to GitHub Actions (v3.6.9):** clears a real
+  blocker to downgrading from Vercel Pro to Hobby — Hobby caps Vercel's
+  own cron feature to once a day, but `/api/cron/reminders` (every 4
+  hours, for low reminder-edit latency) and the two 15-minute routes
+  (`reminders-hourly`, `ahaana-reminders`) all need finer granularity
+  than that. Each now runs on its own GitHub Actions
+  `schedule:` trigger instead, at its original cadence, authenticated
+  with the same `CRON_SECRET` bearer token Vercel itself already used
+  — plan-independent either way. `vercel.json` keeps only
+  `ahaana-weekly-report`, already Hobby-compliant. See doc 00's v3.6.9
+  section.
 - Log is a hub for Transactions, Accounts (with inline balance
   correction), and Imports — a statement import also prompts to log its
   due amount as a real Dashboard expense (v2.5.4) and to check for

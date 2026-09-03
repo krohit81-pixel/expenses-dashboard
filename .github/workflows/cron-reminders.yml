@@ -1,0 +1,38 @@
+name: Cron — reminders (every 4 hours)
+
+# v3.6.9: replaces vercel.json's own cron entry for this route. Vercel's
+# Hobby plan caps its built-in cron feature to once a day; this route was
+# deliberately put on a 4-hourly cadence (not daily) so an event's "remind
+# me" reminder starts counting down within a few hours of being added or
+# edited, not up to a full day later — see docs/00-current-state.md's
+# v3.2.1 section. Moving it here (rather than letting it degrade to daily)
+# preserves that original latency, and works identically whether the
+# project is on Vercel Pro or Hobby, since nothing here depends on which
+# plan is in use — this hits a plain HTTP route with the same bearer token
+# Vercel itself would have sent.
+#
+# Requires a repository secret named CRON_SECRET, set to the exact value
+# already configured in Vercel's project env vars (Settings → Environment
+# Variables). Add it via the GitHub web UI (Settings → Secrets and
+# variables → Actions → New repository secret) or `gh secret set
+# CRON_SECRET`.
+#
+# GitHub disables a scheduled workflow automatically after 60 days with no
+# commits to the repo — not a concern for an actively-developed project,
+# but worth knowing if this repo ever goes quiet for two months.
+
+on:
+  schedule:
+    - cron: "0 */4 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  call:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/reminders
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --request GET \
+            --header "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://expdash.vercel.app/api/cron/reminders"
