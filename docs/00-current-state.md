@@ -2466,6 +2466,49 @@ added first (household's own step), after which the `workflow_dispatch`
 manual trigger on each workflow is the fastest way to confirm a real
 end-to-end call before waiting for the first real schedule tick.
 
+## v3.6.10: fixed a real timezone bug in the hourly reminder cron — Rohana's timed reminders were computed in IST, not Singapore
+
+Found while brainstorming a new "Telegram → auto-create calendar event"
+feature (not yet built — see the household discussion for that
+design), specifically while tracing through a sample message that
+would create an hourly reminder tagged to Rohana. `build-calendar-feed.ts`
+got a per-person timezone fix in v3.6.7 (Singapore for Rohana, IST for
+everyone else) for the iCal feed — but `detect-reminders.ts`'s hourly
+reminder computation (`istDateTimeToUtcMillis`, used by both
+`detectCalendarEventHourlyReminders` and
+`detectRecurringEventHourlyReminders`) never got the same fix. It
+unconditionally treated every row's `startTime` as IST regardless of
+who it was tagged to — for a row tagged to Rohana, that's off by
+2h30m from her real Singapore-time class.
+
+- Renamed to `dateTimeToUtcMillis`, now takes a `people: string[]`
+  argument and calls a local `offsetMinutesFor` (Singapore for a row
+  tagged to Rohana, IST otherwise) — same tiny-local-copy pattern
+  `build-calendar-feed.ts`'s own `offsetMinutesFor` already established,
+  not a shared import.
+- `detect-ahaana-reminders.ts` keeps its own separate, still-IST-only
+  `istDateTimeToUtcMillis` untouched — that file only ever computes
+  reminders for Ahaana's own activities, which really are IST, so
+  there was nothing to fix there.
+- Checked real production data before and after: none of Rohana's 4
+  recurring rules are currently misfiring — her only enabled one
+  ("Calculus") uses a day-based reminder (`remind_lead_days: 1`), not
+  the hourly path this bug affects, and she has no calendar_events
+  rows at all yet. So this was a real, latent bug — not one currently
+  producing a wrong reminder in production — caught before anything
+  (this session's own planned Telegram feature very much included)
+  created the first hourly reminder tagged to her.
+
+Verified: 2 new tests pin down the corrected Singapore-offset math for
+both `detectCalendarEventHourlyReminders` and
+`detectRecurringEventHourlyReminders` (each also keeping an explicit
+non-Rohana case proving IST still applies to everyone else); one
+pre-existing test's `now` instant needed adjusting since it silently
+relied on the old, wrong IST assumption for `recurringRule()`'s default
+Rohana-tagged fixture. `npx tsc --noEmit && npx eslint . && npx
+prettier --check . && npx vitest run` (597 — 2 new) and `npm run build`
+both pass.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions

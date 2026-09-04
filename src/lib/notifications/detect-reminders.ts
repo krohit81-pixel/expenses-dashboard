@@ -212,18 +212,43 @@ export function detectRecurringEventReminders(
 }
 
 const IST_OFFSET_MINUTES = 5 * 60 + 30;
+const SINGAPORE_OFFSET_MINUTES = 8 * 60;
 
 /**
- * Combines a "YYYY-MM-DD" date and "HH:MM" time — both understood as
- * IST wall-clock values, this household's real timezone (Vercel's
- * servers don't run there — same reasoning as lib/version.ts's
- * getIndiaDateLabel) — into the UTC instant (epoch millis) they
- * represent. Only used by the hourly detectors below; the day-based
+ * v3.6.10 — Rohana studies in Singapore (UTC+8), not IST (UTC+5:30); a
+ * timed event/rule tagged to her uses her real local wall-clock time,
+ * same "own tiny copy of the constant/logic, no shared module" pattern
+ * lib/ical/build-calendar-feed.ts's offsetMinutesFor already
+ * established (see its v3.6.7 comment). Everyone else in the household
+ * stays IST.
+ */
+function offsetMinutesFor(people: string[]): number {
+  return people.includes("Rohana")
+    ? SINGAPORE_OFFSET_MINUTES
+    : IST_OFFSET_MINUTES;
+}
+
+/**
+ * Combines a "YYYY-MM-DD" date and "HH:MM" time — understood as a
+ * wall-clock value in whichever zone `people` implies (Vercel's
+ * servers don't run in either — same reasoning as lib/version.ts's
+ * getIndiaDateLabel) — into the UTC instant (epoch millis) it
+ * represents. Only used by the hourly detectors below; the day-based
  * ones above intentionally keep comparing plain date strings, a
  * separate (pre-existing, not introduced here) quirk not in scope to
  * change as part of this feature.
+ *
+ * Until v3.6.10 this unconditionally assumed IST regardless of who the
+ * row was tagged to — invisible for everyone except Rohana, whose
+ * hourly reminders (e.g. "1h before" a tagged class) fired ~2h30m off
+ * from her real Singapore-time class. The iCal feed got this same fix
+ * in v3.6.7; this cron-side computation was missed at the time.
  */
-function istDateTimeToUtcMillis(date: string, time: string): number {
+function dateTimeToUtcMillis(
+  date: string,
+  time: string,
+  people: string[],
+): number {
   const [hours, minutes] = time.split(":").map(Number);
   return (
     Date.UTC(
@@ -233,7 +258,7 @@ function istDateTimeToUtcMillis(date: string, time: string): number {
       hours,
       minutes,
     ) -
-    IST_OFFSET_MINUTES * 60_000
+    offsetMinutesFor(people) * 60_000
   );
 }
 
@@ -266,9 +291,10 @@ export function detectCalendarEventHourlyReminders(
         event.startTime !== null,
     )
     .filter((event) => {
-      const eventInstant = istDateTimeToUtcMillis(
+      const eventInstant = dateTimeToUtcMillis(
         event.startDate,
         event.startTime,
+        event.people,
       );
       const reminderInstant = eventInstant - event.remindLeadHours! * 3_600_000;
       return reminderInstant <= now && now < eventInstant;
@@ -308,10 +334,11 @@ export function detectRecurringEventHourlyReminders(
 
   const now = new Date(nowIso).getTime();
   const today = nowIso.slice(0, 10);
-  // Starts a day before "today" (UTC) as slack for the same IST/UTC
-  // gap istDateTimeToUtcMillis exists to bridge — an occurrence whose
-  // UTC date is technically "yesterday" can still be within an hourly
-  // reminder's window in real IST wall-clock terms.
+  // Starts a day before "today" (UTC) as slack for the same UTC-vs-
+  // local-wall-clock gap dateTimeToUtcMillis exists to bridge — an
+  // occurrence whose UTC date is technically "yesterday" can still be
+  // within an hourly reminder's window in real IST/Singapore
+  // wall-clock terms.
   const rangeStart = addDays(today, -1);
   const rangeEnd = addDays(today, lookaheadDays);
   const occurrences = expandRecurringOccurrences(
@@ -326,9 +353,10 @@ export function detectRecurringEventHourlyReminders(
     const rule = ruleById.get(occurrence.ruleId);
     if (!rule || rule.remindLeadHours === null) continue;
 
-    const eventInstant = istDateTimeToUtcMillis(
+    const eventInstant = dateTimeToUtcMillis(
       occurrence.date,
       occurrence.startTime,
+      rule.people,
     );
     const reminderInstant = eventInstant - rule.remindLeadHours * 3_600_000;
     if (reminderInstant <= now && now < eventInstant) {

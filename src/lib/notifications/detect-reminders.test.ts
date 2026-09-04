@@ -507,15 +507,41 @@ describe("detectCalendarEventHourlyReminders", () => {
     );
     expect(result).toHaveLength(0);
   });
+
+  // v3.6.10 — a calendar event tagged to Rohana uses her real Singapore
+  // wall-clock time (UTC+8), not IST, same fix as the recurring-rule
+  // detector above. startDate "2026-10-15" + startTime "09:00" Singapore
+  // is 2026-10-15T01:00:00Z (vs. 03:30:00Z the IST test above assumes) —
+  // a 3-hour lead time's window is [2026-10-14T22:00:00Z, 01:00:00Z).
+  it("uses Singapore time, not IST, for an event tagged to Rohana", () => {
+    const rohanaEvent = event({ people: ["Rohana"] });
+
+    expect(
+      detectCalendarEventHourlyReminders(
+        [rohanaEvent],
+        "2026-10-14T23:00:00.000Z",
+      ),
+    ).toHaveLength(1);
+
+    // Under the old (wrong) IST-always assumption, this instant would
+    // already have fired — confirms the fix actually changed something.
+    expect(
+      detectCalendarEventHourlyReminders(
+        [rohanaEvent],
+        "2026-10-15T01:00:00.000Z",
+      ),
+    ).toHaveLength(0);
+  });
 });
 
 describe("detectRecurringEventHourlyReminders", () => {
   // recurringRule()'s Tue/Fri occurrences start with 2026-08-11
-  // (Tuesday) at startTime "08:00" IST = 2026-08-11T02:30:00Z. A
-  // 4-hour lead time puts the reminder threshold at
-  // 2026-08-10T22:30:00Z — the DAY BEFORE the occurrence's own date in
-  // UTC, exercising the -1 day rangeStart slack this detector adds
-  // specifically for this IST/UTC gap.
+  // (Tuesday) at startTime "08:00" — and its default people is
+  // ["Rohana"], so (v3.6.10) that's 08:00 SINGAPORE time, i.e.
+  // 2026-08-11T00:00:00Z. A 4-hour lead time puts the reminder
+  // threshold at 2026-08-10T20:00:00Z — the DAY BEFORE the
+  // occurrence's own date in UTC, exercising the -1 day rangeStart
+  // slack this detector adds specifically for this local-time/UTC gap.
   it("fires once now is inside the window, even though that's the day before the occurrence in UTC", () => {
     const result = detectRecurringEventHourlyReminders(
       [recurringRule({ remindLeadDays: 0, remindLeadHours: 4 })],
@@ -531,10 +557,42 @@ describe("detectRecurringEventHourlyReminders", () => {
   it("does not fire before the reminder threshold", () => {
     const result = detectRecurringEventHourlyReminders(
       [recurringRule({ remindLeadDays: 0, remindLeadHours: 4 })],
-      "2026-08-10T21:00:00.000Z",
+      "2026-08-10T19:00:00.000Z",
       2,
     );
     expect(result).toHaveLength(0);
+  });
+
+  // v3.6.10 — before this fix, every rule's startTime was treated as
+  // IST regardless of who it was tagged to, so a rule tagged to Rohana
+  // (Singapore, UTC+8) had its reminder instant computed ~2h30m off
+  // from her real class time. A non-Rohana rule keeps using IST, same
+  // as before — this pins that down so a regression here isn't invisible.
+  it("still uses IST for a rule tagged to someone other than Rohana", () => {
+    // 08:00 IST = 2026-08-11T02:30:00Z; 4h before = 2026-08-10T22:30:00Z.
+    const rule = recurringRule({
+      people: ["Rohit"],
+      remindLeadDays: 0,
+      remindLeadHours: 4,
+    });
+
+    expect(
+      detectRecurringEventHourlyReminders(
+        [rule],
+        "2026-08-10T23:00:00.000Z",
+        2,
+      ),
+    ).toHaveLength(1);
+
+    // Would have fired already under the (wrong) Singapore-offset math
+    // this same instant exercises above for a Rohana-tagged rule.
+    expect(
+      detectRecurringEventHourlyReminders(
+        [rule],
+        "2026-08-10T21:00:00.000Z",
+        2,
+      ),
+    ).toHaveLength(0);
   });
 
   it("ignores a rule with no remindLeadHours set (day-based only)", () => {
