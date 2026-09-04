@@ -2509,6 +2509,98 @@ Rohana-tagged fixture. `npx tsc --noEmit && npx eslint . && npx
 prettier --check . && npx vitest run` (597 — 2 new) and `npm run build`
 both pass.
 
+## v3.7.0: the household's first inbound webhook — "remind..." in the Telegram group auto-creates a real calendar event
+
+Household ask: type "remind me/Rohana/... to X on [date] at [time]" in
+the family's existing Telegram group and have Atlas actually create
+the calendar event, reminder switched on — no need to open the app.
+Everything Telegram-related before this was outbound only (a bot
+pushing reminders out, `src/lib/notifications/providers/telegram.ts`);
+this is the app's first surface that reads incoming messages and
+writes real data from them.
+
+Traced through three real sample messages during design (documented in
+the brainstorming session, not repeated here) and caught two things
+before writing any code: a naive "remind me" trigger misses real
+phrasing like "can you remind Rohana..." (fixed: the trigger is the
+word **"remind"** anywhere, case-insensitive), and — found only once
+this was actually wired up and test-called against a real provider —
+the model sometimes mirrors a message's own literal casing into the
+extracted `people` field ("remind rohana..." → `{"people": ["rohana"]}`)
+even while correctly capitalizing the same name in its own `title`.
+That's not cosmetic: `offsetMinutesFor` (build-calendar-feed.ts,
+detect-reminders.ts) does a case-sensitive `people.includes("Rohana")`
+for her Singapore-timezone reminders (v3.6.7/v3.6.10) — an uncorrected
+lowercase "rohana" would have silently reintroduced the exact
+IST-instead-of-Singapore bug v3.6.10 just fixed, through a completely
+different door. Fixed by canonicalizing every extracted name
+case-insensitively against the same known-household roster
+`travelerColorClass` etc. already use (`features/travel/travelers.ts`),
+confirmed with a repeated real test call before and after the fix.
+
+- **`src/lib/telegram/parse-reminder.ts`** (new) — `buildPrompt` ->
+  `callConfiguredProvider` (`lib/ai/providers.ts`, real Gemini call
+  used for testing since only `GEMINI_API_KEY` is set locally) ->
+  `stripCodeFence` -> `JSON.parse` -> defensive field-by-field
+  validation, mirroring `MerchantMergeSuggestionService.ts`'s exact
+  shape. Reminder timing (`remindLeadDays`/`remindLeadHours`) is
+  computed in code from whether a `startTime` was extracted — never
+  copied verbatim from the model's own fields — so a hallucinated
+  hours-before lead time with no time of day at all can never reach
+  `createCalendarEventInputSchema`'s "remindLeadHours needs a
+  startTime" refinement. Explicit lead times in the message itself
+  ("2 hours before", "3 days in advance") are honored when the model
+  extracts them; otherwise defaults to 1 hour before (a time was
+  given) or 1 day before (no time at all). No date extractable at all
+  → a `no-date` result (the route replies asking for one, creates
+  nothing); nothing sensible to extract at all → `low-confidence`
+  (a rephrasing nudge instead). Real testing surfaced one more thing
+  worth knowing: `callConfiguredProvider`'s token budget needed
+  raising from an initial 300 to 1000 — Gemini's "thinking" tokens
+  share the same budget as its actual output, and 300 was silently
+  truncating every real response before the closing JSON brace.
+- **`src/lib/telegram/webhook-auth.ts`** (new) — mirrors
+  `lib/cron-auth.ts` exactly: `TELEGRAM_WEBHOOK_SECRET` (new env var,
+  `optionalEnvString()`), checked against Telegram's own
+  `X-Telegram-Bot-Api-Secret-Token` header via the same
+  `timingSafeStringEqual` `CRON_SECRET` uses.
+- **`src/app/api/telegram/webhook/route.ts`** (new `POST`) — auth check
+  → parse the Telegram `Update` body → trigger word check → a second,
+  independent check that the message's `chat.id` matches the
+  household's configured Telegram target (`getSendTarget("telegram")`,
+  `NotificationChannelService.ts`) — defense in depth so only the
+  linked group can ever trigger a write, even in principle → parse →
+  `createCalendarEvent` (same service every other event-creation path
+  uses) → a reply in the same chat via `telegramProvider.send`
+  (reused as-is), confirming what got created or asking for whatever's
+  missing. Every branch returns 200 — Telegram retries a non-2xx
+  response, which would risk double-creating an event on any
+  transient failure.
+- `src/middleware.ts` — `/api/telegram/webhook` added to `PUBLIC_PATHS`
+  (same reasoning as `/api/cron`: Telegram has no browser session to
+  carry the access-gate cookie; the secret-token header is the auth).
+- One-time manual setup still needed (see `INSTALL.md`): generate
+  `TELEGRAM_WEBHOOK_SECRET`, set it in Vercel, deploy, then register it
+  with Telegram via `setWebhook` — not something doable from a sandbox
+  with no bot token.
+
+Verified: 16 new tests for `parseReminderMessage` (happy paths, both
+reminder-timing defaults, explicit lead times honored, no-date/
+low-confidence branches, sender-fallback vs. explicit-name precedence,
+the hallucinated-leadHours sanitization, the casing-canonicalization
+fix, code-fence stripping, malformed input). `npx tsc --noEmit && npx
+eslint . && npx prettier --check . && npx vitest run` (613 — 16 new)
+and `npm run build` both pass. The webhook route itself was
+real-tested locally end to end: a temporary scratch route + a
+temporary `PUBLIC_PATHS` entry (both removed before this shipped)
+confirmed 401/503 on bad or missing auth, silent 200 no-ops for a
+message without "remind" or from an unlinked chat id, and — the real
+finding above — the three original sample messages from design
+actually round-tripping through a live Gemini call correctly once the
+token budget and casing fixes landed. A real end-to-end run through
+Telegram itself (needs `setWebhook` registered, which needs the
+user's own bot token) has **not** been confirmed yet.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions

@@ -67,6 +67,12 @@ const PUBLIC_PATHS = [
   "/api/calendar.ics",
   "/ahaana-manifest.webmanifest",
   "/ahaana-sw.js",
+  // v3.7.0 — the inbound Telegram webhook. Telegram's own servers POST
+  // here with no browser and no access-gate cookie to send, same
+  // reasoning as /api/cron above — this route authenticates itself
+  // instead via a secret Telegram echoes back on every call (see
+  // lib/telegram/webhook-auth.ts), not the cookie gate.
+  "/api/telegram/webhook",
 ];
 
 function isPublicPath(pathname: string): boolean {

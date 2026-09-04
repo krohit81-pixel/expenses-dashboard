@@ -163,6 +163,19 @@ they say so.
   — plan-independent either way. `vercel.json` keeps only
   `ahaana-weekly-report`, already Hobby-compliant. See doc 00's v3.6.9
   section.
+- **A real timezone bug fix (v3.6.10)** in the hourly reminder cron —
+  it computed every row's time in IST regardless of who it was tagged
+  to, missing the per-person fix the iCal feed got in v3.6.7; a row
+  tagged to Rohana (Singapore) had its reminder instant off by ~2h30m.
+- **The household's first inbound webhook (v3.7.0):** a message
+  containing "remind" (any form) in the family's linked Telegram group
+  gets parsed by an LLM into calendar-event fields and turned into a
+  real event via the same creation path every other trigger already
+  uses — reminder switched on, a confident default when time/lead-time
+  details are left out, and always a reply in-chat confirming what got
+  created (or asking for whatever's missing). See doc 00's v3.7.0
+  section, including a real casing bug the parser's own
+  name-canonicalization step protects against.
 - Log is a hub for Transactions, Accounts (with inline balance
   correction), and Imports — a statement import also prompts to log its
   due amount as a real Dashboard expense (v2.5.4) and to check for

@@ -113,6 +113,17 @@ const serverEnvSchema = z.object({
   // request with a 503 until this is set, rather than running
   // unauthenticated.
   CRON_SECRET: optionalEnvString(),
+  // v3.7.0 — the Telegram inbound webhook's own secret
+  // (src/app/api/telegram/webhook/route.ts), distinct from CRON_SECRET
+  // above: a different caller (Telegram's own servers, not Vercel),
+  // checked against a different header. Telegram echoes this value
+  // back verbatim as `X-Telegram-Bot-Api-Secret-Token` on every Update
+  // POST, once `setWebhook` is registered with a matching
+  // `secret_token` (a one-time manual step — see INSTALL.md). Optional
+  // at the schema level for the same reason CRON_SECRET is — the app
+  // must still boot before this is set — but the route itself refuses
+  // every request with a 503 until it is.
+  TELEGRAM_WEBHOOK_SECRET: optionalEnvString(),
   // v3.4.0 — Ahaana's own access gate (src/lib/ahaana-gate.ts), a
   // second, separate password scoped only to /ahaana/* (see
   // middleware.ts) — deliberately a different value than
@@ -182,6 +193,7 @@ function parseServerEnv() {
     APP_SESSION_SECRET: process.env.APP_SESSION_SECRET,
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
     CRON_SECRET: process.env.CRON_SECRET,
+    TELEGRAM_WEBHOOK_SECRET: process.env.TELEGRAM_WEBHOOK_SECRET,
     AHAANA_ACCESS_PASSWORD: process.env.AHAANA_ACCESS_PASSWORD,
     VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
     VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
