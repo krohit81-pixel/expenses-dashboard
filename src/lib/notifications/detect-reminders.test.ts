@@ -130,6 +130,28 @@ describe("detectCalendarEventReminders", () => {
     expect(result).toHaveLength(1);
   });
 
+  // v3.7.1 — real bug found live: a same-day event with remindLeadDays
+  // > 0 (e.g. the Telegram feature's "no time given" default of 1)
+  // used to never fire at all, since daysUntil never revisits a
+  // remindLeadDays value larger than what's actually available before
+  // the event once the event's own date has arrived.
+  it("fires today when remindLeadDays exceeds the days actually available before the event", () => {
+    const result = detectCalendarEventReminders(
+      [calendarEvent({ startDate: "2026-10-15", remindLeadDays: 1 })],
+      "2026-10-15",
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].leadTimeDays).toBe(1);
+  });
+
+  it("never fires for an already-past date, even within the lead window", () => {
+    const result = detectCalendarEventReminders(
+      [calendarEvent({ startDate: "2026-10-15", remindLeadDays: 3 })],
+      "2026-10-16",
+    );
+    expect(result).toHaveLength(0);
+  });
+
   describe("body (v3.3.2 — no repeated title, time/notes when present)", () => {
     it("omits the title, a time line, and a notes line when neither is set", () => {
       const result = detectCalendarEventReminders(
@@ -245,6 +267,17 @@ describe("detectTripReminders", () => {
     expect(result).toHaveLength(0);
   });
 
+  // v3.7.1 — same fix as detectCalendarEventReminders: a trip added
+  // the same day it departs, with a remindLeadDays that assumed more
+  // notice than was actually available, used to never fire at all.
+  it("fires today when remindLeadDays exceeds the days actually available before departure", () => {
+    const result = detectTripReminders(
+      [trip({ startDate: "2026-10-15", remindLeadDays: 3 })],
+      "2026-10-15",
+    );
+    expect(result).toHaveLength(1);
+  });
+
   it("body (v3.3.2) has no repeated title, includes flight and notes when set", () => {
     const result = detectTripReminders(
       [
@@ -297,6 +330,18 @@ describe("detectSchoolCalendarReminders", () => {
     expect(result[0].body).toBe(
       "👤 Ahaana\n📅 Aug 10, 2026\n⏰ 1 day before\n📝 All the best! Prepare well.",
     );
+  });
+
+  // v3.7.1 — same fix as the other day-based detectors: a leadDays
+  // that assumed more notice than was actually available before the
+  // item's date used to never fire at all.
+  it("fires today when leadDays exceeds the days actually available", () => {
+    const result = detectSchoolCalendarReminders(
+      [schoolItem({ startDate: "2026-08-10" })],
+      "2026-08-10",
+      1,
+    );
+    expect(result).toHaveLength(1);
   });
 
   it("uses a different smart note per tag (v3.3.4)", () => {
@@ -398,6 +443,20 @@ describe("detectRecurringEventReminders", () => {
     const result = detectRecurringEventReminders(
       [recurringRule({ remindLeadDays: 1 })],
       "2026-08-10", // 1 day before the 8/11 occurrence
+      7,
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].eventKey).toBe("recurring_calendar_event:r1:2026-08-11");
+  });
+
+  // v3.7.1 — same fix as the other day-based detectors: a rule whose
+  // remindLeadDays assumed more notice than was actually available
+  // before an occurrence (e.g. checking on the occurrence's own day)
+  // used to never fire for that occurrence at all.
+  it("fires on the occurrence's own day when remindLeadDays exceeds what was actually available", () => {
+    const result = detectRecurringEventReminders(
+      [recurringRule({ remindLeadDays: 1 })],
+      "2026-08-11", // the occurrence day itself, not 1 day before
       7,
     );
     expect(result).toHaveLength(1);

@@ -35,6 +35,27 @@ function daysUntil(today: string, date: string): number {
   return Math.round((to.getTime() - from.getTime()) / 86_400_000);
 }
 
+/**
+ * v3.7.1 — real bug found live: a same-day calendar event (created via
+ * the new Telegram feature, remindLeadDays defaulting to 1 since no
+ * time of day was given) never actually reminded anyone. Every
+ * day-based detector below used to check `daysUntil(...) ===
+ * remindLeadDays` exactly — for an event created the SAME day it's
+ * due, daysUntil is 0, which never equals a remindLeadDays of 1 (or
+ * more) on any day, ever; the reminder is silently lost forever, not
+ * just late. This range check catches up on the very next run instead
+ * (fires as soon as the lead time can no longer be fully honored,
+ * rather than never), while `daysUntilValue >= 0` still refuses to
+ * fire for an already-past date. Safe to widen from an exact match to
+ * a range: notification_log's own dedupe (NotificationLogService.ts,
+ * keyed on eventKey+leadTimeDays+leadTimeUnit, not on which day it
+ * fired) already guarantees this can only ever send once per item —
+ * it just changes WHEN that first match happens, never how many times.
+ */
+function dueWithinLeadDays(daysUntilValue: number, leadDays: number): boolean {
+  return daysUntilValue >= 0 && daysUntilValue <= leadDays;
+}
+
 /** "15 Oct 2026" — used in every reminder body below, so a message never has to guess what date format the recipient expects. */
 function formatDate(date: string): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -96,7 +117,10 @@ export function detectCalendarEventReminders(
         // (remindLeadDays stays whatever it was last set to, even in
         // hours mode — see ReminderFields).
         event.remindLeadHours === null &&
-        daysUntil(today, event.startDate) === event.remindLeadDays,
+        dueWithinLeadDays(
+          daysUntil(today, event.startDate),
+          event.remindLeadDays,
+        ),
     )
     .map((event) => ({
       eventType: "calendar_event" as const,
@@ -146,7 +170,10 @@ export function detectTripReminders(
     .filter(
       (trip) =>
         trip.remindEnabled &&
-        daysUntil(today, trip.startDate) === trip.remindLeadDays,
+        dueWithinLeadDays(
+          daysUntil(today, trip.startDate),
+          trip.remindLeadDays,
+        ),
     )
     .map((trip) => ({
       eventType: "trip" as const,
@@ -193,7 +220,10 @@ export function detectRecurringEventReminders(
   for (const occurrence of occurrences) {
     const rule = ruleById.get(occurrence.ruleId);
     if (!rule) continue;
-    if (daysUntil(today, occurrence.date) !== rule.remindLeadDays) continue;
+    if (
+      !dueWithinLeadDays(daysUntil(today, occurrence.date), rule.remindLeadDays)
+    )
+      continue;
     candidates.push({
       eventType: "recurring_calendar_event",
       eventKey: `recurring_calendar_event:${rule.id}:${occurrence.date}`,
@@ -440,7 +470,9 @@ export function detectSchoolCalendarReminders(
   leadDays: number,
 ): ReminderCandidate[] {
   return items
-    .filter((item) => daysUntil(today, item.startDate) === leadDays)
+    .filter((item) =>
+      dueWithinLeadDays(daysUntil(today, item.startDate), leadDays),
+    )
     .map((item) => ({
       eventType: "school_calendar_event" as const,
       eventKey: `school_calendar_event:${item.person}:${item.startDate}:${slugifyTitle(item.title)}`,

@@ -2601,6 +2601,66 @@ token budget and casing fixes landed. A real end-to-end run through
 Telegram itself (needs `setWebhook` registered, which needs the
 user's own bot token) has **not** been confirmed yet.
 
+## v3.7.1: fixed a real, systemic bug — a day-based reminder could silently never fire at all
+
+Live report, the day after v3.7.0 shipped: Rohana typed "Remind me in
+1 hour for Gei quiz due today" in the Telegram group. The bot correctly
+created the event (title, date, and — thanks to v3.7.0's own casing
+fix — "Rohana" correctly capitalized) but showed "⏰ 1d before" instead
+of anything resembling "in 1 hour." Investigating surfaced two separate
+things, only the first of which is fixed here:
+
+1. **A day-based reminder can never fire once its own lead time
+   exceeds the days actually available.** Every day-based detector in
+   `detect-reminders.ts` (`detectCalendarEventReminders`,
+   `detectTripReminders`, `detectRecurringEventReminders`,
+   `detectSchoolCalendarReminders`) checked `daysUntil(today, date)
+   === remindLeadDays` — an EXACT match. v3.7.0's own "no time given"
+   default is `remindLeadDays: 1`; for an event created the SAME day
+   it's due (`daysUntil` = 0), that check can never become true on any
+   day, ever — the reminder isn't just late, it's **silently lost
+   forever**. This bug predates v3.7.0 entirely (all four detectors
+   have used exact equality since v3.2.0/v3.2.2) — the Telegram
+   feature just made it trivially easy to trigger, since typing
+   "remind me about X due today" is a completely natural, common
+   phrasing that the structured Add Event form never really invited
+   (you'd only set an hour-based reminder there once you'd already set
+   a real time of day).
+   - Fixed with a new `dueWithinLeadDays(daysUntilValue, leadDays)` —
+     `daysUntilValue >= 0 && daysUntilValue <= leadDays` — replacing
+     the exact-match check in all four detectors. Confirmed safe to
+     widen from an exact match to a range: `notification_log`'s own
+     dedupe (`NotificationLogService.ts`) is keyed on
+     `eventKey`+`leadTimeDays`+`leadTimeUnit`, not on which day it
+     actually fired, so this can only ever change **when** the first
+     match happens (catching up immediately instead of never), never
+     **how many times** it sends. The `>= 0` guard still refuses to
+     fire for an already-past date.
+2. **Not yet fixed, needs a product decision**: "remind me in 1 hour"
+   is a genuinely different kind of request than anything the
+   reminder schema can express today — it's a delay measured from
+   *when the message was sent*, not from a scheduled clock time the
+   event itself has (there is no clock time here at all, just "due
+   today"). `remindLeadHours` only ever means "N hours before the
+   event's own `startTime`," and the schema requires `startTime` to be
+   set and `remindLeadHours >= 1` — there's no way to express "fire a
+   reminder at exactly this absolute future instant" without either
+   fabricating a fake `startTime` (which would then show a made-up
+   clock time on the calendar) or a genuine schema addition. Rohana's
+   actual reminder now fires on the next `/api/cron/reminders` run
+   (within a few hours, per v3.6.9's cadence) instead of never — a big
+   improvement — but not the literal "in 1 hour" she asked for. Left
+   open pending a decision on which tradeoff the household prefers.
+
+Verified: 5 new tests (one per detector, plus one confirming an
+already-past date still never fires) pin down the exact scenario that
+was broken; all 38 pre-existing tests in this file still pass unchanged
+— the fix is behavior-identical for the ordinary case (an item created
+well before its due date), only changing the edge case where the
+requested lead time couldn't be fully honored. `npx tsc --noEmit && npx
+eslint . && npx prettier --check . && npx vitest run` (618 — 5 new) and
+`npm run build` both pass.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions

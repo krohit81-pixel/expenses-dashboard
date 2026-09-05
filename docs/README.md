@@ -175,7 +175,15 @@ they say so.
   details are left out, and always a reply in-chat confirming what got
   created (or asking for whatever's missing). See doc 00's v3.7.0
   section, including a real casing bug the parser's own
-  name-canonicalization step protects against.
+  name-canonicalization step protects against. v3.7.1 fixed a real,
+  systemic bug this feature's own real-world use surfaced the next
+  day: every day-based reminder detector used an exact `daysUntil ===
+  remindLeadDays` match, which could never fire once a reminder's own
+  lead time exceeded the days actually available (e.g. a same-day
+  Telegram-created reminder) — silently lost forever, not just late.
+  See doc 00's v3.7.1 section, including what's still open (an
+  explicit "remind me in N hours" delay-from-now request isn't
+  honored yet — pending a product decision on the tradeoff involved).
 - Log is a hub for Transactions, Accounts (with inline balance
   correction), and Imports — a statement import also prompts to log its
   due amount as a real Dashboard expense (v2.5.4) and to check for
