@@ -184,6 +184,12 @@ they say so.
   See doc 00's v3.7.1 section, including what's still open (an
   explicit "remind me in N hours" delay-from-now request isn't
   honored yet — pending a product decision on the tradeoff involved).
+  v3.7.2 closed that gap directly: Telegram's own message timestamp
+  is now used as an exact anchor, so "remind me in 1 hour" fires
+  precisely then (`remindLeadHours: 0`, a floor widened just for this
+  path), converted to the right person's own Singapore/IST wall-clock
+  time. See doc 00's v3.7.2 section, including a real prompt-reliability
+  fix found via repeated live testing.
 - Log is a hub for Transactions, Accounts (with inline balance
   correction), and Imports — a statement import also prompts to log its
   due amount as a real Dashboard expense (v2.5.4) and to check for

@@ -59,3 +59,36 @@ describe("createCalendarEventInputSchema — endTime", () => {
     expect(before.success).toBe(false);
   });
 });
+
+describe("createCalendarEventInputSchema — remindLeadHours", () => {
+  // v3.7.2 — floor widened from 1 to 0: the Telegram "remind me in N
+  // hours/minutes" feature needs to say "fire right at this instant,"
+  // not "at least an hour before it." Never offered by the manual Add
+  // Event/Recurring forms (still 1-4, see ReminderFields.tsx), but the
+  // schema itself must accept it.
+  it("accepts 0 (fire right at the event's own time) given a startTime", () => {
+    const result = createCalendarEventInputSchema.safeParse({
+      ...base,
+      startTime: "12:45",
+      remindLeadHours: 0,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("still rejects a negative remindLeadHours", () => {
+    const result = createCalendarEventInputSchema.safeParse({
+      ...base,
+      startTime: "12:45",
+      remindLeadHours: -1,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("still rejects remindLeadHours: 0 with no startTime", () => {
+    const result = createCalendarEventInputSchema.safeParse({
+      ...base,
+      remindLeadHours: 0,
+    });
+    expect(result.success).toBe(false);
+  });
+});

@@ -22,8 +22,9 @@ const LEAD_TIME_OPTIONS: { value: number; label: string }[] = [
  * an open-ended picker either way, same "don't over-constrain a
  * column for a UI-level choice" reasoning LEAD_TIME_OPTIONS above
  * already follows; remind_lead_hours itself isn't constrained to
- * these specific values at the database level (1-23 is all the schema
- * enforces).
+ * these specific values at the database level (0-23 is all the schema
+ * enforces — 0 is reachable only via the Telegram "remind me in N
+ * hours" feature, never offered here).
  */
 const LEAD_HOUR_OPTIONS: { value: number; label: string }[] = [
   { value: 1, label: "1 hour before" },

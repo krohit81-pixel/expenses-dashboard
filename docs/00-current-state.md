@@ -2661,6 +2661,67 @@ requested lead time couldn't be fully honored. `npx tsc --noEmit && npx
 eslint . && npx prettier --check . && npx vitest run` (618 — 5 new) and
 `npm run build` both pass.
 
+## v3.7.2: "remind me in N hours/minutes" — a real delay-from-now, using Telegram's own message timestamp
+
+Follow-up to v3.7.1's fix: that fix made Rohana's reminder fire (within
+a few hours) instead of never — but "remind me in 1 hour" still wasn't
+literally honored, since her message had no scheduled event time at
+all (just "due today") for an hours-before offset to be relative to.
+The household pointed out the fix directly: Telegram gives every
+message a `date` field (its own send timestamp) — using that as an
+exact anchor, rather than leaving this as a documented gap, actually
+makes "in N hours" solvable precisely.
+
+- **`lib/telegram/parse-reminder.ts`**: a new `inMinutes` extraction,
+  explicitly framed in the prompt as mutually exclusive with
+  `date`/`time`/`leadHours`/`leadDays` — "remind me in 1 hour" is a
+  delay from when the message was *sent*, not a lead time before some
+  other stated date/time. `parseReminderMessage` now takes a
+  `messageSentAt: Date` (Telegram's real `message.date`, not
+  processing time) and, when `inMinutes` is present, computes the
+  target absolute instant directly (`messageSentAt + inMinutes`),
+  converts it back to a wall-clock date+time via the same per-person
+  Singapore/IST offset the rest of the reminder system already uses
+  (`offsetMinutesFor`, a local copy per this codebase's established
+  convention), and sets `remindLeadHours: 0` — the reminder fires
+  right at that instant, not an hour before it.
+- **`features/calendar/schemas.ts`**: `remindLeadHours`'s floor
+  widened from 1 to 0, needed for the above (a hallucinated 0 with no
+  startTime still can't reach this — the `startTime === null` branch
+  never sets `remindLeadHours` from a raw model field at all). The
+  manual Add Event/Recurring forms still only offer 1-4 hours
+  (`ReminderFields.tsx`'s `LEAD_HOUR_OPTIONS`, unchanged) — 0 is only
+  ever reachable through this one Telegram path.
+- **Real, live-tested prompt-reliability finding**: an early version of
+  the `inMinutes` instruction sat at the end of the field list and the
+  model inconsistently ignored it — sometimes correctly extracting the
+  delay, sometimes falling back to the old "no time given" default and
+  stuffing "remind me in 1 hour" into `notes` as leftover text instead.
+  Fixed by restructuring the prompt to force an explicit either/or
+  decision *before* any field extraction ("is this a delay-from-now,
+  or a scheduled date/time to remind before — these are mutually
+  exclusive, decide first"). Confirmed via repeated real Gemini calls:
+  5/5 correct after the restructure, versus roughly 1/3 before it.
+- Also needed the token budget raised again (1000 → 2000) — the longer
+  prompt needed more of Gemini's shared thinking+output budget; a real
+  truncated response caught this mid-string before it shipped.
+- Confirmation reply polish: `remindLeadHours: 0` now reads "⏰ right at
+  that time" in the Telegram confirmation, not the confusing-but-
+  technically-true "⏰ 0h before".
+
+Verified against Rohana's exact real message and timestamp from the
+household's own report (`"Remind me in 1 hour for Gei quiz due
+today"`, sent 11:45 AM IST): now correctly computes 12:45 PM IST
+(15:15 Singapore time, since it's tagged to her) with
+`remindLeadHours: 0`, 5/5 real calls. Regression-checked every other
+message shape from v3.7.0/v3.7.1's own testing (explicit time, explicit
+lead-before, no-inMinutes deadline framing) — all still correct, no
+prompt-rewrite fallout. 10 new/updated tests (23 total in
+`parse-reminder.test.ts`, up from 16; 3 new schema tests for the
+widened `remindLeadHours` floor). `npx tsc --noEmit && npx eslint . &&
+npx prettier --check . && npx vitest run` (628 total) and `npm run
+build` both pass.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions

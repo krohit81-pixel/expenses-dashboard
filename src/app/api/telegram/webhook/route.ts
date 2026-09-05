@@ -38,10 +38,29 @@ interface TelegramUpdate {
     chat?: { id?: number };
     from?: { first_name?: string };
     text?: string;
+    /** Unix seconds — when Telegram itself received the message. v3.7.2: the exact anchor a "remind me in N hours" delay-from-now request is measured from, rather than approximating with "now" at processing time. */
+    date?: number;
   };
 }
 
 const REMIND_PATTERN = /remind/i;
+
+/**
+ * "⏰ 1h before" / "⏰ 3d before" / "⏰ same day" — and, v3.7.2, "⏰
+ * right at that time" for the 0-hour case a "remind me in N hours"
+ * delay-from-now request produces (see parse-reminder.ts): the
+ * reminder doesn't fire "0 hours before" anything, it fires AT the
+ * computed instant, so the confirmation should say that plainly
+ * rather than the technically-true-but-confusing "0h before".
+ */
+function reminderTimingLine(
+  remindLeadDays: number,
+  remindLeadHours: number | null,
+): string {
+  if (remindLeadHours === 0) return "⏰ right at that time";
+  if (remindLeadHours !== null) return `⏰ ${remindLeadHours}h before`;
+  return `⏰ ${remindLeadDays === 0 ? "same day" : `${remindLeadDays}d before`}`;
+}
 
 export async function POST(request: NextRequest) {
   const auth = checkTelegramWebhookAuth(request);
@@ -60,6 +79,14 @@ export async function POST(request: NextRequest) {
   const text = update.message?.text;
   const chatId = update.message?.chat?.id;
   const senderFirstName = update.message?.from?.first_name ?? "Someone";
+  // Falls back to "now" only if Telegram somehow omitted its own
+  // timestamp — shouldn't happen in practice, per Telegram's Update
+  // schema, but processing time is still a reasonable approximation
+  // if it ever does.
+  const messageSentAt =
+    typeof update.message?.date === "number"
+      ? new Date(update.message.date * 1000)
+      : new Date();
 
   if (!text || chatId === undefined || !REMIND_PATTERN.test(text)) {
     return NextResponse.json({ ok: true }); // no trigger word — silent no-op
@@ -73,7 +100,11 @@ export async function POST(request: NextRequest) {
   const target = chatId.toString();
 
   try {
-    const result = await extractReminderFromMessage(text, senderFirstName);
+    const result = await extractReminderFromMessage(
+      text,
+      senderFirstName,
+      messageSentAt,
+    );
 
     if (!result.ok) {
       const body =
@@ -107,9 +138,7 @@ export async function POST(request: NextRequest) {
         `📅 ${event.title}`,
         `${event.startDate}${event.startTime ? ` at ${event.startTime}` : ""}`,
         event.people.length > 0 ? `👥 ${event.people.join(", ")}` : null,
-        event.remindLeadHours !== null
-          ? `⏰ ${event.remindLeadHours}h before`
-          : `⏰ ${event.remindLeadDays === 0 ? "same day" : `${event.remindLeadDays}d before`}`,
+        reminderTimingLine(event.remindLeadDays, event.remindLeadHours),
       ]
         .filter((line): line is string => Boolean(line))
         .join("\n"),

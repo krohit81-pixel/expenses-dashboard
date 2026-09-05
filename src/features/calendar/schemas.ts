@@ -58,10 +58,17 @@ export const zTimeOfDay = z
  * one wins so nothing double-fires).
  */
 export const zHourlyReminderFields = z.object({
+  // v3.7.2 — floor widened from 1 to 0: the Telegram "remind me in N
+  // hours/minutes" feature (lib/telegram/parse-reminder.ts) computes a
+  // real target instant directly from the message's own send time and
+  // needs to say "remind right at that instant," not "at least an hour
+  // before it." The manual Add Event/Recurring forms never offer 0 as
+  // an option (see ReminderFields.tsx's LEAD_HOUR_OPTIONS, still
+  // 1-4) — this only ever reaches the database via that one new path.
   remindLeadHours: z.coerce
     .number()
     .int()
-    .min(1)
+    .min(0)
     .max(23)
     .nullable()
     .default(null),
