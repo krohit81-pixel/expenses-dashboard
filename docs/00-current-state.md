@@ -2722,6 +2722,64 @@ widened `remindLeadHours` floor). `npx tsc --noEmit && npx eslint . &&
 npx prettier --check . && npx vitest run` (628 total) and `npm run
 build` both pass.
 
+## v3.7.3: GitHub Actions' `schedule:` trigger doesn't work for this — moved the three frequent crons to a real external scheduler
+
+Live report: a manually-added event ("Papa Dentist," 10:00 AM,
+tagged to Aradhana, "1 hour before" reminder, created 06:47 AM the
+same day) never got its reminder at all. Investigating found this had
+nothing to do with the parsing/timezone/day-based bugs fixed in
+v3.6.10/v3.7.1/v3.7.2 — it's a completely different, more fundamental
+problem with v3.6.9's own approach.
+
+**v3.6.9 moved three cron routes from Vercel's native cron feature to
+GitHub Actions `schedule:` triggers**, to work around Vercel Hobby's
+once-daily cron ceiling. Measured directly against this repo's real
+run history (GitHub's Actions API), every one of the three scheduled
+workflows is badly, consistently late — not occasionally, not by
+minutes, but by hours, every time:
+
+- `cron-reminders-hourly.yml` (configured `*/15 * * * *`): real gaps
+  between runs of 2-5+ hours.
+- `cron-ahaana-reminders.yml` (also `*/15 * * * *`): the same pattern.
+- `cron-reminders.yml` (configured `0 */4 * * *`): real gaps of 3-7+
+  hours.
+
+This is a real, documented GitHub Actions limitation, not something
+tunable away — GitHub explicitly deprioritizes `schedule:`-triggered
+runs under system load, and this repo running THREE separate
+frequent scheduled workflows competes for that same deprioritized
+queue. For "Papa Dentist," the reminder's valid firing window was a
+single hour (9:00-10:00 AM); the closest real runs landed at 00:15 and
+04:48 — nothing in between. Since this has been true since v3.6.9
+shipped, **every hour-based and 4-hourly reminder in the household has
+likely been silently late or entirely missed** for as long as it's
+been live, not just this one event.
+
+- **Fix**: moved all three routes' actual scheduling to
+  **[cron-job.org](https://cron-job.org)** — a free, purpose-built
+  external cron service (confirmed live: supports down to
+  once-per-minute execution, custom HTTP headers, 736,600+ users,
+  15+ years in service), hitting each route directly with the same
+  `Authorization: Bearer $CRON_SECRET` header Vercel/GitHub Actions
+  used to send. See `INSTALL.md`'s `CRON_SECRET` row for exact setup.
+- **`.github/workflows/cron-*.yml`** (all three) — the `schedule:`
+  trigger removed entirely; `workflow_dispatch:` kept for manual
+  testing only. These files no longer run on any timer at all —
+  cron-job.org owns that now.
+- `vercel.json` is unchanged (still just `ahaana-weekly-report`,
+  already Hobby-compliant) — this fix is entirely about WHERE the
+  other three routes get their scheduled calls from, not about the
+  Hobby-plan constraint itself.
+
+Not something this sandbox can verify end-to-end (cron-job.org needs
+a real account, which only the household can create) — the household
+needs to actually set up the three jobs there before this is truly
+fixed. Once done, worth spot-checking `notification_log` or just
+watching for an on-time Telegram reminder to confirm real delivery,
+since GitHub Actions' own dashboard showing "success" on every run
+was exactly what made this bug invisible for over a week — the runs
+themselves never failed, they just didn't happen often enough.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions

@@ -152,17 +152,20 @@ they say so.
   (`calendar_events.end_time`, a new column) — a "Bowling" event that
   actually runs 4 hours no longer collapses to the feed's 1-hour
   default. See doc 00's v3.6.4–v3.6.8 sections.
-- **Three cron routes move to GitHub Actions (v3.6.9):** clears a real
-  blocker to downgrading from Vercel Pro to Hobby — Hobby caps Vercel's
-  own cron feature to once a day, but `/api/cron/reminders` (every 4
-  hours, for low reminder-edit latency) and the two 15-minute routes
+- **Three cron routes move off Vercel's own cron feature (v3.6.9),
+  then off GitHub Actions too (v3.7.3):** clears a real blocker to
+  downgrading from Vercel Pro to Hobby — Hobby caps Vercel's own cron
+  feature to once a day, but `/api/cron/reminders` (every 4 hours, for
+  low reminder-edit latency) and the two 15-minute routes
   (`reminders-hourly`, `ahaana-reminders`) all need finer granularity
-  than that. Each now runs on its own GitHub Actions
-  `schedule:` trigger instead, at its original cadence, authenticated
-  with the same `CRON_SECRET` bearer token Vercel itself already used
-  — plan-independent either way. `vercel.json` keeps only
-  `ahaana-weekly-report`, already Hobby-compliant. See doc 00's v3.6.9
-  section.
+  than that. v3.6.9 moved each to its own GitHub Actions `schedule:`
+  trigger; v3.7.3 found — after a real household reminder never fired
+  — that GitHub's scheduler doesn't actually deliver anywhere close to
+  the configured cadence (measured real gaps of 2-7+ hours, not
+  15min/4h) and moved the actual scheduling to
+  [cron-job.org](https://cron-job.org) instead, a free service built
+  for exactly this. `vercel.json` keeps only `ahaana-weekly-report`,
+  already Hobby-compliant. See doc 00's v3.6.9 and v3.7.3 sections.
 - **A real timezone bug fix (v3.6.10)** in the hourly reminder cron —
   it computed every row's time in IST regardless of who it was tagged
   to, missing the per-person fix the iCal feed got in v3.6.7; a row

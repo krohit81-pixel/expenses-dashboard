@@ -1,29 +1,26 @@
-name: Cron — reminders (every 4 hours)
+name: Cron — reminders (manual/dispatch only — see v3.7.3)
 
-# v3.6.9: replaces vercel.json's own cron entry for this route. Vercel's
-# Hobby plan caps its built-in cron feature to once a day; this route was
-# deliberately put on a 4-hourly cadence (not daily) so an event's "remind
-# me" reminder starts counting down within a few hours of being added or
-# edited, not up to a full day later — see docs/00-current-state.md's
-# v3.2.1 section. Moving it here (rather than letting it degrade to daily)
-# preserves that original latency, and works identically whether the
-# project is on Vercel Pro or Hobby, since nothing here depends on which
-# plan is in use — this hits a plain HTTP route with the same bearer token
-# Vercel itself would have sent.
+# v3.6.9 tried this workflow's own `schedule:` trigger as a Vercel
+# Hobby-compatible replacement for the every-4-hours cadence
+# vercel.json used to run natively on Pro. v3.7.3: measured directly
+# against this repo's real run history and found GitHub's `schedule:`
+# trigger does NOT deliver anything close to "every 4 hours" in
+# practice — real gaps between runs of 3-7+ hours, not the ~4 hours
+# configured (this repo runs THREE separate scheduled workflows,
+# competing for GitHub's own lower-priority scheduled-run queue).
+# Confirmed live: this degradation directly caused a household-tagged
+# reminder to never fire (docs/00-current-state.md's v3.7.3 section).
 #
-# Requires a repository secret named CRON_SECRET, set to the exact value
-# already configured in Vercel's project env vars (Settings → Environment
-# Variables). Add it via the GitHub web UI (Settings → Secrets and
-# variables → Actions → New repository secret) or `gh secret set
-# CRON_SECRET`.
+# Replaced with cron-job.org (free, purpose-built for exactly this,
+# supports down to once-per-minute with custom headers) hitting
+# /api/cron/reminders directly on its own schedule — see INSTALL.md
+# for the exact setup. The `schedule:` trigger below is intentionally
+# removed; `workflow_dispatch:` stays only for manual testing.
 #
-# GitHub disables a scheduled workflow automatically after 60 days with no
-# commits to the repo — not a concern for an actively-developed project,
-# but worth knowing if this repo ever goes quiet for two months.
+# Still requires the CRON_SECRET repository secret for manual runs —
+# see INSTALL.md.
 
 on:
-  schedule:
-    - cron: "0 */4 * * *"
   workflow_dispatch: {}
 
 jobs:

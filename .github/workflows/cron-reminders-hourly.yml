@@ -1,18 +1,27 @@
-name: Cron — reminders-hourly (every 15 minutes)
+name: Cron — reminders-hourly (manual/dispatch only — see v3.7.3)
 
-# v3.6.9: replaces vercel.json's own cron entry for this route. Vercel's
-# Hobby plan caps its built-in cron feature to once a day — nowhere near
-# frequent enough for hour-based reminders ("3/4 hours before" an event
-# with a real time of day), so this route moves to GitHub Actions instead,
-# keeping its original 15-minute cadence regardless of Vercel plan. See
-# docs/00-current-state.md's v3.2.2 section for what this route does.
+# v3.6.9 tried this workflow's own `schedule:` trigger as a Vercel
+# Hobby-compatible replacement for the every-15-minutes cadence
+# vercel.json used to run natively on Pro. v3.7.3: measured directly
+# against this repo's real run history and found GitHub's `schedule:`
+# trigger does NOT deliver anything close to "every 15 minutes" in
+# practice — real gaps between runs of 2-5+ hours, not 15 minutes.
+# Confirmed live: a household-tagged event's hour-based reminder
+# ("Papa Dentist," 1 hour before its 10am time) needed a run inside a
+# single 1-hour window and got none — it never fired at all
+# (docs/00-current-state.md's v3.7.3 section).
 #
-# Requires a repository secret named CRON_SECRET — see cron-reminders.yml
-# for how to set it.
+# Replaced with cron-job.org (free, purpose-built for exactly this,
+# supports down to once-per-minute with custom headers) hitting
+# /api/cron/reminders-hourly directly on its own schedule — see
+# INSTALL.md for the exact setup. The `schedule:` trigger below is
+# intentionally removed; `workflow_dispatch:` stays only for manual
+# testing.
+#
+# Still requires the CRON_SECRET repository secret for manual runs —
+# see INSTALL.md.
 
 on:
-  schedule:
-    - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
 jobs:
