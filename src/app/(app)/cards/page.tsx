@@ -126,6 +126,7 @@ export default async function CardsPage({
             currency={currency}
             cardMonth={cardMonth}
             cardKeyForLink="all"
+            basePath="/cards"
             variant="aggregate"
           />
         )}

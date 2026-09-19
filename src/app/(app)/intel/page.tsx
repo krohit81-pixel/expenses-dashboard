@@ -165,6 +165,7 @@ async function CardLevelBreakdownSection({
           currency={currency}
           cardMonth={cardMonth}
           cardKeyForLink="all"
+          basePath="/intel"
           variant="aggregate"
         />
       )}
@@ -194,6 +195,7 @@ async function CardLevelBreakdownSection({
               currency={currency}
               cardMonth={cardMonth}
               cardKeyForLink={card.cardKey}
+              basePath="/intel"
               variant="card"
             />
           ))}

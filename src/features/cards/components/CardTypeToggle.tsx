@@ -112,6 +112,7 @@ export function CardTypeToggle({
         currency={currency}
         cardMonth={cardMonth}
         cardKeyForLink={match?.cardKey ?? "none"}
+        basePath="/cards"
         variant="card"
       />
       {selected.key === "infinia" && (

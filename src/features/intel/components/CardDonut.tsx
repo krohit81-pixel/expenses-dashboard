@@ -51,12 +51,14 @@ function cardDonut(
 
 /** Builds the query string for one donut slice's drill-down link -- see the /intel/card-category route (unmoved, still the one detail page both /intel and /cards link into). Kept private: grep-confirmed zero callers outside this file's own CardDonut body -- there's no second consumer to share it with, both pages already get one implementation just by importing this module. */
 function cardCategoryHref(params: {
+  basePath: string;
   cardMonth: string;
   cardKey: string;
   categoryIds: string[];
   label: string;
 }): string {
   const search = new URLSearchParams({
+    from: params.basePath,
     month: params.cardMonth,
     card: params.cardKey,
     categories: params.categoryIds.join(","),
@@ -77,6 +79,14 @@ function cardCategoryHref(params: {
  * cardKeyForLink is "all" for the aggregate donut, or one card's own
  * cardKey for a per-card donut.
  *
+ * v4.0.0: `basePath` ("/intel" or "/cards") rides along in the
+ * drill-down link as a `from` param -- the one detail page both
+ * pages link into (/intel/card-category) otherwise has no way to
+ * know which of its two parents sent the visitor there, and its own
+ * "back" link used to always point at /intel even when reached from
+ * /cards (Intel itself is hidden from primary nav since v3.8.0, so
+ * that "back" silently dead-ended on a page with no way back to Cards).
+ *
  * v3.8.0: this used to be a plain function returning JSX
  * (`renderCardDonut`), called inline from one file's own `.map()`. Now
  * it has two independent call sites (Intel's own grid, and the new
@@ -93,6 +103,7 @@ export function CardDonut({
   currency,
   cardMonth,
   cardKeyForLink,
+  basePath,
   variant = "card",
 }: {
   label: string;
@@ -101,6 +112,8 @@ export function CardDonut({
   currency: string;
   cardMonth: string;
   cardKeyForLink: string;
+  /** "/intel" or "/cards" -- which page this donut lives on, so its drill-down link's "back" can return here. */
+  basePath: string;
   variant?: "aggregate" | "card";
 }) {
   const { slices, gradientStops } = cardDonut(breakdown, atlasCategoryName);
@@ -161,6 +174,7 @@ export function CardDonut({
                 <li key={slice.name}>
                   <DonutSliceLink
                     href={cardCategoryHref({
+                      basePath,
                       cardMonth,
                       cardKey: cardKeyForLink,
                       categoryIds: slice.categoryIds,

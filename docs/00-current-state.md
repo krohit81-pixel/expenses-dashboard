@@ -3014,6 +3014,56 @@ donut with real (still-stale, by choice) numbers; switching to another
 card hides it; navigating to a past month with real Infinia spend still
 shows the same latest-statement rewards data, confirming the gating fix.
 
+## v4.0.0: Cards is the real default landing tab; drill-down "back" returns to wherever it was clicked from; the stale Infinia statement corrected
+
+Three household-reported issues, all real:
+
+- **Opening the app landed on the hidden Dashboard tab.** Dashboard and
+  Intel were hidden from primary nav back in v3.8.0, but nothing that
+  actually decides where a fresh visit lands was updated to match —
+  the root route (`src/app/page.tsx`), the login form's own default
+  `next` (`src/app/login/page.tsx`, `src/features/access-gate/api/actions.ts`),
+  and onboarding's completion redirect (`src/features/onboarding/api/actions.ts`,
+  `src/app/(app)/onboarding/page.tsx`) all still pointed at `/dashboard`
+  by default. All five now default to `/cards` instead — a normal visit
+  (no explicit `?next=` from middleware bouncing an unauthenticated
+  request off some other page) lands on Cards, matching what's actually
+  first in nav today.
+- **The category drill-down's "back" link always said "Back to
+  Intel," even when reached from `/cards`.** `/intel/card-category` is
+  the one detail page both `/intel` and `/cards` link into from a donut
+  slice, but it had no way to know which parent sent the visitor —
+  its own back link was hardcoded to `/intel`, which dead-ends since
+  Intel is hidden from nav. Fixed by having `CardDonut` (the shared
+  component both pages render) carry a new required `basePath` prop
+  ("/intel" or "/cards") into the drill-down link as a `from` query
+  param; the detail page reads it back and points "back" — and its
+  label — at whichever page actually sent the visitor there. An old
+  bookmarked/shared link with no `from` param falls back to "/intel"
+  (its only possible source before this version).
+- **The 2026-09-17 Infinia statement's `reward_points_summary` was
+  still stale** (`116`/`334` instead of the correct `1165`/`3340`) —
+  the real-world case `backfillRewardsIfStale` (v3.9.0) was built for,
+  left uncorrected at the household's own call during that version's
+  verification, since a normal re-upload can no longer trigger it (see
+  v3.9.0's own section on why the hash changed). Corrected directly:
+  ran the exact real parser output through `backfillRewardsIfStale`
+  against that statement's own id, once, as a manual one-off — not a
+  new code path. Confirmed after: `reward_points_summary` reads
+  `1165`/`3340` correctly, `reward_points_earned`/`balance` and every
+  non-reward column unchanged, transaction count still 50. `/cards`
+  now shows the correct `4,766` bonus-points total for Infinia's
+  current cycle.
+
+Verified: `npx tsc --noEmit && npx eslint . && npx prettier --check .
+&& npx vitest run` (646 total) and `npm run build` both pass. Real
+browser check: `/` redirects straight to `/cards`; clicking a category
+slice on `/cards` and then "← Back to Cards" returns to `/cards`
+(confirmed the link's own href is `/cards?cardMonth=...`); the same
+flow from `/intel` still correctly says and links "← Back to Intel"
+(regression check — Intel's own drill-down was untouched); Infinia's
+rewards section on `/cards` shows the corrected `4,766` bonus total.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions

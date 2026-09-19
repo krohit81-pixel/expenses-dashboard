@@ -238,6 +238,18 @@ they say so.
   between two imports of the same PDF after a parser fix) briefly wrote
   a genuine duplicate statement row, since cleaned up. See doc 00's
   v3.9.0 section.
+- **Cards is the real default landing tab now; drill-down "back" goes
+  where you came from (v4.0.0):** three household-reported bugs —
+  opening the app still landed on the hidden Dashboard tab (the root
+  route, login's default `next`, and onboarding's completion redirect
+  all still pointed at `/dashboard` from before v3.8.0 hid it); the
+  category drill-down's "back" link always said "Back to Intel" even
+  when reached from `/cards` (fixed via a `basePath`/`from` param
+  threaded through `CardDonut` into the shared `/intel/card-category`
+  detail page); and the 2026-09-17 Infinia statement's stale reward
+  numbers (left uncorrected at the household's own call during v3.9.0)
+  were corrected directly via a one-off `backfillRewardsIfStale` call
+  against that statement's own id. See doc 00's v4.0.0 section.
 - Log is a hub for Transactions, Accounts (with inline balance
   correction), and Imports — a statement import also prompts to log its
   due amount as a real Dashboard expense (v2.5.4) and to check for

@@ -18,7 +18,7 @@ export async function submitAccessPasswordAction(
   formData: FormData,
 ): Promise<AccessGateFormState> {
   const password = String(formData.get("password") ?? "");
-  const next = String(formData.get("next") ?? "/dashboard");
+  const next = String(formData.get("next") ?? "/cards");
 
   if (!checkAccessPassword(password)) {
     return { error: "Incorrect password." };
@@ -33,7 +33,7 @@ export async function submitAccessPasswordAction(
     maxAge: 60 * 60 * 24 * 30, // 30 days, matches the token's own expiry
   });
 
-  redirect(next.startsWith("/") ? next : "/dashboard");
+  redirect(next.startsWith("/") ? next : "/cards");
 }
 
 export async function logoutAction(): Promise<void> {

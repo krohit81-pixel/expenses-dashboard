@@ -20,7 +20,13 @@ interface CardCategoryPageProps {
     card?: string;
     categories?: string;
     label?: string;
+    from?: string;
   }>;
+}
+
+/** Only ever "/intel" or "/cards" (see CardDonut's own basePath prop, the sole place this link is built) -- an unrecognized or missing value falls back to "/intel" for any old bookmarked/shared link from before v4.0.0 carried no `from` param at all. */
+function backBasePath(from: string | undefined): "/intel" | "/cards" {
+  return from === "/cards" ? "/cards" : "/intel";
 }
 
 const DATE_FORMATTER = new Intl.DateTimeFormat("en-IN", {
@@ -66,7 +72,9 @@ export default async function CardCategoryPage({
   const settings = await getUserSettings(user.id);
   const currency = settings?.baseCurrency ?? "USD";
 
-  const backHref = month ? `/intel?cardMonth=${month}` : "/intel";
+  const backBase = backBasePath(params.from);
+  const backLabel = backBase === "/cards" ? "Cards" : "Intel";
+  const backHref = month ? `${backBase}?cardMonth=${month}` : backBase;
 
   if (!month || categoryIds === null) {
     return (
@@ -77,11 +85,11 @@ export default async function CardCategoryPage({
             href={backHref}
             className="text-xs text-ink-faint hover:underline"
           >
-            ← Back to Intel
+            ← Back to {backLabel}
           </Link>
           <p className="text-sm text-ink-faint">
-            Missing month or category — go back to Intel and click a donut slice
-            to get here.
+            Missing month or category — go back to {backLabel} and click a donut
+            slice to get here.
           </p>
         </div>
       </div>
@@ -110,7 +118,7 @@ export default async function CardCategoryPage({
           href={backHref}
           className="text-xs text-ink-faint hover:underline"
         >
-          ← Back to Intel
+          ← Back to {backLabel}
         </Link>
 
         <section className="rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">

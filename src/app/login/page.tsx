@@ -41,7 +41,7 @@ export default async function LoginPage({
         <p className="mb-8 text-sm text-white/60">
           Enter the password to continue.
         </p>
-        <LoginForm next={next ?? "/dashboard"} />
+        <LoginForm next={next ?? "/cards"} />
 
         <div className="my-6 flex items-center gap-3 text-[11px] font-semibold text-white/30">
           <span className="h-px flex-1 bg-white/15" />

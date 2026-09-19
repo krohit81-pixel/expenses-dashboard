@@ -35,5 +35,5 @@ export async function submitOnboarding(
     };
   }
 
-  redirect("/dashboard");
+  redirect("/cards");
 }

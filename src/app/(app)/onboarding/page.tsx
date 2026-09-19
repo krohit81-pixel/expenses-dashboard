@@ -14,7 +14,7 @@ export default async function OnboardingPage() {
   const settings = await getUserSettings(user.id);
 
   if (settings) {
-    redirect("/dashboard");
+    redirect("/cards");
   }
 
   return <OnboardingForm />;
