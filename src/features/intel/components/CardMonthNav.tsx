@@ -25,9 +25,12 @@ import { shiftMonth, shortMonthLabel } from "@/lib/dates/month";
 export function CardMonthNav({
   cardMonth,
   isCurrentCardMonth,
+  basePath,
 }: {
   cardMonth: string;
   isCurrentCardMonth: boolean;
+  /** v3.8.0 — was hardcoded to "/intel"; now required so the new /cards page (and any future page reusing this) navigates against its own URL instead of Intel's. */
+  basePath: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -42,7 +45,7 @@ export function CardMonthNav({
     <div className="mb-3 flex items-center gap-1.5">
       <button
         type="button"
-        onClick={() => go(`/intel?cardMonth=${shiftMonth(cardMonth, -1)}`)}
+        onClick={() => go(`${basePath}?cardMonth=${shiftMonth(cardMonth, -1)}`)}
         disabled={isPending}
         className="flex size-7 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent disabled:opacity-60"
         aria-label="Previous month"
@@ -54,7 +57,7 @@ export function CardMonthNav({
       </span>
       <button
         type="button"
-        onClick={() => go(`/intel?cardMonth=${shiftMonth(cardMonth, 1)}`)}
+        onClick={() => go(`${basePath}?cardMonth=${shiftMonth(cardMonth, 1)}`)}
         disabled={isPending}
         className="flex size-7 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent disabled:opacity-60"
         aria-label="Next month"
@@ -64,7 +67,7 @@ export function CardMonthNav({
       {!isCurrentCardMonth && (
         <button
           type="button"
-          onClick={() => go("/intel")}
+          onClick={() => go(basePath)}
           disabled={isPending}
           className="ml-1 rounded-full bg-accent px-2.5 py-1 font-display text-[10px] font-bold text-white disabled:opacity-60"
         >

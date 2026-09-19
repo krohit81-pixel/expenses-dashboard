@@ -15,7 +15,6 @@ import {
   getCardCategoryBreakdown,
   getCardExpenseForMonths,
   hasAnyCreditCardStatement,
-  type CardCategoryAmount,
 } from "@/services/CreditCardIntelService";
 import { listAtlasCategories } from "@/services/MerchantService";
 import { buildDonutGradientStops, buildDonutSlices } from "@/lib/intel/donut";
@@ -35,24 +34,19 @@ import {
   shortMonthLabel,
 } from "@/lib/dates/month";
 import { Hero } from "@/components/ui/hero";
-import { Spinner } from "@/components/ui/spinner";
+import { SectionChevron } from "@/components/ui/section-chevron";
 import { GenerateInsightButton } from "@/features/intel/components/GenerateInsightButton";
 import { CardMonthNav } from "@/features/intel/components/CardMonthNav";
-import { DonutSliceLink } from "@/features/intel/components/DonutSliceLink";
-import { DownloadReportButton } from "@/features/intel/components/DownloadReportButton";
+import {
+  CardDonut,
+  CardBreakdownSkeleton,
+  CATEGORY_COLORS,
+} from "@/features/intel/components/CardDonut";
+import { CombinedReportSection } from "@/features/intel/components/CombinedReportSection";
 
 export const metadata: Metadata = {
   title: "Intel",
 };
-
-const CATEGORY_COLORS = [
-  "#5b21b6",
-  "#9061e0",
-  "#17a054",
-  "#e0355b",
-  "#f0a63a",
-  "#cabfd6",
-];
 
 /**
  * Sentinel "category id" for credit card dues in the ledger-only
@@ -76,47 +70,6 @@ const CATEGORY_COLORS = [
  */
 const CARD_DUES_CATEGORY_ID = "__credit_card_dues__";
 const CARD_DUES_LABEL = "Credit Card Dues";
-
-/**
- * The disclosure triangle for a collapsible section's <summary> --
- * v1.2, "make month on month, by category and the card-level breakdown
- * sections collapsible." Plain native <details>/<summary> (no client
- * component, no JS) does the actual collapsing; this is just the
- * chevron, rotated via the group-open: variant on the parent
- * <details className="group">. Every section defaults open (the
- * `open` attribute on <details>) so existing behavior is unchanged
- * until someone actually collapses one.
- */
-function SectionChevron() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={3}
-      className="size-3 shrink-0 text-ink-faint transition-transform duration-150 group-open:rotate-90"
-      aria-hidden="true"
-    >
-      <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-/** Builds the query string for one donut slice's drill-down link -- see the new /intel/card-category route. */
-function cardCategoryHref(params: {
-  cardMonth: string;
-  cardKey: string;
-  categoryIds: string[];
-  label: string;
-}): string {
-  const search = new URLSearchParams({
-    month: params.cardMonth,
-    card: params.cardKey,
-    categories: params.categoryIds.join(","),
-    label: params.label,
-  });
-  return `/intel/card-category?${search.toString()}`;
-}
 
 function monthShortLabel(month: string): string {
   return new Date(`${month}-01T00:00:00Z`).toLocaleDateString("en-US", {
@@ -143,142 +96,6 @@ function formatGeneratedAt(iso: string): string {
     minute: "2-digit",
     timeZone: "Asia/Kolkata",
   }).format(new Date(iso));
-}
-
-function cardDonut(
-  breakdown: { totalSpend: Money; byCategory: CardCategoryAmount[] },
-  atlasCategoryName: Map<string, string>,
-) {
-  // buildDonutSlices expects a non-nullable categoryId; "" is never a
-  // real atlas_categories id, so mapping null -> "" here reuses its
-  // existing "no name found -> Uncategorized" fallback as-is, instead
-  // of duplicating the top-5-plus-Other bucketing logic for a
-  // nullable-id variant.
-  const slices = buildDonutSlices(
-    breakdown.byCategory.map((c) => ({
-      categoryId: c.categoryId ?? "",
-      total: c.total,
-    })),
-    atlasCategoryName,
-  );
-  const gradientStops = buildDonutGradientStops(
-    slices,
-    breakdown.totalSpend,
-    CATEGORY_COLORS,
-  );
-  return { slices, gradientStops };
-}
-
-/**
- * v1.2: `variant` distinguishes the "All cards" aggregate donut (bolder,
- * slightly larger, an "Overall" badge -- the parent view) from each
- * individual card's own donut (the child breakdown below it) -- see the
- * household's request to "visually show overall card slightly more
- * parent/bolder...and separately its detailed credit cards below as
- * separate child section." `cardMonth`/`cardKeyForLink` build each
- * slice's click-through link to /intel/card-category (the "when you
- * click on groceries...I would like to see the transactions" request);
- * cardKeyForLink is "all" for the aggregate donut, or one card's own
- * cardKey for a per-card donut.
- */
-function renderCardDonut(
-  key: string,
-  label: string,
-  breakdown: { totalSpend: Money; byCategory: CardCategoryAmount[] },
-  atlasCategoryName: Map<string, string>,
-  currency: string,
-  cardMonth: string,
-  cardKeyForLink: string,
-  variant: "aggregate" | "card" = "card",
-) {
-  const { slices, gradientStops } = cardDonut(breakdown, atlasCategoryName);
-  const isAggregate = variant === "aggregate";
-  return (
-    <div
-      key={key}
-      className={`rounded-2xl bg-surface shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)] ${
-        isAggregate ? "border-2 border-accent-soft" : ""
-      }`}
-    >
-      <div className="flex items-center gap-1.5 px-3.5 pb-1 pt-3">
-        {isAggregate && (
-          <span className="shrink-0 rounded-full bg-accent px-1.5 py-0.5 font-display text-[9px] font-extrabold uppercase tracking-wide text-white">
-            Overall
-          </span>
-        )}
-        <h3
-          className={`truncate font-display font-bold text-ink ${
-            isAggregate ? "text-[13px]" : "text-[11.5px]"
-          }`}
-        >
-          {label}
-        </h3>
-      </div>
-      {slices.length === 0 ? (
-        <p className="px-3.5 pb-3.5 text-[12px] leading-relaxed text-ink-faint">
-          No spend recorded.
-        </p>
-      ) : (
-        // v1.6.2: donut + legend side by side (was stacked, donut on
-        // top) -- a stacked layout left a lot of unused width in each
-        // card; a household-flagged issue ("lot of empty spaces...if
-        // required shrink it").
-        <div className="flex items-center gap-3 px-3.5 pb-3.5">
-          <div
-            className={`relative shrink-0 rounded-full ${isAggregate ? "size-[92px]" : "size-[76px]"}`}
-            style={{
-              background: `conic-gradient(${gradientStops.join(", ")})`,
-            }}
-          >
-            <div className="absolute inset-[10px] flex flex-col items-center justify-center rounded-full bg-surface text-center">
-              <span className="font-display text-[9.5px] font-extrabold leading-tight text-ink">
-                {formatMoneyDisplay(breakdown.totalSpend, currency).replace(
-                  /\.\d+$/,
-                  "",
-                )}
-              </span>
-            </div>
-          </div>
-          <ul className="min-w-0 flex-1">
-            {slices.map((slice, i) => {
-              const totalNum = moneyToDbNumber(breakdown.totalSpend);
-              const pct =
-                totalNum > 0
-                  ? Math.round((moneyToDbNumber(slice.total) / totalNum) * 100)
-                  : 0;
-              return (
-                <li key={slice.name}>
-                  <DonutSliceLink
-                    href={cardCategoryHref({
-                      cardMonth,
-                      cardKey: cardKeyForLink,
-                      categoryIds: slice.categoryIds,
-                      label: slice.name,
-                    })}
-                    colorSwatch={CATEGORY_COLORS[i % CATEGORY_COLORS.length]}
-                    name={slice.name}
-                    amountText={formatMoneyDisplay(
-                      slice.total,
-                      currency,
-                    ).replace(/\.\d+$/, "")}
-                    pctText={`${pct}%`}
-                  />
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CardBreakdownSkeleton() {
-  return (
-    <div className="flex items-center justify-center rounded-[20px] border-[1.5px] border-dashed border-line bg-surface p-10">
-      <Spinner className="size-6 text-accent" />
-    </div>
-  );
 }
 
 /**
@@ -339,17 +156,18 @@ async function CardLevelBreakdownSection({
 
   return (
     <div className="space-y-4">
-      {hasMultipleCards &&
-        renderCardDonut(
-          "all-cards",
-          "All cards",
-          cardBreakdown.aggregate,
-          atlasCategoryName,
-          currency,
-          cardMonth,
-          "all",
-          "aggregate",
-        )}
+      {hasMultipleCards && (
+        <CardDonut
+          key="all-cards"
+          label="All cards"
+          breakdown={cardBreakdown.aggregate}
+          atlasCategoryName={atlasCategoryName}
+          currency={currency}
+          cardMonth={cardMonth}
+          cardKeyForLink="all"
+          variant="aggregate"
+        />
+      )}
       {/* v1.2: per-card donuts are the child section beneath "All
           cards" -- the left border + indent + "By card" label visually
           subordinate them to the bolder aggregate donut above, per the
@@ -367,53 +185,21 @@ async function CardLevelBreakdownSection({
           </h3>
         )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {cardBreakdown.cards.map((card) =>
-            renderCardDonut(
-              card.cardKey,
-              card.cardLabel,
-              card,
-              atlasCategoryName,
-              currency,
-              cardMonth,
-              card.cardKey,
-              "card",
-            ),
-          )}
+          {cardBreakdown.cards.map((card) => (
+            <CardDonut
+              key={card.cardKey}
+              label={card.cardLabel}
+              breakdown={card}
+              atlasCategoryName={atlasCategoryName}
+              currency={currency}
+              cardMonth={cardMonth}
+              cardKeyForLink={card.cardKey}
+              variant="card"
+            />
+          ))}
         </div>
       </div>
     </div>
-  );
-}
-
-/**
- * v3.6.0 — the combined credit card PDF report's download trigger.
- * hasAnyCreditCardStatement() is the same cheap existence check
- * CardLevelBreakdownSection already runs, gating on "any statement
- * ever imported" rather than "this specific month" -- the report
- * itself always covers each card's own latest statement, independent
- * of whatever month is currently being viewed above.
- */
-async function CombinedReportSection() {
-  const anyCardStatements = await hasAnyCreditCardStatement();
-  if (!anyCardStatements) return null;
-
-  return (
-    <details open className="group">
-      <summary className="mb-3 flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
-        <SectionChevron />
-        <span className="font-display text-sm font-bold text-ink">
-          Combined report
-        </span>
-      </summary>
-      <div className="rounded-[20px] border-[1.5px] border-line bg-surface p-5">
-        <p className="mb-3 text-sm leading-relaxed text-ink-soft">
-          A single PDF across every card&apos;s own latest statement — overall
-          breakdown, category-to-merchant detail, a per-card summary, and an
-          appendix with a ready-to-paste AI analysis prompt.
-        </p>
-        <DownloadReportButton />
-      </div>
-    </details>
   );
 }
 
@@ -820,6 +606,7 @@ export default async function IntelPage({
           <CardMonthNav
             cardMonth={cardMonth}
             isCurrentCardMonth={isCurrentCardMonth}
+            basePath="/intel"
           />
 
           <Suspense key={cardMonth} fallback={<CardBreakdownSkeleton />}>

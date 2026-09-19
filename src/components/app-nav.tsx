@@ -12,23 +12,13 @@ interface NavItem {
   icon: (props: SVGProps<SVGSVGElement>) => React.ReactElement;
 }
 
-function HomeIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" {...props}>
-      <path d="M4 11.5 12 4l8 7.5" />
-      <path d="M6 10v9h5v-6h2v6h5v-9" />
-    </svg>
-  );
-}
-function BarsIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" {...props}>
-      <path d="M5 19V10" />
-      <path d="M12 19V5" />
-      <path d="M19 19v-6" />
-    </svg>
-  );
-}
+// v3.8.0 — HomeIcon (Dashboard) and BarsIcon (Intel) removed from here
+// when those two tabs were hidden from PRIMARY_ITEMS below; the pages
+// themselves are untouched, just this nav-only pairing of icon-to-tab.
+// Trivial one-liner SVGs (a house, three bars) — easy to re-add
+// verbatim if either tab ever comes back:
+//   HomeIcon:  <path d="M4 11.5 12 4l8 7.5" /><path d="M6 10v9h5v-6h2v6h5v-9" />
+//   BarsIcon:  <path d="M5 19V10" /><path d="M12 19V5" /><path d="M19 19v-6" />
 function LogIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" {...props}>
@@ -46,6 +36,14 @@ function CalendarIcon(props: SVGProps<SVGSVGElement>) {
       <path d="M3.5 10h17" />
       <path d="M8 3.5v3" />
       <path d="M16 3.5v3" />
+    </svg>
+  );
+}
+function CardsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" {...props}>
+      <rect x="3" y="5.5" width="18" height="13" rx="2.2" />
+      <path d="M3 9.5h18" />
     </svg>
   );
 }
@@ -68,14 +66,25 @@ function CalendarIcon(props: SVGProps<SVGSVGElement>) {
  *
  * v2.5.8: More itself is gone from here — it's a hamburger icon next
  * to the logo in Hero now (components/ui/hero.tsx), not a fifth item
- * in either nav bar. Both TopNav and BottomNav render exactly these
- * four now; BottomNav's grid went 5 columns -> 4 accordingly.
+ * in either nav bar.
+ *
+ * v3.8.0: real usage check from the household — Dashboard wasn't being
+ * opened at all; Calendar and Intel's own card breakdown were the only
+ * two screens actually in use. Dashboard and Intel are hidden from nav
+ * here (their routes/pages are untouched, still fully reachable by
+ * direct URL — see src/app/(app)/dashboard and .../intel — this is a
+ * "not sure what to do with these yet" hide, not a removal), replaced
+ * by a new dedicated Cards tab (Intel's own combined + per-card donut
+ * UI, promoted to its own screen behind a 6-button per-card toggle —
+ * see src/app/(app)/cards/page.tsx). TopNav and BottomNav render
+ * exactly these three now; BottomNav's grid went 4 columns -> 3
+ * accordingly. HomeIcon/BarsIcon are unused now but left defined,
+ * same "hidden, not deleted" reasoning as the pages themselves.
  */
 const PRIMARY_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: HomeIcon },
-  { href: "/log", label: "Log", icon: LogIcon },
-  { href: "/intel", label: "Intel", icon: BarsIcon },
+  { href: "/cards", label: "Cards", icon: CardsIcon },
   { href: "/calendar", label: "Calendar", icon: CalendarIcon },
+  { href: "/log", label: "Log", icon: LogIcon },
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -145,7 +154,7 @@ export function BottomNav() {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-[hsl(var(--line))] bg-[hsl(var(--surface))] sm:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="grid grid-cols-4">
+      <ul className="grid grid-cols-3">
         {PRIMARY_ITEMS.map((item) => {
           const active = isActive(pathname, item.href);
           return (

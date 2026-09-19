@@ -2823,6 +2823,82 @@ migration). Nothing here needed a schema or parser build beyond this
 one bug fix — the actual remaining work (a UI mockup was requested
 next) is purely presentational, not a new capture pipeline.
 
+## v3.8.0: Dashboard and Intel hidden from nav — a new dedicated Cards tab replaces them
+
+Real usage check from the household: Dashboard wasn't being opened at
+all; Calendar and Intel's own card-level breakdown were the only two
+screens actually in use. Rather than keep four primary tabs for two
+screens nobody visits, Dashboard and Intel are hidden from navigation
+— **routes and code are fully intact**, just no longer in
+`app-nav.tsx`'s `PRIMARY_ITEMS`, still reachable by direct URL
+(`/dashboard`, `/intel`) — and a new **Cards** tab takes their place.
+Nav is now **Cards, Calendar, Log** (3 tabs, in that order) + the
+unchanged hamburger More menu.
+
+- **`src/app/(app)/cards/page.tsx`** (new) — a dedicated home for
+  credit card spend: the combined/aggregate donut always on top
+  (whenever there's any card spend that month — a deliberate
+  difference from Intel's own gate, which only showed it once more
+  than one card had spend, since Intel treated it as one section among
+  several rather than the page's own headline), month nav, then a
+  6-button toggle (**Infinia, TataNeu, Amazon, Rupay, Airtel,
+  Horizon** — the household's own real 6 cards, confirmed live against
+  `finance.credit_card_statements`: one row per (issuer, card_type),
+  no reissues yet) showing whichever card's own donut+category
+  drill-down is selected, defaulting to Infinia. Combined report
+  (the existing PDF download) always sits at the very bottom,
+  independent of which card is toggled.
+- **Shared components extracted out of `intel/page.tsx`**, behavior-
+  preserving (Intel's own page renders pixel-identically to before —
+  confirmed via a real side-by-side browser check): `CardDonut`
+  (`src/features/intel/components/CardDonut.tsx` — was a page-local
+  `renderCardDonut` function, now a real exported component with two
+  independent call sites), `CombinedReportSection`
+  (`src/features/intel/components/CombinedReportSection.tsx`),
+  `SectionChevron` (`src/components/ui/section-chevron.tsx` — generic
+  enough it didn't belong under `intel/` specifically). `CardMonthNav`
+  gained a required `basePath` prop (was hardcoded to `/intel`) so both
+  pages' month-nav buttons build the right URL.
+- **Toggle matches on `(issuer, cardType)` only**, never the full
+  `cardKey` (`issuer|cardType|cardLast4`) — `CreditCardIntelService.ts`
+  builds that key fresh from each row's own three columns every time,
+  with no persisted card-identity concept; matching on the full key
+  would silently orphan a card's whole history under a new key the
+  moment it's reissued with a different last4.
+- **Serialization detail worth knowing**: `atlasCategoryName` is a
+  `Map` on the server side (from `listAtlasCategories()`), but a `Map`
+  instance can't cross the Server→Client prop boundary into the new
+  `CardTypeToggle` client component — the page passes
+  `atlasCategoryNamePairs: [string, string][]` instead, and the client
+  component reconstructs `new Map(pairs)` itself.
+- **`app-nav.tsx`**: new `CardsIcon` (a card rectangle + one stripe,
+  same hand-drawn stroke style as the other four icons); `HomeIcon`/
+  `BarsIcon` removed from this file specifically (nav-only, not the
+  actual Dashboard/Intel page code) since nothing references them once
+  they're out of `PRIMARY_ITEMS` — left as a comment with their SVG
+  paths in case either tab returns; `BottomNav`'s grid went from 4 to
+  3 columns.
+
+Explicitly **not** built yet — the household's own sequencing ("re-shuffle
+first, rewards after"): no reward points per transaction, no top-5
+table, no Rewards Program Points Summary display on the per-card
+screens. That's a follow-up using an already-approved HTML mockup
+(a Claude Artifact) as its visual reference.
+
+Verified: `npx tsc --noEmit && npx eslint . && npx prettier --check .
+&& npx vitest run` (629, unchanged — no new automated tests, matching
+this codebase's existing convention of not unit-testing server-component
+data-fetching pages or one-off client toggles) and `npm run build`
+both pass. Real browser check against a local dev server, logged in as
+the real household: all 6 toggle buttons show correct real per-card
+data (confirmed against the same numbers Intel's own "By card" grid
+showed before the extraction), month nav works, a category drill-down
+from `/cards` lands on the same `/intel/card-category` route with
+correct data, mobile width (375px) shows exactly 3 bottom-nav columns
+and the 6-button toggle wraps cleanly to two rows of three, direct URLs
+to `/dashboard` and `/intel` both still render fully and correctly, and
+the hamburger More menu is unchanged (still no Dashboard/Intel entries).
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions

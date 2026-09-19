@@ -205,6 +205,20 @@ they say so.
   table) was already parsed and persisted end to end — the remaining
   work is presentational, not a new capture pipeline. See doc 00's
   v3.7.4 section.
+- **Dashboard and Intel hidden from nav; a new Cards tab replaces them
+  (v3.8.0):** a real usage check — Dashboard wasn't opened at all,
+  Calendar and Intel's card breakdown were the only two screens in
+  regular use. Both hidden from `app-nav.tsx`'s primary items (routes
+  and code untouched, still reachable by direct URL) rather than
+  removed; nav is now **Cards, Calendar, Log**. The new Cards tab
+  reuses Intel's own combined + per-card donut/drill-down UI (now
+  shared components, `CardDonut`/`CombinedReportSection`, imported by
+  both pages) behind a 6-button toggle — one button per the
+  household's real 6 cards (Infinia, TataNeu, Amazon, Rupay, Airtel,
+  Horizon). A rewards-section follow-up (points per transaction, a
+  top-5 table, the Rewards Program Points Summary) is intentionally
+  not built yet — the household's own sequencing was reshuffle first.
+  See doc 00's v3.8.0 section.
 - Log is a hub for Transactions, Accounts (with inline balance
   correction), and Imports — a statement import also prompts to log its
   due amount as a real Dashboard expense (v2.5.4) and to check for
