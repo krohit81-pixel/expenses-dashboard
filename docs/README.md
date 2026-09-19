@@ -193,6 +193,18 @@ they say so.
   path), converted to the right person's own Singapore/IST wall-clock
   time. See doc 00's v3.7.2 section, including a real prompt-reliability
   fix found via repeated live testing.
+- **A real parsing bug fix in HDFC Infinia's Rewards Program Points
+  Summary (v3.7.4):** found while grounding a household ask (surface
+  reward points per transaction, a top-5 table, and this exact
+  summary) in a real statement before building anything — a bonus-program
+  row past 3 digits with no comma grouping (e.g. `"1165 pts"`) was
+  silently truncated to its first 3 digits by a money-formatting regex
+  never meant for this column. Fixed; confirmed the corrected sum
+  matches the statement's own printed total exactly. Also confirmed
+  the full reward-points pipeline (per-transaction + this summary
+  table) was already parsed and persisted end to end — the remaining
+  work is presentational, not a new capture pipeline. See doc 00's
+  v3.7.4 section.
 - Log is a hub for Transactions, Accounts (with inline balance
   correction), and Imports — a statement import also prompts to log its
   due amount as a real Dashboard expense (v2.5.4) and to check for

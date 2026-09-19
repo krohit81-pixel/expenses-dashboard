@@ -114,6 +114,25 @@ describe("parseHdfcHeader", () => {
     });
   });
 
+  // Real bug, found against a real statement: a "Reward Points_on_Grocery
+  // 1165 pts" row (four digits, no comma grouping) parsed as bonusPoints:
+  // 116, not 1165. findInteger's INTEGER_TOKEN regex assumes Indian-style
+  // comma grouping (tuned for money amounts elsewhere in this file) and
+  // silently truncated to the first 3 digits for a plain, ungrouped
+  // number. Fixed by parsing the already-isolated digit token directly
+  // instead of routing it back through findInteger.
+  it("doesn't truncate a 4+ digit bonus points value that has no comma grouping", () => {
+    const pageWithFourDigitBonus = PAGE_2.replace(
+      "1 Some Reward Program 500 pts",
+      "1 Some Reward Program 500 pts\n2 Reward Points_on_Grocery 1165 pts",
+    );
+    const header = parseHdfcHeader([PAGE_1, pageWithFourDigitBonus]);
+    expect(header.rewardPointsSummary).toEqual([
+      { srNo: 1, program: "Some Reward Program", bonusPoints: 500 },
+      { srNo: 2, program: "Reward Points_on_Grocery", bonusPoints: 1165 },
+    ]);
+  });
+
   /**
    * Tata Neu Plus-variant guard: same totals/limits shape as Infinia
    * everywhere except the rewards section, which prints "NeuCoins"

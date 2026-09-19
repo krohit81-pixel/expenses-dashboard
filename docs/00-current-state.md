@@ -2780,6 +2780,49 @@ since GitHub Actions' own dashboard showing "success" on every run
 was exactly what made this bug invisible for over a week — the runs
 themselves never failed, they just didn't happen often enough.
 
+## v3.7.4: fixed a real bug in HDFC Infinia's Rewards Program Points Summary parsing
+
+Found while investigating a household ask to surface reward points in
+the UI (per-transaction points, a top-5 table, and this exact summary
+table) — before building any of that, ran the real parser
+(`parseHdfcHeader`/`parseHdfcTransactions`) against a real September
+2026 Infinia statement to ground the work in real output, and the
+numbers didn't reconcile.
+
+`parseRewardProgramSummary`'s bonus-points column
+(`src/services/statement-parsers/hdfc-infinia-tata/parse-header.ts`)
+routed an already-isolated digit token back through `findInteger`,
+whose `INTEGER_TOKEN` regex assumes Indian-style comma grouping
+(`\d{1,3}(?:,\d{2,3})*`) — tuned for money amounts elsewhere in this
+file, which are printed that way. This column isn't: a real row reads
+`"Reward Points_on_Grocery 1165 pts"` (four digits, no comma at all),
+and the comma-grouping regex silently truncated it to the first 3
+digits (`116`), losing the trailing `5`. Every other bonus-program line
+past 3 digits with no comma would have hit the same truncation.
+
+Fixed by parsing the isolated token directly (`Number(match[3].replace(/,/g,
+""))`) instead of re-routing it through the money-oriented helper. Confirmed
+against the real statement: 1 + 1,165 + 3,340 + 260 = 4,766, exactly
+matching the statement's own printed "Total 4766 pts" — previously the
+same sum would have come out wrong. One new regression test (a 4+
+digit, comma-free bonus value) alongside the existing suite; all 8
+tests in this file still pass, including the pre-existing ones (which
+happened not to exercise this exact case, since HDFC's example figures
+there were all ≤3 digits). `npx tsc --noEmit && npx eslint . && npx
+prettier --check . && npx vitest run` (629 total) and `npm run build`
+both pass.
+
+Also confirmed, while grounding the request: the full pipeline for
+reward points already exists end to end — `HdfcTransaction.rewardPoints`
+(per-transaction) and `HdfcStatementHeader.rewardPointsSummary` (this
+exact table) are both parsed and already persisted
+(`credit_card_transactions.reward_points`,
+`credit_card_statements.reward_points_summary` — both columns have
+existed since the original `20260721000100_create_credit_card_statements.sql`
+migration). Nothing here needed a schema or parser build beyond this
+one bug fix — the actual remaining work (a UI mockup was requested
+next) is purely presentational, not a new capture pipeline.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions

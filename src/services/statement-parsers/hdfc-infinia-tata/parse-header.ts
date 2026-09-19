@@ -210,8 +210,18 @@ function parseRewardProgramSummary(
     // than required, covering both variants with one regex.
     const match = line.match(/^(\d+)\s+(.+?)\s+([\d,]+)\s*(?:pts?)?$/i);
     if (!match) continue;
-    const bonusPoints = findInteger(match[3]);
-    if (bonusPoints == null) continue;
+    // Deliberately NOT findInteger(match[3]) here -- that helper's
+    // INTEGER_TOKEN regex assumes Indian-style comma grouping
+    // (\d{1,3}(?:,\d{2,3})*), tuned for money amounts elsewhere in this
+    // file. This column isn't comma-grouped at all in a real statement
+    // (a plain "1165 pts", not "1,165 pts") -- findInteger silently
+    // truncated it to the first 3 digits (116), a real, confirmed bug
+    // (a real "Reward Points_on_Grocery" row read 1165, parsed as 116).
+    // match[3] is already isolated by the outer regex's own [\d,]+, so
+    // stripping any commas and parsing the whole token directly is both
+    // simpler and correct for both comma-grouped and plain digit runs.
+    const bonusPoints = Number(match[3].replace(/,/g, ""));
+    if (!Number.isFinite(bonusPoints)) continue;
     result.push({
       srNo: Number(match[1]),
       program: match[2].trim(),
