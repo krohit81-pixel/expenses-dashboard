@@ -2899,6 +2899,58 @@ and the 6-button toggle wraps cleanly to two rows of three, direct URLs
 to `/dashboard` and `/intel` both still render fully and correctly, and
 the hamburger More menu is unchanged (still no Dashboard/Intel entries).
 
+## v3.8.1: Cards' month selector moved above the combined view; a real cycle-tagging question investigated and confirmed correct
+
+Two household asks: move the Cards page's month selector so it visibly
+governs the combined view too (it now sits above the "All cards" donut,
+not between it and the per-card toggle), and confirm credit card
+statements are tagged to the right cash-flow cycle.
+
+The second one led somewhere real. `cycleMonthForStatementDate`
+(statement month + 1, regardless of issuer) looked, on direct
+inspection against all 20 real imported statements, like it was
+mistagging every ICICI statement (RuPay and Amazon Pay) one cycle too
+late: ICICI's real due date lands ~18 days after generation — still
+inside the same calendar month — while HDFC/Axis's ~20-21 day term
+always spills into the next one. A due-date-based rewrite
+(`cycleMonthForDueDate`) was built, tested, and briefly shipped as v3.8.1
+before being checked directly against the household's actual intent.
+
+**Checked with the household and confirmed NOT a bug**: the rule is
+deliberately due-date-independent — every mid-month statement, ICICI
+included, is meant to land in the following month's cycle regardless
+of what its own due date says ("when I upload the 6 statements around
+mid of the month, generation date + 1 month should be used for tagging
+to the cycle month"). Verified this holds correctly for HDFC/Axis too
+(their due dates already happen to fall in the "+1" month, 14/14 real
+statements) before locking it back in.
+
+- **Reverted** the due-date-based rewrite entirely — `cycleMonthForStatementDate`
+  (`src/lib/statement-cycle.ts`) is unchanged in behavior from before
+  this investigation, now with a detailed comment explaining exactly
+  why the ICICI discrepancy is intentional, not a defect, so a future
+  "fix" attempt has to deliberately override this conclusion rather
+  than stumble into it blind.
+- **No data backfill needed** — the 6 ICICI statements flagged during
+  investigation were never actually wrong; nothing in the database
+  changed.
+- New regression test (`statement-cycle.test.ts`) pins down the exact
+  real numbers from the statement that prompted the question (generated
+  12 Sep, due 30 Sep, still cycles to October) so this specific case
+  stays covered.
+- **`src/app/(app)/cards/page.tsx`** — `CardMonthNav` moved above the
+  combined "All cards" donut (was between it and the per-card toggle),
+  so it reads unambiguously as governing the whole page, combined view
+  included, not just the per-card section below it.
+
+Verified: `npx tsc --noEmit && npx eslint . && npx prettier --check .
+&& npx vitest run` (630 total) and `npm run build` both pass. Confirmed
+via `git diff` that every file this investigation touched besides the
+layout reorder and the two doc/test files nets to zero functional
+change — the round-trip (original rule → due-date rewrite → reverted)
+left the actual cycle-tagging behavior exactly as it was, just far
+better documented and regression-tested.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions

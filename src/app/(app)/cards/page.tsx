@@ -104,6 +104,12 @@ export default async function CardsPage({
     <div>
       <Hero title="Cards" />
       <div className="space-y-4 p-5 sm:p-8">
+        <CardMonthNav
+          cardMonth={cardMonth}
+          isCurrentCardMonth={isCurrentCardMonth}
+          basePath="/cards"
+        />
+
         {cardBreakdown.cards.length > 0 && (
           <CardDonut
             key="all-cards"
@@ -116,12 +122,6 @@ export default async function CardsPage({
             variant="aggregate"
           />
         )}
-
-        <CardMonthNav
-          cardMonth={cardMonth}
-          isCurrentCardMonth={isCurrentCardMonth}
-          basePath="/cards"
-        />
 
         {cardBreakdown.cards.length === 0 ? (
           <div className="rounded-[20px] border-[1.5px] border-dashed border-line bg-surface p-5 text-center text-ink-faint">

@@ -218,7 +218,12 @@ they say so.
   Horizon). A rewards-section follow-up (points per transaction, a
   top-5 table, the Rewards Program Points Summary) is intentionally
   not built yet — the household's own sequencing was reshuffle first.
-  See doc 00's v3.8.0 section.
+  See doc 00's v3.8.0 section. v3.8.1 moved Cards' month selector above
+  the combined view, and investigated a real-looking cycle-tagging
+  discrepancy for ICICI statements (due date vs. generation-date-plus-
+  one) that turned out, checked directly with the household, to be
+  correct as originally built — reverted the attempted fix, added a
+  regression test locking in why. See doc 00's v3.8.1 section.
 - Log is a hub for Transactions, Accounts (with inline balance
   correction), and Imports — a statement import also prompts to log its
   due amount as a real Dashboard expense (v2.5.4) and to check for

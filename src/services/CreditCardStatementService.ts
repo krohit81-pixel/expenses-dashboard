@@ -188,7 +188,8 @@ export async function saveHdfcStatement(
       statement_hash: statementHash,
       // v1.6.1: which cash-flow cycle this statement is paid from --
       // see cycleMonthForStatementDate's own comment for the (statement
-      // month + 1) rule this implements.
+      // month + 1) rule this implements, and its v3.8.1 addendum on why
+      // that stays true even for ICICI's shorter due-date term.
       cycle_month: cycleMonthForStatementDate(header.statementDate),
     })
     .select("id")
