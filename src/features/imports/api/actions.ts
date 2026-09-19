@@ -59,7 +59,7 @@ export interface StatementSummary {
 }
 
 export interface ImportStatementState {
-  status?: "saved" | "duplicate";
+  status?: "saved" | "duplicate" | "duplicate-backfilled";
   summary?: StatementSummary;
   error?: string;
   /**

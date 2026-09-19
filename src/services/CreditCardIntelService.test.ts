@@ -16,7 +16,16 @@ let transactionsResult: {
   error: { message: string } | null;
 } = { data: [], error: null };
 
-/** A chainable, thenable stand-in for a real Supabase query builder — eq/in/order all just return the same builder, and awaiting it resolves whatever result the test set up for that table. */
+/**
+ * A chainable, thenable stand-in for a real Supabase query builder --
+ * eq/in/order/limit/not all just return the same builder, and awaiting
+ * it resolves whatever result the test set up for that table.
+ *
+ * v3.9.0 -- gained limit/not (plain passthroughs, same as eq/in/order)
+ * and maybeSingle (a real terminal call, like the actual Supabase
+ * client's own: resolves the first row or null instead of the whole
+ * array) for getLatestCardRewardsSummary's single-statement lookup.
+ */
 function makeBuilder(
   getResult: () => {
     data: unknown[];
@@ -28,6 +37,9 @@ function makeBuilder(
     eq: () => typeof builder;
     in: () => typeof builder;
     order: () => typeof builder;
+    limit: () => typeof builder;
+    not: () => typeof builder;
+    maybeSingle: () => Promise<{ data: unknown; error: unknown }>;
     then: <T>(
       resolve: (value: { data: unknown[]; error: unknown }) => T,
     ) => Promise<T>;
@@ -36,6 +48,15 @@ function makeBuilder(
     eq: () => builder,
     in: () => builder,
     order: () => builder,
+    limit: () => builder,
+    not: () => builder,
+    maybeSingle: () => {
+      const result = getResult();
+      return Promise.resolve({
+        data: result.data[0] ?? null,
+        error: result.error,
+      });
+    },
     then: (resolve) => Promise.resolve(getResult()).then(resolve),
   };
   return builder;
@@ -58,6 +79,7 @@ vi.mock("@/lib/supabase/service", () => ({
 import {
   getLatestCycleTransactionsPerCard,
   getLatestCycleReportData,
+  getLatestCardRewardsSummary,
 } from "./CreditCardIntelService";
 
 function statement(overrides: Record<string, unknown> = {}) {
@@ -317,6 +339,121 @@ describe("getLatestCycleReportData", () => {
     transactionsResult = { data: [], error: { message: "boom" } };
     await expect(getLatestCycleReportData()).rejects.toThrow(
       /Failed to load credit card transactions/,
+    );
+  });
+});
+
+describe("getLatestCardRewardsSummary", () => {
+  it("returns null when no statement exists for this card yet", async () => {
+    statementsResult = { data: [], error: null };
+    const result = await getLatestCardRewardsSummary("HDFC", "Infinia");
+    expect(result).toBeNull();
+    // Should short-circuit before ever querying transactions.
+    expect(fromMock).toHaveBeenCalledWith("credit_card_statements");
+    expect(fromMock).not.toHaveBeenCalledWith("credit_card_transactions");
+  });
+
+  it("throws a clear error when the statement lookup fails", async () => {
+    statementsResult = { data: [], error: { message: "boom" } };
+    await expect(
+      getLatestCardRewardsSummary("HDFC", "Infinia"),
+    ).rejects.toThrow(/Failed to load latest HDFC Infinia statement/);
+  });
+
+  it("returns an empty top-transactions list and a zero base total when nothing earned points this cycle", async () => {
+    statementsResult = {
+      data: [
+        statement({
+          reward_points_earned: 0,
+          reward_points_summary: [],
+        }),
+      ],
+      error: null,
+    };
+    transactionsResult = { data: [], error: null };
+
+    const result = await getLatestCardRewardsSummary("HDFC", "Infinia");
+
+    expect(result).not.toBeNull();
+    expect(result!.topTransactions).toEqual([]);
+    expect(result!.basePointsTotal).toBe(0);
+  });
+
+  it("throws a clear error when the transactions query fails", async () => {
+    statementsResult = { data: [statement()], error: null };
+    transactionsResult = { data: [], error: { message: "boom" } };
+    await expect(
+      getLatestCardRewardsSummary("HDFC", "Infinia"),
+    ).rejects.toThrow(/Failed to load reward transactions/);
+  });
+
+  it("slices to the top 5 by reward points and sums every reward-bearing transaction for the base total", async () => {
+    statementsResult = {
+      data: [
+        statement({
+          reward_points_earned: 35621,
+          reward_points_summary: [
+            { srNo: 1, program: "FCYConversion", bonusPoints: 1 },
+            {
+              srNo: 2,
+              program: "Reward Points_on_Grocery",
+              bonusPoints: 1165,
+            },
+          ],
+        }),
+      ],
+      error: null,
+    };
+    // 6 reward-bearing transactions, pre-sorted desc the way the real
+    // query's own .order("reward_points", {ascending: false}) would --
+    // the function trusts that ordering rather than re-sorting itself.
+    transactionsResult = {
+      data: [
+        transaction({ id: "t1", reward_points: 27180, amount: 815518 }),
+        transaction({ id: "t2", reward_points: 790, amount: 23848 }),
+        transaction({ id: "t3", reward_points: 675, amount: 20380 }),
+        transaction({ id: "t4", reward_points: 440, amount: 13332 }),
+        transaction({ id: "t5", reward_points: 330, amount: 10000 }),
+        transaction({ id: "t6", reward_points: 105, amount: 3219 }),
+      ],
+      error: null,
+    };
+
+    const result = await getLatestCardRewardsSummary("HDFC", "Infinia");
+
+    expect(result!.topTransactions).toHaveLength(5);
+    expect(result!.topTransactions.map((t) => t.id)).toEqual([
+      "t1",
+      "t2",
+      "t3",
+      "t4",
+      "t5",
+    ]);
+    expect(result!.topTransactions[0].rewardPoints).toBe(27180);
+    // t6 (105) is excluded from the top-5 slice but still counted here.
+    expect(result!.basePointsTotal).toBe(27180 + 790 + 675 + 440 + 330 + 105);
+    expect(result!.rewardPointsEarned).toBe(35621);
+    expect(result!.rewardPointsSummary).toHaveLength(2);
+  });
+
+  it("prefers the merchant's own display name over the raw description", async () => {
+    statementsResult = { data: [statement()], error: null };
+    transactionsResult = {
+      data: [
+        transaction({
+          id: "t1",
+          reward_points: 50,
+          description: "RAW DESCRIPTION",
+          merchants: { display_name: "Nicely Named Merchant" },
+        }),
+      ],
+      error: null,
+    };
+
+    const result = await getLatestCardRewardsSummary("HDFC", "Infinia");
+
+    expect(result!.topTransactions[0].description).toBe(
+      "Nicely Named Merchant",
     );
   });
 });

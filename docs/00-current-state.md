@@ -2951,6 +2951,69 @@ change — the round-trip (original rule → due-date rewrite → reverted)
 left the actual cycle-tagging behavior exactly as it was, just far
 better documented and regression-tested.
 
+## v3.9.0: HDFC Infinia rewards section on the Cards tab + smart re-upload backfill
+
+The rewards mockup approved earlier (reconciliation strip, top-5
+point-earning transactions, the statement's own Rewards Program Points
+Summary) is wired into the Infinia toggle on `/cards` — first of the 6
+cards, per the household's own sequencing. `getLatestCardRewardsSummary`
+(`CreditCardIntelService.ts`) fetches the latest Infinia statement and
+every reward-bearing transaction on it; `CardRewardsSection.tsx` renders
+it, or a plain "No Infinia statement imported yet" card when none
+exists. Fixed a real gating bug along the way: `<CardTypeToggle>` used
+to be skipped entirely on a month with zero total card spend, which
+would have hidden the rewards section too — it's unconditional now,
+matching `CombinedReportSection`'s own "always latest, independent of
+viewed month" convention.
+
+**Smart re-upload backfill**: re-uploading an already-imported HDFC
+statement used to hit `saveHdfcStatement`'s duplicate-detection branch
+and return immediately, touching nothing. A real, live example forced
+the question — the household's own Infinia statement dated 2026-09-17
+was imported before the v3.7.4 parser fix, so its stored
+`reward_points_summary` still reads the old, truncated numbers, and
+there was no way to correct it short of hand-editing the database.
+`backfillRewardsIfStale` (`hdfc-rewards-backfill.ts`) is what the
+duplicate branch now calls: compare the fresh parse's reward fields
+against what's stored (field-by-field, not `JSON.stringify` — Postgres
+doesn't guarantee jsonb array key order survives storage) and `.update()`
+only what's actually different, matching transactions to their stored
+row via the existing `unique (statement_id, sequence_number)`
+constraint. Never touches the transaction list itself or any
+non-reward column. `SaveHdfcStatementResult.outcome` gained a third
+value, `"duplicate-backfilled"`, plumbed through to the import form as
+"Already imported — filled in missing rewards data." Issuer-agnostic by
+design (plain `RewardProgramLine`-shaped input) so wiring Axis/ICICI's
+own duplicate branches in later is a one-line addition — only
+`saveHdfcStatement` calls it this version.
+
+**A real production incident surfaced during verification, resolved**:
+re-running the exact 2026-09-17 PDF through the real save path (to
+prove the backfill) returned a fresh `"saved"` with a brand-new
+statement id instead of `"duplicate-backfilled"` — a genuine second
+statement row got written. Investigation found why: the row's
+`statement_hash` (sha256 of the raw extracted PDF text) didn't match
+the original, because the original was imported *before* the v3.7.4
+extraction fix and the fresh parse (post-fix) genuinely extracts
+different raw text for the same physical PDF — 3 of 50 transaction
+descriptions differ by internal whitespace only, everything else
+(amounts, dates, reward points) identical. So the hash-based
+duplicate-detection key is only reliable when extraction itself hasn't
+changed between two imports of the same statement — a real, pre-existing
+gap in that design, not a bug in the new backfill code, and one this
+specific statement can no longer exercise via re-upload since its hash
+will never match again. The erroneously-created duplicate row (and its
+50 transactions) was deleted after confirming byte-for-byte which row
+was the accidental one; the original stale statement was left untouched
+per the household's own call, to be corrected manually if/when wanted.
+
+Verified: `npx tsc --noEmit && npx eslint . && npx prettier --check .
+&& npx vitest run` (646 total) and `npm run build` both pass. Real
+browser check on `/cards`: Infinia shows the rewards section below its
+donut with real (still-stale, by choice) numbers; switching to another
+card hides it; navigating to a past month with real Infinia spend still
+shows the same latest-statement rewards data, confirming the gating fix.
+
 ## What's actually built
 
 - **Ledger core**: accounts, institutions, categories, transactions

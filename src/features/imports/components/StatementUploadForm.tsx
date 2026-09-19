@@ -129,9 +129,11 @@ export function StatementUploadForm({
       {state.summary && (
         <div className="space-y-2 rounded-xl bg-positive-soft px-4 py-3 text-sm text-ink">
           <p className="font-display text-xs font-bold text-positive">
-            {state.status === "duplicate"
-              ? "Already imported — no changes made"
-              : `Saved — ${state.summary.transactionCount} transaction${state.summary.transactionCount === 1 ? "" : "s"} imported`}
+            {state.status === "duplicate-backfilled"
+              ? "Already imported — filled in missing rewards data"
+              : state.status === "duplicate"
+                ? "Already imported — no changes made"
+                : `Saved — ${state.summary.transactionCount} transaction${state.summary.transactionCount === 1 ? "" : "s"} imported`}
           </p>
           {state.status === "saved" && state.summary.needsReviewCount > 0 && (
             <p className="text-xs text-ink-soft">

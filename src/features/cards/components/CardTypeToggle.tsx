@@ -5,7 +5,11 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { ZERO } from "@/lib/money";
 import { CardDonut } from "@/features/intel/components/CardDonut";
-import type { CardBreakdown } from "@/services/CreditCardIntelService";
+import { CardRewardsSection } from "@/features/cards/components/CardRewardsSection";
+import type {
+  CardBreakdown,
+  CardRewardsSummary,
+} from "@/services/CreditCardIntelService";
 
 /**
  * v3.8.0 — the 6 real cards this household actually has, one row per
@@ -60,11 +64,14 @@ export function CardTypeToggle({
   atlasCategoryNamePairs,
   currency,
   cardMonth,
+  rewards,
 }: {
   cards: CardBreakdown[];
   atlasCategoryNamePairs: [string, string][];
   currency: string;
   cardMonth: string;
+  /** Infinia's own latest-statement rewards — null means no statement imported for it yet. Only Infinia's toggle shows this for now; the other 5 cards get their own turn later. */
+  rewards: CardRewardsSummary | null;
 }) {
   const [selectedKey, setSelectedKey] = useState<string>(CARD_BUTTONS[0].key);
   const atlasCategoryName = new Map(atlasCategoryNamePairs);
@@ -107,6 +114,9 @@ export function CardTypeToggle({
         cardKeyForLink={match?.cardKey ?? "none"}
         variant="card"
       />
+      {selected.key === "infinia" && (
+        <CardRewardsSection rewards={rewards} currency={currency} />
+      )}
     </div>
   );
 }

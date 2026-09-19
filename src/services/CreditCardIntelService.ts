@@ -526,3 +526,120 @@ export async function getCardCategoryTransactions(params: {
     byMerchant,
   };
 }
+
+/**
+ * v3.9.0 — one card's own latest statement, shaped for the rewards
+ * section on /cards (Infinia first; the household's other cards later
+ * reuse this exact function, just with a different issuer/cardType).
+ *
+ * Deliberately its own local type, not an import of RewardProgramLine
+ * from statement-parsers/hdfc-infinia-tata/types.ts — this file stays
+ * issuer-agnostic the same way every other export here already is
+ * (getCardCategoryBreakdown, getLatestCycleReportData, etc. — none of
+ * them know which parser produced the row they're reading).
+ */
+export interface CardRewardProgramLine {
+  srNo: number;
+  program: string;
+  bonusPoints: number;
+}
+
+export interface CardRewardsTopTransaction {
+  id: string;
+  date: string;
+  /** merchants.display_name when tagged, else the statement's own raw description — same fallback idiom getLatestCycleTransactionsPerCard/getLatestCycleReportData already use. */
+  description: string;
+  amount: Money;
+  currency: string;
+  rewardPoints: number;
+}
+
+export interface CardRewardsSummary {
+  statementDate: string;
+  cycleMonth: string;
+  /** The statement's own printed "Points Earned" total. */
+  rewardPointsEarned: number;
+  /** Sum of every reward-bearing transaction's own points on this statement — the reconciliation strip's "base points" figure. */
+  basePointsTotal: number;
+  /** The statement's own "Rewards Program Points Summary" table — bonus total (the strip's other figure) is sum(bonusPoints), computed by the caller, not stored here. */
+  rewardPointsSummary: CardRewardProgramLine[];
+  /** Top 5 by rewardPoints desc. */
+  topTransactions: CardRewardsTopTransaction[];
+}
+
+/**
+ * `null` when no statement has ever been imported for this card yet —
+ * drives the "not imported yet" empty state in CardRewardsSection,
+ * distinct from "a statement exists but nothing earned points this
+ * cycle" (which comes back with empty topTransactions/summary instead).
+ *
+ * One query for every reward-bearing transaction on the statement
+ * (not filtered to transaction_type = "debit" — unlike this file's
+ * other functions, since a reward point could in principle attach to
+ * a non-debit row too), then both topTransactions and basePointsTotal
+ * are derived from that same array in application code — same "no
+ * aggregate RPC/view needed at this data volume" reasoning already
+ * used throughout this file.
+ */
+export async function getLatestCardRewardsSummary(
+  issuer: string,
+  cardType: string,
+): Promise<CardRewardsSummary | null> {
+  const supabase = createServiceClient();
+
+  const { data: statement, error: statementError } = await supabase
+    .from("credit_card_statements")
+    .select(
+      "id, statement_date, cycle_month, reward_points_earned, reward_points_summary",
+    )
+    .eq("user_id", OWNER_USER_ID)
+    .eq("issuer", issuer)
+    .eq("card_type", cardType)
+    .order("statement_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (statementError) {
+    throw new Error(
+      `Failed to load latest ${issuer} ${cardType} statement: ${statementError.message}`,
+    );
+  }
+  if (!statement) return null;
+
+  const { data: transactions, error: txnError } = await supabase
+    .from("credit_card_transactions")
+    .select(
+      "id, transaction_date, description, amount, currency, reward_points, merchants(display_name)",
+    )
+    .eq("user_id", OWNER_USER_ID)
+    .eq("statement_id", statement.id)
+    .not("reward_points", "is", null)
+    .order("reward_points", { ascending: false });
+
+  if (txnError) {
+    throw new Error(`Failed to load reward transactions: ${txnError.message}`);
+  }
+
+  const basePointsTotal = transactions.reduce(
+    (sum, t) => sum + (t.reward_points ?? 0),
+    0,
+  );
+
+  return {
+    statementDate: statement.statement_date,
+    cycleMonth: statement.cycle_month,
+    rewardPointsEarned: statement.reward_points_earned,
+    basePointsTotal,
+    rewardPointsSummary:
+      (statement.reward_points_summary as unknown as CardRewardProgramLine[]) ??
+      [],
+    topTransactions: transactions.slice(0, 5).map((t) => ({
+      id: t.id,
+      date: t.transaction_date,
+      description: t.merchants?.display_name ?? t.description,
+      amount: dbNumberToMoney(t.amount),
+      currency: t.currency,
+      rewardPoints: t.reward_points ?? 0,
+    })),
+  };
+}

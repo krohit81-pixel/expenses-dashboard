@@ -224,6 +224,20 @@ they say so.
   one) that turned out, checked directly with the household, to be
   correct as originally built — reverted the attempted fix, added a
   regression test locking in why. See doc 00's v3.8.1 section.
+- **HDFC Infinia rewards section + smart re-upload backfill (v3.9.0):**
+  the approved rewards mockup (reconciliation strip, top-5
+  point-earning transactions, Rewards Program Points Summary) is wired
+  into the Infinia toggle on `/cards` — first of the 6 cards. A real
+  live example (a stale statement imported before the v3.7.4 parser
+  fix) motivated re-uploads to do more than a no-op duplicate check:
+  `backfillRewardsIfStale` now compares a re-uploaded statement's fresh
+  reward fields against what's stored and updates only what's actually
+  different, never touching the transaction list. Verification
+  surfaced and resolved a real production incident — a hash-based
+  duplicate-detection gap (extraction text can legitimately change
+  between two imports of the same PDF after a parser fix) briefly wrote
+  a genuine duplicate statement row, since cleaned up. See doc 00's
+  v3.9.0 section.
 - Log is a hub for Transactions, Accounts (with inline balance
   correction), and Imports — a statement import also prompts to log its
   due amount as a real Dashboard expense (v2.5.4) and to check for

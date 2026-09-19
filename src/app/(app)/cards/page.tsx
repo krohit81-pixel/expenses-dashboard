@@ -4,14 +4,11 @@ import { requireUser } from "@/lib/auth/require-user";
 import { getUserSettings } from "@/services/UserSettingsService";
 import {
   getCardCategoryBreakdown,
+  getLatestCardRewardsSummary,
   hasAnyCreditCardStatement,
 } from "@/services/CreditCardIntelService";
 import { listAtlasCategories } from "@/services/MerchantService";
-import {
-  currentCycleMonth,
-  isValidMonth,
-  shortMonthLabel,
-} from "@/lib/dates/month";
+import { currentCycleMonth, isValidMonth } from "@/lib/dates/month";
 import { Hero } from "@/components/ui/hero";
 import { CardMonthNav } from "@/features/intel/components/CardMonthNav";
 import { CardDonut } from "@/features/intel/components/CardDonut";
@@ -48,9 +45,19 @@ export const metadata: Metadata = {
  * unlike Intel, nothing else on this page competes for the initial
  * paint, so one top-level await is simpler.
  *
- * Reward points per transaction / top-5 / Rewards Program Points
- * Summary are a deliberate follow-up, not built here yet — the
- * household's own sequencing ("re-shuffle first, rewards after").
+ * v3.9.0 — Infinia's toggle gained a real rewards section
+ * (CardRewardsSection): a reconciliation strip, a top-5 point-earning
+ * transactions list, and the statement's own "Rewards Program Points
+ * Summary" table, always for the card's own LATEST statement
+ * (independent of whichever month is selected above, same convention
+ * CombinedReportSection already follows) — the other 5 cards get their
+ * own turn later. This also fixed a real gating bug: <CardTypeToggle>
+ * used to be skipped entirely on a month with zero card spend across
+ * every card, which would have hidden Infinia's rewards section too on
+ * such a month even though it has nothing to do with the viewed
+ * month — it's unconditional now, same as CardDonut's own existing
+ * "No spend recorded." handling already covers a single card's
+ * zero-spend month without needing a page-level message on top of it.
  */
 export default async function CardsPage({
   searchParams,
@@ -67,13 +74,13 @@ export default async function CardsPage({
   const settings = await getUserSettings(user.id);
   const currency = settings?.baseCurrency ?? "USD";
 
-  const [cardBreakdown, atlasCategories, anyCardStatements] = await Promise.all(
-    [
+  const [cardBreakdown, atlasCategories, anyCardStatements, infiniaRewards] =
+    await Promise.all([
       getCardCategoryBreakdown(cardMonth),
       listAtlasCategories(),
       hasAnyCreditCardStatement(),
-    ],
-  );
+      getLatestCardRewardsSummary("HDFC", "Infinia"),
+    ]);
 
   if (!anyCardStatements) {
     return (
@@ -123,20 +130,13 @@ export default async function CardsPage({
           />
         )}
 
-        {cardBreakdown.cards.length === 0 ? (
-          <div className="rounded-[20px] border-[1.5px] border-dashed border-line bg-surface p-5 text-center text-ink-faint">
-            <p className="text-sm">
-              No card spend recorded for {shortMonthLabel(cardMonth)}.
-            </p>
-          </div>
-        ) : (
-          <CardTypeToggle
-            cards={cardBreakdown.cards}
-            atlasCategoryNamePairs={atlasCategoryNamePairs}
-            currency={currency}
-            cardMonth={cardMonth}
-          />
-        )}
+        <CardTypeToggle
+          cards={cardBreakdown.cards}
+          atlasCategoryNamePairs={atlasCategoryNamePairs}
+          currency={currency}
+          cardMonth={cardMonth}
+          rewards={infiniaRewards}
+        />
 
         <div className="pt-2">
           <CombinedReportSection />

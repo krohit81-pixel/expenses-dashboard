@@ -7,6 +7,7 @@ import { OWNER_USER_ID } from "@/lib/owner";
 import { createServiceClient } from "@/lib/supabase/service";
 import { cycleMonthForStatementDate } from "@/lib/statement-cycle";
 import { resolveMerchantsForImport } from "@/services/MerchantDictionaryService";
+import { backfillRewardsIfStale } from "@/services/hdfc-rewards-backfill";
 import {
   HdfcHeaderParseError,
   parseHdfcHeader,
@@ -61,12 +62,22 @@ export {
 };
 
 export interface SaveHdfcStatementResult {
-  /** "duplicate" means this exact statement was already saved -- see statement_hash below. Nothing new was written. */
-  outcome: "saved" | "duplicate";
+  /**
+   * "duplicate" means this exact statement was already saved -- see
+   * statement_hash below -- and nothing new was written.
+   * "duplicate-backfilled" (v3.9.0) also means it was already saved,
+   * but the fresh re-parse found stale reward-related fields (e.g. a
+   * bonus-points value corrected by a parser fix since the original
+   * import) and updated just those -- see
+   * hdfc-rewards-backfill.ts's backfillRewardsIfStale. Either way, the
+   * transaction list itself is never touched: no rows inserted or
+   * deleted.
+   */
+  outcome: "saved" | "duplicate" | "duplicate-backfilled";
   statementId: string;
   header: HdfcStatementHeader;
   transactionCount: number;
-  /** How many of this statement's transactions reference a merchant with no category yet -- see needs_review. Always 0 for a "duplicate" outcome. */
+  /** How many of this statement's transactions reference a merchant with no category yet -- see needs_review. Always 0 for a "duplicate"/"duplicate-backfilled" outcome. */
   needsReviewCount: number;
 }
 
@@ -143,8 +154,14 @@ export async function saveHdfcStatement(
     );
   }
   if (existing) {
+    const { backfilled } = await backfillRewardsIfStale(
+      supabase,
+      existing.id,
+      header,
+      transactions,
+    );
     return {
-      outcome: "duplicate",
+      outcome: backfilled ? "duplicate-backfilled" : "duplicate",
       statementId: existing.id,
       header,
       transactionCount: transactions.length,
