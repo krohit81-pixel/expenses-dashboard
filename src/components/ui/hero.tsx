@@ -69,23 +69,16 @@ interface HeroProps {
  * version.
  *
  * v3.0.0: dropped the deep indigo gradient background (`--hero-1`/
- * `--hero-2`) the household had grown tired of — "keep it something
- * slick, don't need the different color header bar." The header now
- * sits flush on the page's own `--bg`, with a hairline `border-line`
- * bottom edge instead of a hard color block, and every element that
- * used to be a white-on-indigo override (icon, wordmark, title, amount,
- * captions) now uses the same ink/ink-soft/ink-faint/accent tokens the
- * rest of the app already reads by — so light/dark mode both fall out
- * for free instead of needing their own hero-specific tuning. `amount`
- * moved to `text-accent` (was plain white) to keep it reading as the
- * single loudest thing on the page now that a colored backdrop isn't
- * doing that job. The two callers that used to render their own
- * white-on-indigo month-nav pills inside Hero's `children`
- * (Dashboard, Budgets, Recurring) and the calendar `ThemeToggleButton`
- * were re-themed to accent-soft/accent alongside this — see those
- * files. `--hero-1`/`--hero-2` themselves are untouched in
- * `globals.css`; `/login`'s full-screen background still uses them on
- * purpose, since that's a distinct one-time screen, not this header.
+ * `--hero-2`) the household had grown tired of at the time — "keep it
+ * something slick, don't need the different color header bar." The
+ * header sat flush on the page's own `--bg`, with a hairline
+ * `border-line` bottom edge instead of a hard color block, and every
+ * element that used to be a white-on-indigo override (icon, wordmark,
+ * title, amount, captions) used the same ink/ink-soft/ink-faint/accent
+ * tokens the rest of the app already reads by. `amount` moved to
+ * `text-accent` (was plain white) to keep it reading as the single
+ * loudest thing on the page while a colored backdrop wasn't doing that
+ * job. See v4.2.0 below — reverted.
  *
  * v3.1.0: the hamburger moved from the left (next to the wordmark) to
  * the right (paired with the date), and switched from a plain circular
@@ -109,6 +102,21 @@ interface HeroProps {
  * it's now a true floor, not a forced gap; pages with more content
  * (title, or the full title/label/amount/sub set) still grow past it
  * exactly as before, unaffected.
+ *
+ * v4.2.0: the indigo gradient is back, at the household's own later
+ * request ("get that back please"). Reapplied onto the *current*
+ * structure, not a wholesale revert to the pre-v3.0.0 file — every
+ * legitimate improvement made since (the `subtitle` line, the
+ * hamburger's move to a bordered top-right button, the `min-h-[100px]`
+ * floor, all above) stays exactly as is; only the background/text-color
+ * treatment changes back. `amount` goes back to plain white (was
+ * `text-accent`) — that v3.0.0 reasoning was specifically about
+ * compensating for a flush, colorless backdrop, so it stops applying
+ * once the backdrop is colored again. `--hero-1`/`--hero-2` were never
+ * removed from `globals.css` (still used by `/login`), so this needed
+ * no new tokens, just reusing them here again. `ThemeToggleButton` (the
+ * only real `topRightAction`/`children` renderer left — see that file)
+ * went back to its own pre-v3.0.0 white-on-indigo pill alongside this.
  */
 export function Hero({
   title,
@@ -120,11 +128,11 @@ export function Hero({
   topRightAction,
 }: HeroProps) {
   return (
-    <header className="min-h-[100px] border-b border-line bg-bg px-5 pb-6 pt-6 text-ink sm:px-8">
+    <header className="min-h-[100px] bg-gradient-to-br from-[hsl(var(--hero-1))] to-[hsl(var(--hero-2))] px-5 pb-6 pt-6 text-white sm:px-8">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-baseline gap-1.5">
-            <span className="font-display text-[26px] font-extrabold tracking-tight text-ink">
+            <span className="font-display text-[26px] font-extrabold tracking-tight text-white">
               Atlas
             </span>
             {/* v1.1.3: moved next to the wordmark, at the user's request —
@@ -133,14 +141,12 @@ export function Hero({
                 than "this is the version of the app you're looking at."
                 v1.1.4: dropped the pill background behind it — plain text
                 reads as part of the wordmark, not a separate ui chip. */}
-            <span className="shrink-0 whitespace-nowrap font-display text-[11px] font-bold text-ink-faint">
+            <span className="shrink-0 whitespace-nowrap font-display text-[11px] font-bold text-white/60">
               v{APP_VERSION}
             </span>
           </div>
           {subtitle && (
-            <div className="mt-0.5 text-[11.5px] text-ink-faint">
-              {subtitle}
-            </div>
+            <div className="mt-0.5 text-[11.5px] text-white/65">{subtitle}</div>
           )}
         </div>
         {/* v1.1.6: was a hardcoded per-release date string that only
@@ -151,13 +157,13 @@ export function Hero({
             the server itself runs. */}
         <div className="flex shrink-0 items-center gap-2.5">
           {topRightAction}
-          <span className="whitespace-nowrap font-display text-[12px] font-semibold text-ink-soft">
+          <span className="whitespace-nowrap font-display text-[12px] font-semibold text-white/50">
             {getIndiaDateLabel()}
           </span>
           <Link
             href="/more"
             aria-label="More"
-            className="flex size-9 shrink-0 items-center justify-center rounded-[11px] border border-line bg-surface text-ink-soft transition-colors hover:bg-ink/5"
+            className="flex size-9 shrink-0 items-center justify-center rounded-[11px] border border-white/25 bg-white/10 text-white transition-colors hover:bg-white/20"
           >
             <svg
               viewBox="0 0 24 24"
@@ -172,17 +178,17 @@ export function Hero({
         </div>
       </div>
       {title && (
-        <div className="mt-3 font-display text-lg font-extrabold tracking-tight text-ink sm:text-xl">
+        <div className="mt-3 font-display text-lg font-extrabold tracking-tight text-white sm:text-xl">
           {title}
         </div>
       )}
-      {label && <div className="mt-4 text-xs text-ink-faint">{label}</div>}
+      {label && <div className="mt-4 text-xs text-white/65">{label}</div>}
       {amount && (
-        <div className="mt-1 font-display text-[30px] font-extrabold tracking-tight text-accent">
+        <div className="mt-1 font-display text-[30px] font-extrabold tracking-tight text-white">
           {amount}
         </div>
       )}
-      {sub && <div className="mt-1 text-xs text-ink-soft">{sub}</div>}
+      {sub && <div className="mt-1 text-xs text-white/55">{sub}</div>}
       {children}
     </header>
   );

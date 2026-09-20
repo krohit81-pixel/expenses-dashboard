@@ -96,6 +96,11 @@ export function ThemeToggle() {
  * `bg-ink/5`/`text-ink-soft` — this button only ever renders inside
  * Hero's `topRightAction`, and Hero dropped its indigo gradient
  * background in the same release (see `components/ui/hero.tsx`).
+ *
+ * v4.2.0: back to the original white-on-indigo pill — Hero's own
+ * gradient background came back at the household's request, so the
+ * `bg-ink/5` treatment (chosen specifically for a flush, colorless
+ * backdrop) no longer contrasts against anything.
  */
 export function ThemeToggleButton({ className }: { className?: string }) {
   const { theme, choose } = useTheme();
@@ -107,7 +112,7 @@ export function ThemeToggleButton({ className }: { className?: string }) {
       aria-label={
         theme === "dark" ? "Switch to light theme" : "Switch to dark theme"
       }
-      className={`flex size-8 shrink-0 items-center justify-center rounded-full bg-ink/5 text-ink-soft transition-colors hover:bg-ink/10 ${className ?? ""}`}
+      className={`flex size-8 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition-colors hover:bg-white/25 ${className ?? ""}`}
     >
       {theme === "dark" ? (
         <Sun className="size-4" aria-hidden="true" />
