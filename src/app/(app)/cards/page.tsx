@@ -69,6 +69,18 @@ export const metadata: Metadata = {
  * prints a running eDGE Miles balance, no per-transaction points or
  * cycle-earned total to reconcile against. Airtel/Tata Neu still have no
  * rewards section — their own turn later.
+ *
+ * v4.1.1 — Infinia's toggle also gets CardPointsBalanceSection, stacked
+ * below its existing CardRewardsSection: Infinia's statement prints a
+ * real running "Reward Points" closing balance (already parsed/stored,
+ * see hdfc-infinia-tata/parse-header.ts's parseRewardsBlock — just never
+ * surfaced in the UI before now), reusing the exact same
+ * getLatestCardPointsBalance() Horizon's own balance card already calls.
+ * RuPay deliberately does NOT get one — its statement never prints a
+ * running balance at all (only the per-cycle "Total Points earned"
+ * total CardRewardsSection already shows), so
+ * getLatestCardPointsBalance("ICICI", "RuPay") would always read 0 —
+ * confirmed with the household this isn't worth showing as a card.
  */
 export default async function CardsPage({
   searchParams,
@@ -92,6 +104,7 @@ export default async function CardsPage({
     infiniaRewards,
     rupayRewards,
     horizonBalance,
+    infiniaBalance,
   ] = await Promise.all([
     getCardCategoryBreakdown(cardMonth),
     listAtlasCategories(),
@@ -99,6 +112,7 @@ export default async function CardsPage({
     getLatestCardRewardsSummary("HDFC", "Infinia"),
     getLatestCardRewardsSummary("ICICI", "RuPay"),
     getLatestCardPointsBalance("AXIS", "horizon"),
+    getLatestCardPointsBalance("HDFC", "Infinia"),
   ]);
 
   if (!anyCardStatements) {
@@ -158,6 +172,7 @@ export default async function CardsPage({
           infiniaRewards={infiniaRewards}
           rupayRewards={rupayRewards}
           horizonBalance={horizonBalance}
+          infiniaBalance={infiniaBalance}
         />
 
         <div className="pt-2">

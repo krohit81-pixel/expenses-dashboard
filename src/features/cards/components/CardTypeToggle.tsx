@@ -69,6 +69,7 @@ export function CardTypeToggle({
   infiniaRewards,
   rupayRewards,
   horizonBalance,
+  infiniaBalance,
 }: {
   cards: CardBreakdown[];
   atlasCategoryNamePairs: [string, string][];
@@ -80,6 +81,8 @@ export function CardTypeToggle({
   rupayRewards: CardRewardsSummary | null;
   /** Axis Horizon's own latest-statement eDGE Miles balance — the only reward figure that statement prints (see CardPointsBalanceSection). */
   horizonBalance: CardPointsBalanceSummary | null;
+  /** Infinia's own latest-statement running "Reward Points" closing balance, shown below its CardRewardsSection — same source statement, just a second figure that section doesn't already show. RuPay deliberately has no counterpart: its statement never prints a running balance (only the per-cycle total CardRewardsSection already shows). */
+  infiniaBalance: CardPointsBalanceSummary | null;
 }) {
   const [selectedKey, setSelectedKey] = useState<string>(CARD_BUTTONS[0].key);
   const atlasCategoryName = new Map(atlasCategoryNamePairs);
@@ -124,11 +127,23 @@ export function CardTypeToggle({
         variant="card"
       />
       {selected.key === "infinia" && (
-        <CardRewardsSection
-          rewards={infiniaRewards}
-          currency={currency}
-          cardLabel="Infinia"
-        />
+        <>
+          <CardRewardsSection
+            rewards={infiniaRewards}
+            currency={currency}
+            cardLabel="Infinia"
+          />
+          {/* Only rendered once a statement actually exists — otherwise
+              this would stack a second, redundant "No Infinia statement
+              imported yet." message right under CardRewardsSection's
+              own empty state. */}
+          {infiniaRewards && (
+            <CardPointsBalanceSection
+              balance={infiniaBalance}
+              label="Infinia"
+            />
+          )}
+        </>
       )}
       {selected.key === "rupay" && (
         <CardRewardsSection
