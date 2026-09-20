@@ -643,3 +643,50 @@ export async function getLatestCardRewardsSummary(
     })),
   };
 }
+
+export interface CardPointsBalanceSummary {
+  statementDate: string;
+  /** The statement's own running reward-currency balance (e.g. Axis
+   * Horizon's eDGE Miles) -- unlike CardRewardsSummary, there's no
+   * per-transaction or bonus-program breakdown to show alongside it,
+   * since the source statement never prints one. */
+  rewardPointsBalance: number;
+}
+
+/**
+ * A lighter sibling of getLatestCardRewardsSummary for a card whose
+ * statement only ever prints a running points *balance* (no per-cycle
+ * "points earned" total, no per-transaction points column, no bonus
+ * program table) -- Axis Horizon's eDGE Miles block is the first real
+ * case (see axis-horizon-airtel/parse-header.ts's parseEdgeMilesBalance).
+ * `null` means no statement has ever been imported for this card yet,
+ * same convention as getLatestCardRewardsSummary.
+ */
+export async function getLatestCardPointsBalance(
+  issuer: string,
+  cardType: string,
+): Promise<CardPointsBalanceSummary | null> {
+  const supabase = createServiceClient();
+
+  const { data: statement, error } = await supabase
+    .from("credit_card_statements")
+    .select("statement_date, reward_points_balance")
+    .eq("user_id", OWNER_USER_ID)
+    .eq("issuer", issuer)
+    .eq("card_type", cardType)
+    .order("statement_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Failed to load latest ${issuer} ${cardType} statement: ${error.message}`,
+    );
+  }
+  if (!statement) return null;
+
+  return {
+    statementDate: statement.statement_date,
+    rewardPointsBalance: statement.reward_points_balance,
+  };
+}

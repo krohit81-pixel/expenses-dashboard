@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth/require-user";
 import { getUserSettings } from "@/services/UserSettingsService";
 import {
   getCardCategoryBreakdown,
+  getLatestCardPointsBalance,
   getLatestCardRewardsSummary,
   hasAnyCreditCardStatement,
 } from "@/services/CreditCardIntelService";
@@ -50,14 +51,24 @@ export const metadata: Metadata = {
  * transactions list, and the statement's own "Rewards Program Points
  * Summary" table, always for the card's own LATEST statement
  * (independent of whichever month is selected above, same convention
- * CombinedReportSection already follows) — the other 5 cards get their
- * own turn later. This also fixed a real gating bug: <CardTypeToggle>
- * used to be skipped entirely on a month with zero card spend across
- * every card, which would have hidden Infinia's rewards section too on
- * such a month even though it has nothing to do with the viewed
- * month — it's unconditional now, same as CardDonut's own existing
- * "No spend recorded." handling already covers a single card's
- * zero-spend month without needing a page-level message on top of it.
+ * CombinedReportSection already follows). This also fixed a real gating
+ * bug: <CardTypeToggle> used to be skipped entirely on a month with zero
+ * card spend across every card, which would have hidden Infinia's
+ * rewards section too on such a month even though it has nothing to do
+ * with the viewed month — it's unconditional now, same as CardDonut's
+ * own existing "No spend recorded." handling already covers a single
+ * card's zero-spend month without needing a page-level message on top
+ * of it.
+ *
+ * v4.1.0 — ICICI RuPay's toggle reuses the exact same CardRewardsSection
+ * as Infinia (getLatestCardRewardsSummary is already issuer-agnostic;
+ * its statement's per-transaction points sum to its own printed "Total
+ * Points earned" exactly, same reconciliation shape as Infinia, just
+ * with an empty bonus-program table). Axis Horizon's toggle gets the
+ * lighter CardPointsBalanceSection instead — its statement only ever
+ * prints a running eDGE Miles balance, no per-transaction points or
+ * cycle-earned total to reconcile against. Airtel/Tata Neu still have no
+ * rewards section — their own turn later.
  */
 export default async function CardsPage({
   searchParams,
@@ -74,13 +85,21 @@ export default async function CardsPage({
   const settings = await getUserSettings(user.id);
   const currency = settings?.baseCurrency ?? "USD";
 
-  const [cardBreakdown, atlasCategories, anyCardStatements, infiniaRewards] =
-    await Promise.all([
-      getCardCategoryBreakdown(cardMonth),
-      listAtlasCategories(),
-      hasAnyCreditCardStatement(),
-      getLatestCardRewardsSummary("HDFC", "Infinia"),
-    ]);
+  const [
+    cardBreakdown,
+    atlasCategories,
+    anyCardStatements,
+    infiniaRewards,
+    rupayRewards,
+    horizonBalance,
+  ] = await Promise.all([
+    getCardCategoryBreakdown(cardMonth),
+    listAtlasCategories(),
+    hasAnyCreditCardStatement(),
+    getLatestCardRewardsSummary("HDFC", "Infinia"),
+    getLatestCardRewardsSummary("ICICI", "RuPay"),
+    getLatestCardPointsBalance("AXIS", "horizon"),
+  ]);
 
   if (!anyCardStatements) {
     return (
@@ -136,7 +155,9 @@ export default async function CardsPage({
           atlasCategoryNamePairs={atlasCategoryNamePairs}
           currency={currency}
           cardMonth={cardMonth}
-          rewards={infiniaRewards}
+          infiniaRewards={infiniaRewards}
+          rupayRewards={rupayRewards}
+          horizonBalance={horizonBalance}
         />
 
         <div className="pt-2">

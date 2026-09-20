@@ -26,14 +26,21 @@ import type { CardRewardsSummary } from "@/services/CreditCardIntelService";
 export function CardRewardsSection({
   rewards,
   currency,
+  cardLabel,
 }: {
   rewards: CardRewardsSummary | null;
   currency: string;
+  /** v3.9.0 shipped this hardcoded to "Infinia" -- generalized when ICICI
+   * RuPay reused this same section, since its per-transaction points +
+   * cycle "Total Points earned" total reconcile exactly the same way
+   * Infinia's do (no bonus-program table on either real RuPay statement
+   * tested, same as Infinia's own rewardPointsSummary can be empty). */
+  cardLabel: string;
 }) {
   if (!rewards) {
     return (
       <div className="rounded-2xl bg-surface p-5 text-center text-ink-faint shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
-        <p className="text-sm">No Infinia statement imported yet.</p>
+        <p className="text-sm">No {cardLabel} statement imported yet.</p>
       </div>
     );
   }

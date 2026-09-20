@@ -80,6 +80,7 @@ import {
   getLatestCycleTransactionsPerCard,
   getLatestCycleReportData,
   getLatestCardRewardsSummary,
+  getLatestCardPointsBalance,
 } from "./CreditCardIntelService";
 
 function statement(overrides: Record<string, unknown> = {}) {
@@ -455,5 +456,42 @@ describe("getLatestCardRewardsSummary", () => {
     expect(result!.topTransactions[0].description).toBe(
       "Nicely Named Merchant",
     );
+  });
+});
+
+describe("getLatestCardPointsBalance", () => {
+  it("returns null when no statement exists for this card yet", async () => {
+    statementsResult = { data: [], error: null };
+    const result = await getLatestCardPointsBalance("AXIS", "horizon");
+    expect(result).toBeNull();
+    // Should never touch credit_card_transactions -- this card has no
+    // per-transaction points to look up.
+    expect(fromMock).not.toHaveBeenCalledWith("credit_card_transactions");
+  });
+
+  it("throws a clear error when the statement lookup fails", async () => {
+    statementsResult = { data: [], error: { message: "boom" } };
+    await expect(getLatestCardPointsBalance("AXIS", "horizon")).rejects.toThrow(
+      /Failed to load latest AXIS horizon statement/,
+    );
+  });
+
+  it("returns the statement's own running points balance", async () => {
+    statementsResult = {
+      data: [
+        statement({
+          issuer: "AXIS",
+          card_type: "horizon",
+          statement_date: "2026-09-18",
+          reward_points_balance: 29035,
+        }),
+      ],
+      error: null,
+    };
+    const result = await getLatestCardPointsBalance("AXIS", "horizon");
+    expect(result).toEqual({
+      statementDate: "2026-09-18",
+      rewardPointsBalance: 29035,
+    });
   });
 });

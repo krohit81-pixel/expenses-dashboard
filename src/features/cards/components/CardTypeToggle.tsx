@@ -6,8 +6,10 @@ import { cn } from "@/lib/utils";
 import { ZERO } from "@/lib/money";
 import { CardDonut } from "@/features/intel/components/CardDonut";
 import { CardRewardsSection } from "@/features/cards/components/CardRewardsSection";
+import { CardPointsBalanceSection } from "@/features/cards/components/CardPointsBalanceSection";
 import type {
   CardBreakdown,
+  CardPointsBalanceSummary,
   CardRewardsSummary,
 } from "@/services/CreditCardIntelService";
 
@@ -64,14 +66,20 @@ export function CardTypeToggle({
   atlasCategoryNamePairs,
   currency,
   cardMonth,
-  rewards,
+  infiniaRewards,
+  rupayRewards,
+  horizonBalance,
 }: {
   cards: CardBreakdown[];
   atlasCategoryNamePairs: [string, string][];
   currency: string;
   cardMonth: string;
-  /** Infinia's own latest-statement rewards — null means no statement imported for it yet. Only Infinia's toggle shows this for now; the other 5 cards get their own turn later. */
-  rewards: CardRewardsSummary | null;
+  /** Infinia's own latest-statement rewards — null means no statement imported for it yet. */
+  infiniaRewards: CardRewardsSummary | null;
+  /** ICICI RuPay's own latest-statement rewards — same shape as Infinia's, since its statement reconciles the exact same way (per-transaction points summing to the statement's own cycle total, no bonus-program table on either). */
+  rupayRewards: CardRewardsSummary | null;
+  /** Axis Horizon's own latest-statement eDGE Miles balance — the only reward figure that statement prints (see CardPointsBalanceSection). */
+  horizonBalance: CardPointsBalanceSummary | null;
 }) {
   const [selectedKey, setSelectedKey] = useState<string>(CARD_BUTTONS[0].key);
   const atlasCategoryName = new Map(atlasCategoryNamePairs);
@@ -116,7 +124,21 @@ export function CardTypeToggle({
         variant="card"
       />
       {selected.key === "infinia" && (
-        <CardRewardsSection rewards={rewards} currency={currency} />
+        <CardRewardsSection
+          rewards={infiniaRewards}
+          currency={currency}
+          cardLabel="Infinia"
+        />
+      )}
+      {selected.key === "rupay" && (
+        <CardRewardsSection
+          rewards={rupayRewards}
+          currency={currency}
+          cardLabel="RuPay"
+        />
+      )}
+      {selected.key === "horizon" && (
+        <CardPointsBalanceSection balance={horizonBalance} label="Horizon" />
       )}
     </div>
   );
