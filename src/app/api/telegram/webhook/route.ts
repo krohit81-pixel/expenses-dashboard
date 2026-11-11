@@ -1,10 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 
 import { checkTelegramWebhookAuth } from "@/lib/telegram/webhook-auth";
 import { extractReminderFromMessage } from "@/lib/telegram/parse-reminder";
 import { getSendTarget } from "@/services/NotificationChannelService";
 import { createCalendarEvent } from "@/services/CalendarEventService";
 import { telegramProvider } from "@/lib/notifications/providers/telegram";
+import { telegramMessageKind } from "@/lib/telegram/calendar-query";
+import { answerTelegramCalendarQuestion } from "@/services/TelegramCalendarService";
 
 /**
  * v3.7.0 — the household's first inbound webhook. Telegram POSTs every
@@ -17,6 +20,10 @@ import { telegramProvider } from "@/lib/notifications/providers/telegram";
  * Always replies in the same chat, either confirming what got created
  * or asking for whatever's missing — the safety net for any parsing
  * imperfection, since the trigger word alone is broad.
+ *
+ * v4.3.0 — also accepts read-only calendar questions and /ask. The AI
+ * extracts search fields; TelegramCalendarService reads existing calendar
+ * services and formats actual dates without an AI-authored answer.
  *
  * Bypasses the access-gate cookie entirely (see middleware.ts's
  * PUBLIC_PATHS) — Telegram has no browser session to carry one. Auth
@@ -33,17 +40,16 @@ import { telegramProvider } from "@/lib/notifications/providers/telegram";
  * 500.
  */
 
-interface TelegramUpdate {
-  message?: {
-    chat?: { id?: number };
-    from?: { first_name?: string };
-    text?: string;
-    /** Unix seconds — when Telegram itself received the message. v3.7.2: the exact anchor a "remind me in N hours" delay-from-now request is measured from, rather than approximating with "now" at processing time. */
-    date?: number;
-  };
-}
-
-const REMIND_PATTERN = /remind/i;
+const updateSchema = z.object({
+  message: z
+    .object({
+      chat: z.object({ id: z.number().int() }),
+      from: z.object({ first_name: z.string().max(100) }).optional(),
+      text: z.string().max(4096).optional(),
+      date: z.number().int().min(0).max(253402300799).optional(),
+    })
+    .optional(),
+});
 
 /**
  * "⏰ 1h before" / "⏰ 3d before" / "⏰ same day" — and, v3.7.2, "⏰
@@ -68,13 +74,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
-  let update: TelegramUpdate;
+  let body: unknown;
   try {
-    update = await request.json();
+    body = await request.json();
   } catch {
     // Malformed body — ack anyway so Telegram doesn't retry-storm it.
     return NextResponse.json({ ok: true });
   }
+
+  const parsedUpdate = updateSchema.safeParse(body);
+  if (!parsedUpdate.success) return NextResponse.json({ ok: true });
+  const update = parsedUpdate.data;
 
   const text = update.message?.text;
   const chatId = update.message?.chat?.id;
@@ -88,9 +98,11 @@ export async function POST(request: NextRequest) {
       ? new Date(update.message.date * 1000)
       : new Date();
 
-  if (!text || chatId === undefined || !REMIND_PATTERN.test(text)) {
-    return NextResponse.json({ ok: true }); // no trigger word — silent no-op
+  if (!text || chatId === undefined) {
+    return NextResponse.json({ ok: true });
   }
+  const kind = telegramMessageKind(text);
+  if (kind === "ignore") return NextResponse.json({ ok: true });
 
   const configuredChatId = await getSendTarget("telegram");
   if (!configuredChatId || configuredChatId !== chatId.toString()) {
@@ -100,6 +112,23 @@ export async function POST(request: NextRequest) {
   const target = chatId.toString();
 
   try {
+    if (kind === "query") {
+      const answer = await answerTelegramCalendarQuestion(
+        text,
+        senderFirstName,
+        messageSentAt,
+      );
+      if (answer !== null) {
+        const sent = await telegramProvider.send(target, {
+          title: "Atlas Calendar",
+          body: answer,
+        });
+        if (!sent.ok)
+          console.error("Telegram calendar answer could not be sent");
+      }
+      return NextResponse.json({ ok: true });
+    }
+
     const result = await extractReminderFromMessage(
       text,
       senderFirstName,
@@ -146,11 +175,14 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true, eventId: event.id });
   } catch (error) {
-    console.error("Telegram webhook failed to create a reminder:", error);
+    console.error(`Telegram webhook failed (${kind}):`, error);
     await telegramProvider
       .send(target, {
         title: "Something went wrong",
-        body: "I couldn't create that reminder — please try again or add it directly in Atlas.",
+        body:
+          kind === "query"
+            ? "I couldn't load the Atlas calendar right now. Please try again shortly."
+            : "I couldn't create that reminder — please try again or add it directly in Atlas.",
       })
       .catch(() => {
         // Best-effort — if even the apology fails to send, there's

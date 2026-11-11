@@ -36,6 +36,10 @@ layer, and wins wherever they disagree).
   printed totals, and only saved if reconciliation passes. Feeds a
   shared Merchant Dictionary (with AI-suggested merge suggestions) used
   across the whole app.
+- **Telegram calendar chat** — ask the linked family bot questions such as
+  “When does Ahaana's vacation end this month?” or `/ask What's on tomorrow?`.
+  Answers use actual school dates, events, trips, and recurring classes.
+  Each question is independent; include the person/event and date range.
 - **Ahaana's mini app** (`/ahaana/*`) — a fully separate, separately
   password-gated section for the household's daughter: her own weekly
   activity schedule, a mark-complete-with-notes flow, and real device
