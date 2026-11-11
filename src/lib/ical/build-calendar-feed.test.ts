@@ -159,6 +159,7 @@ describe("buildCalendarFeedEvents — manual calendar events", () => {
     );
     expect(event.categories).toEqual([{ name: "Action" }]);
     expect(event.start).toEqual(new Date("2026-11-19T04:30:00Z"));
+    expect(event.end).toBeUndefined();
     expect(event.alarms).toEqual([
       expect.objectContaining({ triggerBefore: 3600 }),
     ]);

@@ -147,6 +147,7 @@ export function AddEventModal({
   const [mode, setMode] = useState("");
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([]);
   const [endTime, setEndTime] = useState(DEFAULT_END_TIME);
+  const isAction = !isRecurring && tag === "action";
 
   function handleStartTimeChange(value: string) {
     setStartTime(value);
@@ -385,7 +386,12 @@ export function AddEventModal({
           {/* Same grid-cols-1 sm:grid-cols-2 stacking as AddTripModal's
               Departs/Returns fields (v1.1.1) — each date field gets the
               full row width on narrow screens rather than sharing one. */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-3",
+              !isAction && "sm:grid-cols-2",
+            )}
+          >
             <div className="space-y-1.5">
               <Label htmlFor="event-startDate">
                 {isRecurring ? "From" : "Start date"}
@@ -399,19 +405,23 @@ export function AddEventModal({
                 onChange={(e) => setStartDate(e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="event-endDate">
-                {isRecurring ? "Until" : "End date"}
-              </Label>
-              <Input
-                id="event-endDate"
-                name="endDate"
-                type="date"
-                required
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </div>
+            {isAction ? (
+              <input type="hidden" name="endDate" value={startDate} />
+            ) : (
+              <div className="space-y-1.5">
+                <Label htmlFor="event-endDate">
+                  {isRecurring ? "Until" : "End date"}
+                </Label>
+                <Input
+                  id="event-endDate"
+                  name="endDate"
+                  type="date"
+                  required
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+            )}
           </div>
           {isRecurring && (
             <p className="-mt-2 text-[11px] leading-relaxed text-ink-faint">
@@ -448,7 +458,12 @@ export function AddEventModal({
             </div>
           ) : (
             <div className="space-y-1.5">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div
+                className={cn(
+                  "grid grid-cols-1 gap-3",
+                  !isAction && "sm:grid-cols-2",
+                )}
+              >
                 <div className="space-y-1.5">
                   <Label htmlFor="event-startTime">
                     Time{" "}
@@ -464,7 +479,7 @@ export function AddEventModal({
                     onChange={(e) => handleStartTimeChange(e.target.value)}
                   />
                 </div>
-                {startTime && (
+                {startTime && !isAction && (
                   <div className="space-y-1.5">
                     <Label htmlFor="event-oneOffEndTime">
                       Ends{" "}
@@ -483,9 +498,9 @@ export function AddEventModal({
                 )}
               </div>
               <p className="text-[11px] leading-relaxed text-ink-faint">
-                Needed for an hours-before reminder, and used as the real
-                duration on the calendar feed — otherwise it defaults to 1 hour
-                there.
+                {isAction
+                  ? "Add a time if this action needs an hours-before reminder."
+                  : "Needed for an hours-before reminder, and used as the real duration on the calendar feed — otherwise it defaults to 1 hour there."}
               </p>
             </div>
           )}

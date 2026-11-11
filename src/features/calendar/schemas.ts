@@ -79,7 +79,7 @@ const baseCalendarEventFields = z.object({
   tag: zEventTag,
   people: zEventPeople,
   startDate: z.iso.date(),
-  endDate: z.iso.date(),
+  endDate: z.iso.date().optional(),
   // v3.2.2 — optional: an event doesn't have to carry a specific time
   // to be worth saving, same reasoning notes has always had. Only
   // meaningful for an hour-based reminder (remindLeadHours) or a
@@ -172,14 +172,41 @@ function refineCalendarEvent(
   refineEndTimeAfterStartTime(value, ctx);
 }
 
-export const createCalendarEventInputSchema =
-  baseCalendarEventFields.superRefine(refineCalendarEvent);
+/** Actions have a single date and optional start time. Keep the database's
+ * required end_date equal to start_date, and discard stale end fields when
+ * an existing event is changed to Action (including non-UI callers).
+ */
+function normalizeActionDates<
+  T extends {
+    tag: string;
+    startDate: string;
+    endDate?: string;
+    endTime: string | null;
+  },
+>(value: T, ctx: z.RefinementCtx) {
+  if (value.tag === "action")
+    return { ...value, endDate: value.startDate, endTime: null };
+  if (!value.endDate) {
+    ctx.addIssue({
+      code: "custom",
+      message: "End date is required",
+      path: ["endDate"],
+    });
+    return z.NEVER;
+  }
+  return { ...value, endDate: value.endDate };
+}
+
+export const createCalendarEventInputSchema = baseCalendarEventFields
+  .transform(normalizeActionDates)
+  .superRefine(refineCalendarEvent);
 export type CreateCalendarEventInput = z.infer<
   typeof createCalendarEventInputSchema
 >;
 
 export const updateCalendarEventInputSchema = baseCalendarEventFields
   .extend({ id: z.uuid() })
+  .transform(normalizeActionDates)
   .superRefine(refineCalendarEvent);
 export type UpdateCalendarEventInput = z.infer<
   typeof updateCalendarEventInputSchema

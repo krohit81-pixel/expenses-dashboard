@@ -152,6 +152,7 @@ export function formatCalendarAnswer(
     const zone = fact.people.includes("Rohana") ? "Singapore time" : "IST";
     const start = `${formatDate(fact.startDate)}${fact.startTime ? ` at ${fact.startTime} (${zone})` : ""}`;
     const end = `${formatDate(fact.endDate)}${fact.endTime ? ` at ${fact.endTime} (${zone})` : ""}`;
+    if (fact.tag === "action") return `${label}\nScheduled: ${start}.`;
     if (query.focus === "end") {
       return fact.endKnown
         ? `${label} ends on ${end}.\nStarts: ${start}.`

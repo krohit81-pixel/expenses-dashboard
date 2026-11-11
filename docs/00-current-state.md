@@ -24,20 +24,25 @@ Adds `action` / “Action” for calls, submissions and follow-ups. The Add/Edit
 Event category dropdown, calendar legend, chip colors (dedicated blue with
 light/dark tokens), Zod schemas, Telegram reminder extraction and read-only
 calendar queries all accept it. iCal exports use the “Action” category through
-the existing shared label map. Date/time/people/reminder fields retain their
-existing behavior: this is a category, not a new checklist or completion model.
+the existing shared label map. Actions show one required start date and an
+optional time; no end date or
+end time is requested. The server mirrors start_date into the existing required
+end_date column and clears end_time, including on edits. Timed Actions export
+to iCal without an invented one-hour duration; Telegram shows their scheduled
+date/time. This is a category, not a new checklist or completion model.
 
-Apply `supabase/migrations/20261111000100_add_calendar_action_tag.sql` before
+Apply `supabase/migrations/20261111125539_add_calendar_action_tag.sql` before
 publishing the code. It transactionally widens `calendar_events_tag_check`
 without changing existing data, RLS or grants. Database type shapes do not
 change because `tag` remains a checked text column. The database CI suite
 inserts a fixture Action and verifies unsupported tags remain rejected.
 
-No production Supabase management/SQL connection is configured in the current
-execution environment; preparing this migration does not apply it remotely.
-The application must not be released until that database step is confirmed.
+The Supabase plugin applied this migration to the Vitals production database
+on 11 November 2026 and the validated constraint was checked afterward. The
+repository filename matches the recorded remote migration version. PR #35
+still awaits explicit approval before merging/deploying the application.
 
-Verified: TypeScript, ESLint, Prettier, 690 unit tests passing (3 skipped),
+Verified: TypeScript, ESLint, Prettier, 693 unit tests passing (3 skipped),
 a full production build with placeholder env, and a mobile-browser check of
 selecting Action in the real Add Event modal with fixture data. Local DB
 verification could not complete because image downloads hit rate limits and
@@ -3427,3 +3432,6 @@ it works.
 - `docs/01` through `docs/12` — updated to match current reality where
   they hold, explicitly marked where they describe a still-pending future
   direction rather than what's built.
+
+Actions use one date and an optional time; end fields are hidden and normalized
+server-side. No additional database migration is needed for that form change.

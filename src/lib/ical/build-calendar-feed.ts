@@ -211,6 +211,17 @@ function calendarEventToEvent(event: CalendarEvent): ICalEventData {
   // timed appointment, not a fact the data actually states.
   const offset = offsetMinutesFor(event.people);
   const start = utcInstant(event.startDate, event.startTime, offset);
+  // Actions mark an instant to do something, not a one-hour appointment.
+  if (event.tag === "action") {
+    return {
+      id: `atlas-event-${event.id}`,
+      start,
+      summary: event.title,
+      description,
+      categories: category(TAG_LABELS[event.tag]),
+      alarms,
+    };
+  }
   const end = event.endTime
     ? utcInstant(event.startDate, event.endTime, offset)
     : new Date(start.getTime() + 60 * 60_000);

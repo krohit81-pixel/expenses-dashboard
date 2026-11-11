@@ -50,6 +50,7 @@ describe("Telegram calendar answers", () => {
     const answer = formatCalendarAnswer([...schoolFacts, action], actionQuery);
     expect(answer).toContain("Call school");
     expect(answer).toContain("10:00 (IST)");
+    expect(answer).not.toContain("ends on");
     expect(answer).not.toContain("Diwali");
   });
   it("uses the real inclusive Diwali end date, not the iCal exclusive DTEND", () => {

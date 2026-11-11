@@ -298,7 +298,7 @@ verification in this development session does not exercise the live bot.
 ### Adding the Action calendar category (v4.4.0)
 
 Before deploying v4.4.0, apply
-`supabase/migrations/20261111000100_add_calendar_action_tag.sql` to the same
+`supabase/migrations/20261111125539_add_calendar_action_tag.sql` to the same
 Supabase project the app uses (through your normal migration process or the
 Supabase SQL Editor). The old check constraint rejects `action`; publishing
 only the UI would show the option but fail when saving it. The migration
@@ -309,3 +309,6 @@ optional time, and enable a reminder if desired. For example, a school
 follow-up call can be an Action on 19 November at 10:00. Telegram can create
 Actions through the existing “remind me…” flow or find them through `/ask`.
 This category does not add Done/status tracking or change reminder timing.
+
+Actions use one date and an optional time; end fields are hidden and normalized
+server-side. No additional database migration is needed for that form change.
