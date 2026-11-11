@@ -312,3 +312,12 @@ This category does not add Done/status tracking or change reminder timing.
 
 Actions use one date and an optional time; end fields are hidden and normalized
 server-side. No additional database migration is needed for that form change.
+
+### Timed Action display in subscribed calendars (v4.4.1)
+
+Timed Actions export a one-hour duration in the iCal feed. The form still asks
+for only a date and optional time; there is no new end-time field to maintain.
+Actions without a time remain all-day. Existing subscribers receive the new
+end time on their next calendar refresh; the event UID stays unchanged. Action
+colors in Atlas are now vivid magenta; Apple/Google Calendar may use their own
+subscription color. No database update or re-entry of existing Actions is needed.
