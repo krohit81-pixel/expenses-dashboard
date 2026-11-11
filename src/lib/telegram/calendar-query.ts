@@ -7,7 +7,9 @@ const querySchema = z.object({
   from: z.iso.date(),
   to: z.iso.date(),
   people: z.array(z.string().trim().min(1).max(60)).max(4),
-  tag: z.enum(["vacation", "holiday", "exam", "event", "trip"]).nullable(),
+  tag: z
+    .enum(["vacation", "holiday", "exam", "event", "action", "trip"])
+    .nullable(),
   keywords: z.array(z.string().trim().min(1).max(60)).max(5),
   focus: z.enum(["start", "end", "schedule"]),
   next: z.boolean(),
@@ -150,6 +152,7 @@ export function formatCalendarAnswer(
     const zone = fact.people.includes("Rohana") ? "Singapore time" : "IST";
     const start = `${formatDate(fact.startDate)}${fact.startTime ? ` at ${fact.startTime} (${zone})` : ""}`;
     const end = `${formatDate(fact.endDate)}${fact.endTime ? ` at ${fact.endTime} (${zone})` : ""}`;
+    if (fact.tag === "action") return `${label}\nScheduled: ${start}.`;
     if (query.focus === "end") {
       return fact.endKnown
         ? `${label} ends on ${end}.\nStarts: ${start}.`

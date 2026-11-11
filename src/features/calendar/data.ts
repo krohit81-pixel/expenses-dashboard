@@ -21,7 +21,8 @@
  * PDF weren't duplicated even where the CA circular also lists them.
  */
 
-export type EventTag = "vacation" | "holiday" | "exam" | "event" | "trip";
+export type EventTag =
+  "vacation" | "holiday" | "exam" | "event" | "action" | "trip";
 
 export interface CalendarEvent {
   date: string;
@@ -78,6 +79,7 @@ export const TAG_STYLES: Record<EventTag, string> = {
   holiday: "bg-cal-holiday text-white",
   exam: "bg-cal-exam text-white",
   event: "bg-cal-event text-white",
+  action: "bg-cal-action text-white",
   trip: "bg-teal text-white",
 };
 
@@ -90,6 +92,7 @@ export const TAG_BAR_STYLES: Record<EventTag, string> = {
   holiday: "bg-cal-holiday",
   exam: "bg-cal-exam",
   event: "bg-cal-event",
+  action: "bg-cal-action",
   trip: "bg-teal",
 };
 
@@ -98,6 +101,7 @@ export const TAG_LABELS: Record<EventTag, string> = {
   holiday: "Holiday",
   exam: "Exam",
   event: "Event",
+  action: "Action",
   trip: "Trip",
 };
 

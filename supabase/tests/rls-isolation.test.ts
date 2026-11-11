@@ -44,6 +44,25 @@ describe("finance schema RLS isolation", () => {
     expect(visible.rowCount).toBe(1);
   });
 
+  it("saves Action calendar entries after the category migration", async () => {
+    const result = await asUser(userA, (client) =>
+      client.query<{ tag: string }>(
+        "insert into calendar_events (title, tag, start_date, end_date, start_time) values ('Fixture call', 'action', '2026-11-19', '2026-11-19', '10:00') returning tag",
+      ),
+    );
+    expect(result.rows[0].tag).toBe("action");
+  });
+
+  it("continues rejecting unsupported calendar categories", async () => {
+    await expect(
+      asUser(userA, (client) =>
+        client.query(
+          "insert into calendar_events (title, tag, start_date, end_date) values ('Invalid fixture', 'invalid', '2026-11-19', '2026-11-19')",
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+  });
+
   it("hides one user's institution from another user's SELECT", async () => {
     const institutionId = await asUser(userA, async (client) => {
       const result = await client.query<{ id: string }>(

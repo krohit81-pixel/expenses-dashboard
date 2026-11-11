@@ -30,7 +30,7 @@ import { knownTravelers } from "@/features/travel/travelers";
  * rather than approximating with "now" at processing time.
  */
 
-const EVENT_TAGS = ["vacation", "holiday", "exam", "event"] as const;
+const EVENT_TAGS = ["vacation", "holiday", "exam", "event", "action"] as const;
 type EventTag = (typeof EVENT_TAGS)[number];
 
 const TIME_OF_DAY_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -126,7 +126,7 @@ Extract:
 - "date": ONLY for case (B) — the date the reminder/event is for, as "YYYY-MM-DD". null for case (A), or if no date/day reference is given.
 - "time": ONLY for case (B) — a specific time of day, as 24-hour "HH:MM". null for case (A), or if no specific time is mentioned.
 - "people": an array of household member names EXPLICITLY mentioned in the message (e.g. ["Rohana"]). Do NOT include the sender's own name unless their name is also literally written in the message — just leave this empty if nobody is named. Empty array if nobody is named.
-- "tag": one of "exam", "vacation", "holiday", or "event" — only pick something other than "event" if the message clearly implies it (e.g. mentions an exam, a school holiday, a vacation/trip). Default "event" otherwise.
+- "tag": one of "exam", "vacation", "holiday", "event", or "action" — only pick something other than "event" if the message clearly implies it (e.g. mentions an exam, a school holiday, a vacation/trip). Use "action" for a task to do (call, check, submit, pay, follow up), rather than attending an event. Default "event" otherwise.
 - "notes": any extra detail worth keeping that isn't already captured in the title. null if there's nothing extra.
 - "leadHours": ONLY for case (B) — if the message explicitly says how many HOURS BEFORE the event's own date/time to remind (e.g. "2 hours before the meeting"), that number. null for case (A), or otherwise.
 - "leadDays": ONLY for case (B) — if the message explicitly says how many DAYS BEFORE the event's own date to remind (e.g. "a day in advance", "3 days before"), that number. null for case (A), or otherwise. Never set both leadHours and leadDays.

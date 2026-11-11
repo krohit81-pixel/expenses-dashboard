@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { createCalendarEventInputSchema } from "./schemas";
+import {
+  createCalendarEventInputSchema,
+  updateCalendarEventInputSchema,
+} from "./schemas";
 
 const base = {
   title: "Bowling",
@@ -8,6 +11,62 @@ const base = {
   startDate: "2026-09-03",
   endDate: "2026-09-03",
 };
+
+describe("calendar Action category", () => {
+  it("accepts one date without an end date or time", () => {
+    const result = createCalendarEventInputSchema.parse({
+      title: "Call school",
+      tag: "action",
+      startDate: "2026-11-19",
+    });
+    expect(result.endDate).toBe("2026-11-19");
+    expect(result.startTime).toBeNull();
+    expect(result.endTime).toBeNull();
+  });
+
+  it("clears an event's stale end fields when changing it to Action", () => {
+    const result = updateCalendarEventInputSchema.parse({
+      id: "00000000-0000-4000-8000-000000000001",
+      title: "Call school",
+      tag: "action",
+      startDate: "2026-11-19",
+      endDate: "2026-11-01",
+      startTime: "10:00",
+      endTime: "09:00",
+    });
+    expect(result.endDate).toBe(result.startDate);
+    expect(result.endTime).toBeNull();
+  });
+
+  it("still requires an end date for other categories", () => {
+    expect(
+      createCalendarEventInputSchema.safeParse({
+        title: "Holiday",
+        tag: "holiday",
+        startDate: "2026-11-19",
+      }).success,
+    ).toBe(false);
+  });
+  it("accepts a timed Action with reminders when creating and editing", () => {
+    const action = {
+      title: "Call school about subject selection",
+      tag: "action",
+      people: ["Ahaana"],
+      startDate: "2026-11-19",
+      endDate: "2026-11-19",
+      startTime: "10:00",
+      remindEnabled: true,
+      remindLeadHours: 1,
+    };
+    expect(createCalendarEventInputSchema.parse(action).tag).toBe("action");
+    expect(
+      updateCalendarEventInputSchema.parse({
+        ...action,
+        id: "00000000-0000-4000-8000-000000000001",
+      }).tag,
+    ).toBe("action");
+  });
+});
 
 describe("createCalendarEventInputSchema — endTime", () => {
   it("accepts no time at all", () => {

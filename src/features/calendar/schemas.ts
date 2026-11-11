@@ -1,12 +1,12 @@
 import { z } from "zod";
 
 /**
- * Manually-added calendar events (v1.1.5) — free text, tagged with one
- * of the same four categories the static school calendar uses. "trip"
+ * Manually-added calendar events (v1.1.5) — free text, tagged with a
+ * calendar category, including Action for calls and follow-ups. "trip"
  * is deliberately not offered here; that's finance.trips's job, not
  * this table's (see the migration comment).
  */
-const zEventTag = z.enum(["vacation", "holiday", "exam", "event"]);
+const zEventTag = z.enum(["vacation", "holiday", "exam", "event", "action"]);
 
 /**
  * Who this event is tagged for (v1.1.6) — same free-text convention as
@@ -79,7 +79,7 @@ const baseCalendarEventFields = z.object({
   tag: zEventTag,
   people: zEventPeople,
   startDate: z.iso.date(),
-  endDate: z.iso.date(),
+  endDate: z.iso.date().optional(),
   // v3.2.2 — optional: an event doesn't have to carry a specific time
   // to be worth saving, same reasoning notes has always had. Only
   // meaningful for an hour-based reminder (remindLeadHours) or a
@@ -172,14 +172,41 @@ function refineCalendarEvent(
   refineEndTimeAfterStartTime(value, ctx);
 }
 
-export const createCalendarEventInputSchema =
-  baseCalendarEventFields.superRefine(refineCalendarEvent);
+/** Actions have a single date and optional start time. Keep the database's
+ * required end_date equal to start_date, and discard stale end fields when
+ * an existing event is changed to Action (including non-UI callers).
+ */
+function normalizeActionDates<
+  T extends {
+    tag: string;
+    startDate: string;
+    endDate?: string;
+    endTime: string | null;
+  },
+>(value: T, ctx: z.RefinementCtx) {
+  if (value.tag === "action")
+    return { ...value, endDate: value.startDate, endTime: null };
+  if (!value.endDate) {
+    ctx.addIssue({
+      code: "custom",
+      message: "End date is required",
+      path: ["endDate"],
+    });
+    return z.NEVER;
+  }
+  return { ...value, endDate: value.endDate };
+}
+
+export const createCalendarEventInputSchema = baseCalendarEventFields
+  .transform(normalizeActionDates)
+  .superRefine(refineCalendarEvent);
 export type CreateCalendarEventInput = z.infer<
   typeof createCalendarEventInputSchema
 >;
 
 export const updateCalendarEventInputSchema = baseCalendarEventFields
   .extend({ id: z.uuid() })
+  .transform(normalizeActionDates)
   .superRefine(refineCalendarEvent);
 export type UpdateCalendarEventInput = z.infer<
   typeof updateCalendarEventInputSchema

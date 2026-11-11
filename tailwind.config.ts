@@ -79,6 +79,10 @@ const config: Config = {
           DEFAULT: "hsl(var(--cal-exam))",
           soft: "hsl(var(--cal-exam-soft))",
         },
+        "cal-action": {
+          DEFAULT: "hsl(var(--cal-action))",
+          soft: "hsl(var(--cal-action-soft))",
+        },
         "cal-event": {
           DEFAULT: "hsl(var(--cal-event))",
           soft: "hsl(var(--cal-event-soft))",

@@ -436,6 +436,7 @@ const TAG_SMART_NOTE: Record<EventTag, string> = {
   holiday: "Enjoy the holiday — make the most of it!",
   vacation: "Enjoy the break — make the most of it!",
   event: "Hope it goes well!",
+  action: "A task to follow up on.",
   trip: "Have a safe and fun trip!",
 };
 

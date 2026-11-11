@@ -30,6 +30,29 @@ const schoolFacts: CalendarFact[] = buildSchoolCalendarItems().map((item) => ({
 }));
 
 describe("Telegram calendar answers", () => {
+  it("finds Actions without mixing in ordinary events", () => {
+    const action: CalendarFact = {
+      title: "Call school",
+      tag: "action",
+      people: ["Ahaana"],
+      startDate: "2026-11-19",
+      endDate: "2026-11-19",
+      startTime: "10:00",
+      endTime: null,
+      endKnown: true,
+    };
+    const actionQuery = {
+      ...query,
+      tag: "action" as const,
+      focus: "schedule" as const,
+    };
+    expect(parseCalendarQuery(JSON.stringify(actionQuery)).kind).toBe("query");
+    const answer = formatCalendarAnswer([...schoolFacts, action], actionQuery);
+    expect(answer).toContain("Call school");
+    expect(answer).toContain("10:00 (IST)");
+    expect(answer).not.toContain("ends on");
+    expect(answer).not.toContain("Diwali");
+  });
   it("uses the real inclusive Diwali end date, not the iCal exclusive DTEND", () => {
     const answer = formatCalendarAnswer(schoolFacts, query);
     expect(answer).toBe(
