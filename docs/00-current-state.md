@@ -18,6 +18,31 @@ The numbered docs still hold as a record of the original reasoning and are
 kept updated where they remain accurate, but this file is the fast-start
 orientation for a new session.
 
+## v4.4.0: Action calendar category (apply migration before release)
+
+Adds `action` / “Action” for calls, submissions and follow-ups. The Add/Edit
+Event category dropdown, calendar legend, chip colors (dedicated blue with
+light/dark tokens), Zod schemas, Telegram reminder extraction and read-only
+calendar queries all accept it. iCal exports use the “Action” category through
+the existing shared label map. Date/time/people/reminder fields retain their
+existing behavior: this is a category, not a new checklist or completion model.
+
+Apply `supabase/migrations/20261111000100_add_calendar_action_tag.sql` before
+publishing the code. It transactionally widens `calendar_events_tag_check`
+without changing existing data, RLS or grants. Database type shapes do not
+change because `tag` remains a checked text column. The database CI suite
+inserts a fixture Action and verifies unsupported tags remain rejected.
+
+No production Supabase management/SQL connection is configured in the current
+execution environment; preparing this migration does not apply it remotely.
+The application must not be released until that database step is confirmed.
+
+Verified: TypeScript, ESLint, Prettier, 690 unit tests passing (3 skipped),
+a full production build with placeholder env, and a mobile-browser check of
+selecting Action in the real Add Event modal with fixture data. Local DB
+verification could not complete because image downloads hit rate limits and
+workspace disk limits; the two added database assertions run in GitHub CI.
+
 ## v4.3.0: Telegram calendar questions
 
 The linked household Telegram chat now accepts read-only calendar questions,

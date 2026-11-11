@@ -37,6 +37,20 @@ const rawJson = (overrides: Record<string, unknown> = {}) =>
   });
 
 describe("parseReminderMessage", () => {
+  it("preserves Action for a timed task extracted from Telegram", () => {
+    const result = parseReminderMessage(
+      rawJson({
+        tag: "action",
+        title: "Call school",
+        date: "2026-11-19",
+        time: "10:00",
+      }),
+      "Rohit",
+      SENT_AT,
+    );
+    expect(result.ok && result.event.tag).toBe("action");
+    expect(result.ok && result.event.startTime).toBe("10:00");
+  });
   it("defaults to a 1-hour reminder when a time is given and no explicit lead time is mentioned", () => {
     const result = parseReminderMessage(rawJson(), "Rohana", SENT_AT);
     expect(result).toEqual({

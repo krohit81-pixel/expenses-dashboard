@@ -30,12 +30,13 @@ import type { CalendarEvent } from "@/services/CalendarEventService";
 const initialState: CalendarEventFormState = {};
 const initialRecurringState: RecurringCalendarEventFormState = {};
 
-/** Same four categories the static school calendar already uses — "trip" is excluded (that meaning belongs to Add a trip / finance.trips, not here). Not shown at all in "Repeats weekly" mode — finance.recurring_calendar_events has no tag column. */
+/** Calendar categories, including Action for tasks and follow-ups — "trip" is excluded (that meaning belongs to Add a trip / finance.trips, not here). Not shown at all in "Repeats weekly" mode — finance.recurring_calendar_events has no tag column. */
 const EVENT_TAGS: Exclude<EventTag, "trip">[] = [
   "vacation",
   "holiday",
   "exam",
   "event",
+  "action",
 ];
 
 const DEFAULT_START_TIME = "08:00";

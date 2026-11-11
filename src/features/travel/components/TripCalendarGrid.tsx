@@ -367,13 +367,15 @@ export function TripCalendarGrid({
       ))}
 
       <div className="mt-3.5 flex flex-wrap gap-x-4 gap-y-1.5">
-        {(["vacation", "holiday", "exam", "event"] as EventTag[]).map((tag) => (
-          <LegendItem
-            key={tag}
-            className={TAG_STYLES[tag]}
-            label={TAG_LABELS[tag]}
-          />
-        ))}
+        {(["vacation", "holiday", "exam", "event", "action"] as EventTag[]).map(
+          (tag) => (
+            <LegendItem
+              key={tag}
+              className={TAG_STYLES[tag]}
+              label={TAG_LABELS[tag]}
+            />
+          ),
+        )}
         <LegendItem className={TRAVEL_STYLE} label="Booked travel" icon />
         <LegendItem
           className="bg-sky text-white"

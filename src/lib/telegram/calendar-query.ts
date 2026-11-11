@@ -7,7 +7,9 @@ const querySchema = z.object({
   from: z.iso.date(),
   to: z.iso.date(),
   people: z.array(z.string().trim().min(1).max(60)).max(4),
-  tag: z.enum(["vacation", "holiday", "exam", "event", "trip"]).nullable(),
+  tag: z
+    .enum(["vacation", "holiday", "exam", "event", "action", "trip"])
+    .nullable(),
   keywords: z.array(z.string().trim().min(1).max(60)).max(5),
   focus: z.enum(["start", "end", "schedule"]),
   next: z.boolean(),

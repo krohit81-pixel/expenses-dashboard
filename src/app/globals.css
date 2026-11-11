@@ -106,6 +106,8 @@
     --cal-holiday-soft: 26 90% 93%;
     --cal-exam: 356 88% 55%;
     --cal-exam-soft: 356 85% 94%;
+    --cal-action: 200 90% 36%;
+    --cal-action-soft: 200 80% 93%;
     --cal-event: 271 85% 50%;
     --cal-event-soft: 271 80% 94%;
     --cal-rohit: 231 82% 55%;
@@ -170,6 +172,8 @@
     --cal-holiday-soft: 26 55% 20%;
     --cal-exam: 356 75% 68%;
     --cal-exam-soft: 356 38% 20%;
+    --cal-action: 200 85% 62%;
+    --cal-action-soft: 200 45% 20%;
     --cal-event: 271 78% 70%;
     --cal-event-soft: 271 40% 22%;
     --cal-rohit: 231 78% 68%;

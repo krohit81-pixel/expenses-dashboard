@@ -294,3 +294,18 @@ data, while manual events, trips, and classes come from Supabase. A calendar
 source failure returns an availability message rather than a partial answer.
 AI credentials and webhook settings must be configured as for reminders;
 verification in this development session does not exercise the live bot.
+
+### Adding the Action calendar category (v4.4.0)
+
+Before deploying v4.4.0, apply
+`supabase/migrations/20261111000100_add_calendar_action_tag.sql` to the same
+Supabase project the app uses (through your normal migration process or the
+Supabase SQL Editor). The old check constraint rejects `action`; publishing
+only the UI would show the option but fail when saving it. The migration
+preserves all existing entries and can be applied before the app upgrade.
+
+Afterward choose **Action** in Add an event / Edit event, set the date and
+optional time, and enable a reminder if desired. For example, a school
+follow-up call can be an Action on 19 November at 10:00. Telegram can create
+Actions through the existing “remind me…” flow or find them through `/ask`.
+This category does not add Done/status tracking or change reminder timing.

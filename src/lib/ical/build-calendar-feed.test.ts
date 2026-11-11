@@ -139,6 +139,30 @@ describe("buildCalendarFeedEvents — school items", () => {
 });
 
 describe("buildCalendarFeedEvents — manual calendar events", () => {
+  it("exports a timed Action with its category and reminder", () => {
+    const [event] = buildCalendarFeedEvents(
+      [],
+      [],
+      [
+        calendarEvent({
+          tag: "action",
+          title: "Call school",
+          startDate: "2026-11-19",
+          endDate: "2026-11-19",
+          startTime: "10:00",
+          people: ["Ahaana"],
+          remindEnabled: true,
+          remindLeadHours: 1,
+        }),
+      ],
+      [],
+    );
+    expect(event.categories).toEqual([{ name: "Action" }]);
+    expect(event.start).toEqual(new Date("2026-11-19T04:30:00Z"));
+    expect(event.alarms).toEqual([
+      expect.objectContaining({ triggerBefore: 3600 }),
+    ]);
+  });
   it("is all-day with no time component when the event has no startTime", () => {
     const [event] = buildCalendarFeedEvents(
       [],

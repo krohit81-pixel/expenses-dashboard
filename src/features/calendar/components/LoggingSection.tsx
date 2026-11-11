@@ -120,8 +120,8 @@ export function LoggingSection({
           <p className="mb-3.5 text-[11px] leading-relaxed text-ink-faint">
             For anything that isn&apos;t a trip and isn&apos;t already on Ahaana
             or Rohana&apos;s school calendar — give it a title, tag it
-            vacation/holiday/exam/event, and it shows up on the calendar above
-            just like everything else. Repeats weekly (a class, a standing
+            vacation/holiday/exam/event/action, and it shows up on the calendar
+            above just like everything else. Repeats weekly (a class, a standing
             appointment)? Toggle &ldquo;Repeats weekly&rdquo; right inside the
             same form — no separate flow needed.
           </p>

@@ -1,12 +1,12 @@
 import { z } from "zod";
 
 /**
- * Manually-added calendar events (v1.1.5) — free text, tagged with one
- * of the same four categories the static school calendar uses. "trip"
+ * Manually-added calendar events (v1.1.5) — free text, tagged with a
+ * calendar category, including Action for calls and follow-ups. "trip"
  * is deliberately not offered here; that's finance.trips's job, not
  * this table's (see the migration comment).
  */
-const zEventTag = z.enum(["vacation", "holiday", "exam", "event"]);
+const zEventTag = z.enum(["vacation", "holiday", "exam", "event", "action"]);
 
 /**
  * Who this event is tagged for (v1.1.6) — same free-text convention as
