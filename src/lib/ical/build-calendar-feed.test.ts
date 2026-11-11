@@ -139,7 +139,7 @@ describe("buildCalendarFeedEvents — school items", () => {
 });
 
 describe("buildCalendarFeedEvents — manual calendar events", () => {
-  it("exports a timed Action with its category and reminder", () => {
+  it("exports a timed Action as a one-hour event with its category and reminder", () => {
     const [event] = buildCalendarFeedEvents(
       [],
       [],
@@ -159,7 +159,7 @@ describe("buildCalendarFeedEvents — manual calendar events", () => {
     );
     expect(event.categories).toEqual([{ name: "Action" }]);
     expect(event.start).toEqual(new Date("2026-11-19T04:30:00Z"));
-    expect(event.end).toBeUndefined();
+    expect(event.end).toEqual(new Date("2026-11-19T05:30:00Z"));
     expect(event.alarms).toEqual([
       expect.objectContaining({ triggerBefore: 3600 }),
     ]);

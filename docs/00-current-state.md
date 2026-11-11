@@ -18,6 +18,19 @@ The numbered docs still hold as a record of the original reasoning and are
 kept updated where they remain accurate, but this file is the fast-start
 orientation for a new session.
 
+## v4.4.1: one-hour iCal Actions and prominent magenta color
+
+Timed Actions now export an explicit end instant one hour after their start,
+so calendar subscribers see a normal one-hour block. This is an iCal display
+default only: the Action form still has one required date and an optional time,
+and no end fields are stored. Actions without a time stay all-day entries.
+The existing UID, category and alarms are preserved so subscription refreshes
+update the same event instead of creating duplicates. Supersedes v4.4.0's
+instant-only export behavior below.
+
+Action chips/bars/legend now use vivid magenta, with separate light/dark
+background tokens and white text. No database migration or data backfill.
+
 ## v4.4.0: Action calendar category (apply migration before release)
 
 Adds `action` / “Action” for calls, submissions and follow-ups. The Add/Edit
@@ -39,8 +52,7 @@ inserts a fixture Action and verifies unsupported tags remain rejected.
 
 The Supabase plugin applied this migration to the Vitals production database
 on 11 November 2026 and the validated constraint was checked afterward. The
-repository filename matches the recorded remote migration version. PR #35
-still awaits explicit approval before merging/deploying the application.
+repository filename matches the recorded remote migration version. PR #35 shipped to production after explicit approval.
 
 Verified: TypeScript, ESLint, Prettier, 693 unit tests passing (3 skipped),
 a full production build with placeholder env, and a mobile-browser check of
