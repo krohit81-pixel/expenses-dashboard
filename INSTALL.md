@@ -276,3 +276,21 @@ they are:
 If both check out and the error persists, remove the bot from the
 group and re-add it — this forces Telegram to re-register the
 bot↔chat relationship — then retry.
+
+### Telegram calendar questions (v4.3.0)
+
+Calendar chat uses the existing webhook, linked chat ID, and Anthropic/Gemini
+configuration. No new environment variables or database migration are needed.
+In the linked family group, ask “When does Ahaana's vacation end this month?”
+or send `/ask When does Ahaana's vacation end this month?`. Questions are
+read-only and each is independent; include the person/event and date range.
+
+If a normal question gets no response, check that BotFather group privacy is
+disabled so Telegram delivers ordinary group messages (the same prerequisite
+as natural-language reminder creation). `/ask@YourBotName <question>` can be
+used to explicitly address the bot. If Atlas reports no matching event,
+check the calendar entries and the requested dates; school dates are in-code
+data, while manual events, trips, and classes come from Supabase. A calendar
+source failure returns an availability message rather than a partial answer.
+AI credentials and webhook settings must be configured as for reminders;
+verification in this development session does not exercise the live bot.

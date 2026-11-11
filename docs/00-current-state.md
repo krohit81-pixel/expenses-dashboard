@@ -4,8 +4,8 @@ Every other doc in this folder was written as a **pre-implementation target
 architecture**, before any product code existed. The app has since been
 built out substantially, and in a few places diverged from that original
 target on purpose, after hitting real constraints. This doc is the
-correction layer: what's actually true today, current as of **v3.5.5**
-(August 2026). Read this before the numbered docs — where they conflict with
+correction layer: what's actually true today, current as of **v4.3.0**
+(November 2026). Read this before the numbered docs — where they conflict with
 this one, this one is right.
 
 **v2.0.0 was a total revamp of the app's shape**, not just a feature add —
@@ -17,6 +17,44 @@ Dashboard, Recurring, or Accounts.
 The numbered docs still hold as a record of the original reasoning and are
 kept updated where they remain accurate, but this file is the fast-start
 orientation for a new session.
+
+## v4.3.0: Telegram calendar questions
+
+The linked household Telegram chat now accepts read-only calendar questions,
+including “when does Ahaana vacation is ending this month”. The answer is
+computed from the same four sources as Calendar/the iCal feed: static school
+dates, saved events, trips, and expanded recurring classes. The existing AI
+provider interprets a bounded search query; it never receives the calendar
+rows and never authors the factual answer. Dates in answers come directly
+from Atlas's inclusive date ranges, not iCal's exclusive DTEND. Ahaana's
+November 2026 Diwali vacation therefore ends on Tuesday 17 November, not
+18 November. School reopening is a separate recorded event.
+
+Questions beginning with a question word (or ending in “?”) are candidates;
+unrelated questions are ignored. `/ask <question>` (also `/ask@BotName`) is
+an explicit alternative. Existing “remind me/us/<person>” creation requests
+retain their existing path. Chat is stateless: repeat the person/event and
+range in each question; follow-up pronouns are not remembered. Queries
+cannot change data or read financial data. They are scoped to the same
+configured chat ID and webhook secret as reminder creation.
+
+Implementation: `src/services/TelegramCalendarService.ts` interprets the
+question and fetches existing services; `src/lib/telegram/calendar-query.ts`
+validates dates/ranges, matches facts and formats replies. Invalid extraction
+asks for clarification; empty results say no match; source failures never
+produce an answer from partial data. Broad results show six entries and ask
+for a narrower question. Unknown vacation end dates are not invented.
+The AI provider's existing env variables are reused; no migration or new
+configuration is required. Telegram must deliver the group's normal messages
+(privacy mode disabled, as for the existing natural-language reminders), or
+use `/ask` explicitly.
+
+Verification uses mocked AI/Telegram and fixture database reads plus the real
+static school data. It covers the supplied vacation example, cross-year
+vacations, unknown ends, person isolation, recurring expansion, webhook/chat
+authorization, provider errors and existing reminder routing. Verified locally: TypeScript, ESLint, Prettier, 686 passing tests (3 skipped),
+and a full production build with placeholder environment values. No live sends,
+paid AI calls, or production data writes were performed while verifying.
 
 ## What this app actually is
 

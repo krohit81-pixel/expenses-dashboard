@@ -63,3 +63,8 @@ Ground rules for this session:
   (`NEW_SESSION_PROMPT.md`) go stale either.
 
 Once you've done the above, ask me what I want to work on.
+
+Telegram calendar chat shipped in v4.3.0: see doc 00's corresponding section.
+Use the four existing calendar sources and inclusive dates for answers;
+chat questions are read-only, use the existing AI provider and have no
+conversation memory. Preserve the existing reminder-creation path.
