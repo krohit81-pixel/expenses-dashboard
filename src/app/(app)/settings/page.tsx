@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { requireUser } from "@/lib/auth/require-user";
 import { getUserSettings } from "@/services/UserSettingsService";
@@ -52,6 +53,21 @@ export default async function SettingsPage() {
             </p>
             <RunRemindersButton />
           </div>
+        </div>
+
+        <div className="rounded-[20px] bg-surface p-[18px] shadow-[0_1px_2px_rgba(28,20,36,0.04),0_4px_14px_rgba(28,20,36,0.05)]">
+          <h2 className="mb-3 font-display text-[15px] font-bold text-ink">
+            Grocery Telegram bot
+          </h2>
+          <p className="mb-3 text-sm text-ink-faint">
+            Check the separate grocery bot and connect it to the kitchen group.
+          </p>
+          <Link
+            href="/settings/grocery"
+            className="text-sm font-semibold underline"
+          >
+            Open grocery connection
+          </Link>
         </div>
 
         {/* v3.4.0 Phase 3 — the weekly summary of Ahaana's mini-app

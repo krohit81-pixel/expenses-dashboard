@@ -73,6 +73,8 @@ const PUBLIC_PATHS = [
   // instead via a secret Telegram echoes back on every call (see
   // lib/telegram/webhook-auth.ts), not the cookie gate.
   "/api/telegram/webhook",
+  // Grocery bot uses its own secret; setup stays behind the browser gate.
+  "/api/telegram/grocery/webhook",
 ];
 
 function isPublicPath(pathname: string): boolean {

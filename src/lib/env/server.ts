@@ -101,6 +101,11 @@ const serverEnvSchema = z.object({
   // failing to boot over an opt-in feature. Never exposed to the
   // client — only ever read server-side when actually sending.
   TELEGRAM_BOT_TOKEN: optionalEnvString(),
+  // Separate opt-in grocery bot; existing reminder credentials stay independent.
+  TELEGRAM_GROCERY_BOT_TOKEN: optionalEnvString(),
+  TELEGRAM_GROCERY_WEBHOOK_SECRET: optionalEnvString(),
+  TELEGRAM_GROCERY_CHAT_ID: optionalEnvString(),
+  TELEGRAM_GROCERY_ALLOWED_USER_IDS: optionalEnvString(),
   // v3.2.0, wired to a real route in v3.2.1 — authenticates the
   // cron-triggered reminder route (src/app/api/cron/reminders/route.ts)
   // so it isn't reachable by anyone who finds the URL. Vercel
@@ -192,6 +197,12 @@ function parseServerEnv() {
     APP_ACCESS_PASSWORD: process.env.APP_ACCESS_PASSWORD,
     APP_SESSION_SECRET: process.env.APP_SESSION_SECRET,
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+    TELEGRAM_GROCERY_BOT_TOKEN: process.env.TELEGRAM_GROCERY_BOT_TOKEN,
+    TELEGRAM_GROCERY_WEBHOOK_SECRET:
+      process.env.TELEGRAM_GROCERY_WEBHOOK_SECRET,
+    TELEGRAM_GROCERY_CHAT_ID: process.env.TELEGRAM_GROCERY_CHAT_ID,
+    TELEGRAM_GROCERY_ALLOWED_USER_IDS:
+      process.env.TELEGRAM_GROCERY_ALLOWED_USER_IDS,
     CRON_SECRET: process.env.CRON_SECRET,
     TELEGRAM_WEBHOOK_SECRET: process.env.TELEGRAM_WEBHOOK_SECRET,
     AHAANA_ACCESS_PASSWORD: process.env.AHAANA_ACCESS_PASSWORD,
