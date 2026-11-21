@@ -1,3 +1,8 @@
+import {
+  decodeStatementFont,
+  deduplicateTextItems,
+  type PositionedTextItem,
+} from "@/lib/pdf/deduplicate-text";
 import { installDOMMatrixPolyfill } from "@/lib/pdf/dommatrix-polyfill";
 import { installPdfjsWorker } from "@/lib/pdf/pdfjs-worker-setup";
 
@@ -50,14 +55,6 @@ export class PdfPasswordIncorrectError extends Error {
   }
 }
 
-interface PositionedTextItem {
-  str: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
 /**
  * pdf.js's own `TextItem` type isn't re-exported from the legacy Node
  * build's public entry point (only its internal `types/src/**` paths
@@ -69,6 +66,7 @@ interface PdfJsTextItem {
   transform: number[];
   width: number;
   height: number;
+  fontName: string;
 }
 
 // PDF coordinate units — text items whose baselines differ by no more
@@ -179,6 +177,12 @@ export async function extractPdfText(
   for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
     const page = await doc.getPage(pageNumber);
     const content = await page.getTextContent();
+    // Resolve actual font names; text-content styles expose only fallback families.
+    await page.getOperatorList();
+    const fontNames = new Map<string, string>();
+    for (const key of Object.keys(content.styles)) {
+      fontNames.set(key, page.commonObjs.get(key).name ?? "");
+    }
     const items: PositionedTextItem[] = (content.items as unknown[])
       .filter(
         (item): item is PdfJsTextItem =>
@@ -188,14 +192,24 @@ export async function extractPdfText(
           typeof (item as PdfJsTextItem).str === "string" &&
           (item as PdfJsTextItem).str.length > 0,
       )
-      .map((item) => ({
-        str: item.str,
-        x: item.transform[4],
-        y: item.transform[5],
-        width: item.width,
-        height: item.height || 10,
-      }));
-    pages.push({ pageNumber, text: reconstructLayout(items) });
+      .map((item) => {
+        const str = decodeStatementFont(
+          item.str,
+          fontNames.get(item.fontName) ?? "",
+        );
+        return {
+          str,
+          decodedAmount: str !== item.str,
+          x: item.transform[4],
+          y: item.transform[5],
+          width: item.width,
+          height: item.height || 10,
+        };
+      });
+    pages.push({
+      pageNumber,
+      text: reconstructLayout(deduplicateTextItems(items)),
+    });
   }
 
   return {
