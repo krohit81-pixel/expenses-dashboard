@@ -40,6 +40,34 @@ import type { IciciTransaction } from "./types";
 const ROW_REGEX =
   /(\d{2}\/\d{2}\/\d{4})\s+\d+\s+(.+?)\s+(-?\d+)\s+(?:[\d.]+\s*[A-Z]{3}\s+)?([\d,]+\.\d{2})\s*(CR)?\s*$/;
 
+// ICICI sometimes wraps the Intl. currency code, alongside the merchant's
+// country suffix, onto the following line. Recover that explicit layout only;
+// never guess a missing currency or use the foreign amount as the INR amount.
+const FOREIGN_ROW_WITH_WRAPPED_CODE =
+  /^(.+?\s+-?\d+\s+)([\d,.]+)(\s+[\d,]+\.\d{2}\s*(?:CR)?\s*)$/;
+const WRAPPED_CURRENCY_LINE = /^(?:([A-Z]{2}\*?)\s+)?([A-Z]{3})$/;
+
+function matchTransactionRow(
+  lines: { pageNumber: number; raw: string }[],
+  index: number,
+): {
+  match: RegExpMatchArray;
+  country: string | null;
+  wrapped: boolean;
+} | null {
+  const direct = lines[index]!.raw.trim().match(ROW_REGEX);
+  if (direct) return { match: direct, country: null, wrapped: false };
+  const row = lines[index]!.raw.trim().match(FOREIGN_ROW_WITH_WRAPPED_CODE);
+  const next = lines[index + 1];
+  if (!row || !next || next.pageNumber !== lines[index]!.pageNumber)
+    return null;
+  const currency = next.raw.trim().match(WRAPPED_CURRENCY_LINE);
+  if (!currency) return null;
+  const reconstructed = `${row[1]}${row[2]} ${currency[2]}${row[3]}`;
+  const match = reconstructed.match(ROW_REGEX);
+  return match ? { match, country: currency[1] ?? null, wrapped: true } : null;
+}
+
 const TRANSACTION_TABLE_START = /Transaction Details/i;
 // The "# International Spends" footnote for the Intl.# column -- printed
 // once, right after the last real transaction row (at the end of page 2
@@ -172,15 +200,20 @@ export function parseIciciTransactions(
     if (!inTransactionSection) continue;
     if (PAGE_FOOTER.test(trimmed)) continue;
 
-    const rowMatch = trimmed.match(ROW_REGEX);
-    if (!rowMatch) continue;
+    const matched = matchTransactionRow(lines, i);
+    if (!matched) continue;
+    const rowMatch = matched.match;
 
     const [, dateStr, descriptionRaw, pointsRaw, amountRaw, creditMarker] =
       rowMatch;
     let description = (descriptionRaw ?? "").trim();
     if (!description) continue;
 
-    const continuation = collectWrappedContinuation(lines, i);
+    if (matched.country) description = `${description} ${matched.country}`;
+    const continuation = collectWrappedContinuation(
+      lines,
+      i + (matched.wrapped ? 1 : 0),
+    );
     if (continuation) {
       description = `${description} ${continuation}`.replace(/\s{2,}/g, " ");
     }
@@ -223,7 +256,9 @@ export function parseIciciTransactions(
       cardholderName: primaryCardholder,
       pageNumber: lines[i]!.pageNumber,
       sequenceNumber,
-      rawText: lines[i]!.raw,
+      rawText: matched.wrapped
+        ? `${lines[i]!.raw}\n${lines[i + 1]!.raw}`
+        : lines[i]!.raw,
     });
   }
 
