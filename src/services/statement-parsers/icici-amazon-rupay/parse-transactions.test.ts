@@ -209,3 +209,57 @@ ${HEADER_ROW}
     expect(secondTxn?.description).toBe("UPI-616622925270-SOME MERCHANT");
   });
 });
+
+describe("ICICI foreign currency code wrapped below its transaction", () => {
+  it("recovers the INR debit and country suffix without treating USD as a merchant", () => {
+    const transactions = parseIciciTransactions(
+      [
+        `Transaction Details
+01/11/2026 10000000001 FOREIGN MERCHANT HELP.TEST.COM 800-1234567 0 210.55 20,530.11
+US*                                  USD
+02/11/2026 10000000002 LOCAL MERCHANT IN 2 200.00
+# International Spends`,
+      ],
+      "TEST USER",
+    );
+    expect(transactions).toHaveLength(2);
+    expect(transactions[0]).toMatchObject({
+      description: "FOREIGN MERCHANT HELP.TEST.COM 800-1234567 US*",
+      amount: "20530.11",
+      rewardPoints: 0,
+      transactionType: "debit",
+      pageNumber: 1,
+    });
+    expect(transactions[0].rawText).toContain("USD");
+    expect(transactions[1].amount).toBe("200.00");
+  });
+  it("supports a wrapped currency-only line and credit marker", () => {
+    const [txn] = parseIciciTransactions(
+      [
+        `Transaction Details
+01/11/2026 10000000001 FOREIGN MERCHANT US* 0 10.00 950.00 CR
+USD
+# International Spends`,
+      ],
+      "TEST USER",
+    );
+    expect(txn).toMatchObject({
+      description: "FOREIGN MERCHANT US*",
+      amount: "950.00",
+      transactionType: "credit",
+      rewardPoints: 0,
+    });
+  });
+  it("does not invent a currency when the next line is unrelated", () => {
+    const txns = parseIciciTransactions(
+      [
+        `Transaction Details
+01/11/2026 10000000001 FOREIGN MERCHANT 0 210.55 20,530.11
+not a currency continuation
+# International Spends`,
+      ],
+      "TEST USER",
+    );
+    expect(txns).toEqual([]);
+  });
+});
