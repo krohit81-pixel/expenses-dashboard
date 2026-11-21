@@ -10,6 +10,7 @@ import {
   importStatementAction,
   type ImportStatementState,
 } from "@/features/imports/api/actions";
+import { statementUploadSizeError } from "@/features/imports/upload-limits";
 import { CARD_STATEMENT_LABELS } from "@/features/imports/cards";
 import { LogCardDuePrompt } from "@/features/imports/components/LogCardDuePrompt";
 import { MerchantMergeSuggestions } from "@/features/merchants/components/MerchantMergeSuggestions";
@@ -68,11 +69,24 @@ export function StatementUploadForm({
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
 
+    const file = formData.get("file");
+    if (file instanceof File) {
+      const error = statementUploadSizeError(file.size);
+      if (error) {
+        setState({ error });
+        return;
+      }
+    }
     setIsSubmitting(true);
     setState({});
     try {
       const next = await importStatementAction(state, formData);
       setState(next);
+    } catch {
+      setState({
+        error:
+          "The upload could not be completed. Check your connection and try again. PDFs must be 4 MB or less.",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -99,7 +113,7 @@ export function StatementUploadForm({
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="import-file">Statement PDF</Label>
+          <Label htmlFor="import-file">Statement PDF (maximum 4 MB)</Label>
           <input
             id="import-file"
             name="file"

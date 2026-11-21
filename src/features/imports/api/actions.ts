@@ -1,5 +1,7 @@
 "use server";
 
+import { statementUploadSizeError } from "@/features/imports/upload-limits";
+
 import type { Money } from "@/lib/money";
 import type { ExtractedPdfPage } from "@/lib/pdf/extract-text";
 import { cycleMonthForStatementDate } from "@/lib/statement-cycle";
@@ -106,6 +108,8 @@ export async function importStatementAction(
   if (!(file instanceof File) || file.size === 0) {
     return { error: "Choose a PDF file to upload." };
   }
+  const sizeError = statementUploadSizeError(file.size);
+  if (sizeError) return { error: sizeError };
   if (file.type && file.type !== "application/pdf") {
     return { error: "That doesn't look like a PDF file." };
   }

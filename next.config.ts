@@ -3,6 +3,13 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  experimental: {
+    serverActions: {
+      // Accept a 4 MiB PDF plus 64 KiB for multipart metadata, below
+      // Vercel's default 4.5 MB request limit. File bytes are checked separately.
+      bodySizeLimit: 4 * 1024 * 1024 + 64 * 1024,
+    },
+  },
   // v3.6.0 -- @react-pdf/renderer's underlying `pdfkit` loads its
   // standard-14 font data files (standard-fonts/Helvetica.cjs, etc.) via
   // a runtime-computed path, not a static import/require Next's output
